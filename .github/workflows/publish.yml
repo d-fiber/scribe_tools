@@ -1,0 +1,123 @@
+name: publish
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            target: linux
+            ext: ""
+          - runner: macos-latest
+            target: macos
+            ext: ""
+          - runner: windows-latest
+            target: windows
+            ext: ".exe"
+
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: 3.12.2
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Build scribe for ${{ matrix.target }}
+        working-directory: scribe
+        run: |
+          dart pub get
+          dart compile exe bin/scribe.dart -o "$GITHUB_WORKSPACE/out/${{ matrix.target }}/scribe${{ matrix.ext }}"
+
+      - name: Build sdk for ${{ matrix.target }}
+        working-directory: sdk
+        run: |
+          dart pub get
+          dart compile exe bin/sdk.dart -o "$GITHUB_WORKSPACE/out/${{ matrix.target }}/sdk${{ matrix.ext }}"
+
+      - name: Build docs for ${{ matrix.target }}
+        working-directory: docs
+        run: |
+          deno compile \
+            --allow-read --allow-env --allow-sys --allow-net \
+            --output "$GITHUB_WORKSPACE/out/${{ matrix.target }}/docs${{ matrix.ext }}" \
+            walk_routes.ts
+
+      - name: List what was built
+        run: ls -lh "out/${{ matrix.target }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tools-${{ matrix.target }}
+          path: out/${{ matrix.target }}
+          retention-days: 1
+          if-no-files-found: error
+
+  push:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out scribe_tools
+        uses: actions/checkout@v4
+
+      - name: Check out scribe
+        uses: actions/checkout@v4
+        with:
+          repository: d-fiber/scribe
+          ref: dev
+          path: scribe
+          ssh-key: ${{ secrets.SCRIBE_DEPLOY_KEY }}
+          persist-credentials: true
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: tools-*
+          path: incoming
+
+      - name: Stage the binaries that ship
+        run: |
+          set -eu
+          cd scribe
+          rm -rf tools
+          mkdir -p tools
+          for target in linux macos windows; do
+            mkdir -p "tools/$target"
+            for tool in scribe docs; do
+              cp "$GITHUB_WORKSPACE/incoming/tools-$target/$tool"* "tools/$target/" 2>/dev/null || true
+            done
+            chmod +x "tools/$target/"* || true
+          done
+          echo "sdk is deliberately not copied: it is the framework's own CLI and"
+          echo "has no use in a project. Its binaries stay on this run's artifacts,"
+          echo "which only people with access to this private repository can reach."
+          ls -lhR tools
+
+      - name: Commit and push to dev
+        working-directory: scribe
+        run: |
+          set -eu
+          git config user.name "scribe-tools[bot]"
+          git config user.email "scribe-tools@users.noreply.github.com"
+          git add --all tools
+          if git diff --cached --quiet; then
+            echo "tools/ already matches this build, nothing to publish"
+            exit 0
+          fi
+          git commit -m "[RELEASE]: publish tools binaries from scribe_tools@${GITHUB_SHA:0:7}"
+          git push origin dev

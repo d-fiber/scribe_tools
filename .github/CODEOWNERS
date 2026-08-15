@@ -1,0 +1,6 @@
+.github/                @d-fiber/maintainers
+.github/workflows/      @d-fiber/maintainers
+.github/rulesets/       @d-fiber/maintainers
+.github/commits/        @d-fiber/maintainers
+.github/fixture/        @d-fiber/maintainers
+CODEOWNERS              @d-fiber/maintainers

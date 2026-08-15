@@ -1,0 +1,127 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "20 23 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scribe:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: scribe
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: 3.12.2
+
+      - name: Analyze
+        run: |
+          dart pub get
+          dart analyze
+
+      - name: Run tests
+        run: dart test
+
+  headers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check license headers
+        run: bash .github/headers/check.sh
+
+  sdk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out scribe
+        uses: actions/checkout@v4
+        with:
+          repository: d-fiber/scribe
+          ref: dev
+          path: _fixture/scribe
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: 3.12.2
+
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      - name: Set up the test workspace
+        run: sh .github/fixture/workspace.sh "$GITHUB_WORKSPACE/_fixture" "$GITHUB_WORKSPACE"
+
+      - name: Analyze
+        working-directory: _fixture/tools/sdk
+        run: |
+          dart pub get
+          dart analyze
+
+      - name: Run tests
+        working-directory: _fixture/tools/sdk
+        run: dart test
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out scribe
+        uses: actions/checkout@v4
+        with:
+          repository: d-fiber/scribe
+          ref: dev
+          path: _fixture/scribe
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Set up the test workspace
+        run: sh .github/fixture/workspace.sh "$GITHUB_WORKSPACE/_fixture" "$GITHUB_WORKSPACE"
+
+      - name: Run tests
+        working-directory: _fixture/scribe/tools/docs
+        run: deno test --allow-read tests/
+
+  dependencies:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Report the Deno dependencies that moved
+        run: |
+          set -eu
+          {
+            echo "## Deno dependencies"
+            echo ""
+            echo "Dependabot does not read Deno, so this is the only place docs/ shows up."
+            echo ""
+            echo '```'
+            (cd docs && deno outdated 2>&1) || echo "could not read docs"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  publish:
+    needs: [headers, scribe, sdk, docs]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'd-fiber/scribe_tools'
+    uses: ./.github/workflows/publish.yml
+    secrets: inherit

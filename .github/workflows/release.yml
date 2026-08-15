@@ -1,0 +1,51 @@
+name: release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Refuse to release when dev has nothing new
+        run: |
+          set -eu
+          git fetch origin main:refs/remotes/origin/main
+          if git diff --quiet origin/main..HEAD; then
+            echo "dev and main are identical, there is nothing to release"
+            exit 1
+          fi
+          echo "Commits waiting to be released:"
+          git log --no-merges --format='  %h %s' origin/main..HEAD
+
+      - name: Open the pull request that moves dev into main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          existing=$(gh pr list --base main --head dev --state open --json number --jq '.[0].number // empty')
+
+          if [ -n "$existing" ]; then
+            echo "PR #$existing is already open for dev into main"
+            exit 0
+          fi
+
+          gh pr create \
+            --base main \
+            --head dev \
+            --title "Release the tools" \
+            --body "$(printf 'Cut by the release workflow.\n\nMerging this publishes the scribe and docs binaries into the dev branch of the scribe repository. The sdk binary stays here: it is the framework CLI and has no use in a project.\n\nThe checks on this pull request are the ones that already ran when dev was pushed.')"

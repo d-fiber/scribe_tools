@@ -1,0 +1,51 @@
+// Copyright (C) 2026 Fiber
+//
+// All rights reserved. This script, including its code and logic, is the
+// exclusive property of Fiber. Redistribution, reproduction,
+// or modification of any part of this script is strictly prohibited
+// without prior written permission from Fiber.
+//
+// Conditions of use:
+// - The code may not be copied, duplicated, or used, in whole or in part,
+//   for any purpose without explicit authorization.
+// - Redistribution of this code, with or without modification, is not
+//   permitted unless expressly agreed upon by Fiber.
+// - The name "Fiber" and any associated branding, logos, or
+//   trademarks may not be used to endorse or promote derived products
+//   or services without prior written approval.
+//
+// Disclaimer:
+// THIS SCRIPT AND ITS CODE ARE PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND,
+// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE, OR NON-INFRINGEMENT. IN NO EVENT SHALL
+// FIBER BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+// EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING BUT NOT LIMITED TO LOSS OF USE,
+// DATA, PROFITS, OR BUSINESS INTERRUPTION) ARISING OUT OF OR RELATED TO THE USE
+// OR INABILITY TO USE THIS SCRIPT, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+//
+// Unauthorized copying or reproduction of this script, in whole or in part,
+// is a violation of applicable intellectual property laws and will result
+// in legal action.
+
+// ignore_for_file: library_private_types_in_public_api
+
+import 'package:scribe/core/file_system_entity/node.dart';
+import 'package:scribe/core/file_system_entity/tree/project/api/api.dart';
+import 'package:scribe/core/file_system_entity/tree/project/contracts/contracts.dart';
+import 'package:scribe/core/file_system_entity/tree/project/db/db.dart';
+import 'package:scribe/core/file_system_entity/tree/project/extensions/extensions.dart';
+import 'package:scribe/core/file_system_entity/tree/project/public/public.dart';
+import 'package:scribe/core/file_system_entity/tree/project/src/src.dart';
+import 'package:scribe/core/file_system_entity/tree/project/tests/tests.dart';
+
+class Project extends Node {
+  Project(super.path);
+
+  Api get api => Api(parent: path, current: "api");
+  Contracts get contracts => Contracts(parent: path, current: "contracts");
+  Db get db => Db(parent: path, current: "db");
+  Extensions get extensions => Extensions(parent: path, current: "extensions");
+  Public get public => Public(parent: path, current: "public");
+  Src get src => Src(parent: path, current: "src");
+  Tests get tests => Tests(parent: path, current: "tests");
+}
