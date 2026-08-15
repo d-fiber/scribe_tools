@@ -61,7 +61,7 @@ jobs:
       - name: List what was built
         run: ls -lh "out/${{ matrix.target }}"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: tools-${{ matrix.target }}
           path: out/${{ matrix.target }}
