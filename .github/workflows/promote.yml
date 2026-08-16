@@ -1,0 +1,94 @@
+name: promote
+
+on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: promote
+  cancel-in-progress: false
+
+jobs:
+  to-main:
+    if: >
+      vars.DEV_PHASE == 'true'
+      && github.event.workflow_run.head_branch == 'dev'
+      && github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Wait for every required check on this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -eu
+          required="headers scribe sdk docs format"
+
+          for attempt in $(seq 1 45); do
+            runs=$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/check-runs" --paginate \
+              --jq '.check_runs[] | .name + ":" + (.conclusion // "pending")')
+
+            waiting=0
+            broken=""
+            for name in $required; do
+              state=$(printf '%s\n' "$runs" | grep "^$name:" | head -1 | cut -d: -f2)
+              case "${state:-missing}" in
+                success) ;;
+                pending | missing) waiting=1 ;;
+                *) broken="$broken $name($state)" ;;
+              esac
+            done
+
+            if [ -n "$broken" ]; then
+              echo "Not promoting, these checks did not pass:$broken" >&2
+              exit 1
+            fi
+
+            if [ "$waiting" -eq 0 ]; then
+              echo "Every required check passed on ${SHA}"
+              exit 0
+            fi
+
+            sleep 20
+          done
+
+          echo "Timed out waiting for the checks on ${SHA}" >&2
+          exit 1
+
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Refuse to promote a commit that is no longer the tip of dev
+        env:
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -eu
+          if [ "$(git rev-parse HEAD)" != "$SHA" ]; then
+            echo "dev moved on since $SHA, a later run will promote it"
+            exit 1
+          fi
+
+      - name: Bring dev into main
+        run: |
+          set -eu
+          git fetch origin main:refs/remotes/origin/main
+          tip=$(git rev-parse HEAD)
+
+          if git diff --quiet origin/main..HEAD; then
+            echo "main already carries this tree, nothing to promote"
+            exit 0
+          fi
+
+          git config user.name "scribe-tools[bot]"
+          git config user.email "scribe-tools@users.noreply.github.com"
+          git checkout -B promotion origin/main
+          git merge --no-edit "$tip"
+          git push origin promotion:main
+          echo "main now carries ${tip}, publish takes over"
