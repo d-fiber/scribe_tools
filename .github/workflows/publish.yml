@@ -38,9 +38,6 @@ jobs:
         with:
           deno-version: v2.x
 
-      # dart compile exe does not create the parent directory of -o, it fails
-      # with PathNotFoundException. deno compile is not fussy, but one mkdir
-      # covers all three builds.
       - name: Create the output directory
         run: mkdir -p "$GITHUB_WORKSPACE/out/${{ matrix.target }}"
 
@@ -74,56 +71,49 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-  push:
+  release:
     needs: build
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check out scribe_tools
-        uses: actions/checkout@v4
-
-      - name: Check out scribe
-        uses: actions/checkout@v4
-        with:
-          repository: d-fiber/scribe
-          ref: dev
-          path: scribe
-          ssh-key: ${{ secrets.SCRIBE_DEPLOY_KEY }}
-          persist-credentials: true
-
       - uses: actions/download-artifact@v4
         with:
           pattern: tools-*
           path: incoming
 
-      - name: Stage the binaries that ship
+      - name: Name each asset after its platform
         run: |
           set -eu
-          cd scribe
-          rm -rf tools
-          mkdir -p tools
+          mkdir -p assets
           for target in linux macos windows; do
-            mkdir -p "tools/$target"
+            extension=""
+            [ "$target" = windows ] && extension=".exe"
             for tool in scribe docs; do
-              cp "$GITHUB_WORKSPACE/incoming/tools-$target/$tool"* "tools/$target/" 2>/dev/null || true
+              cp "incoming/tools-$target/$tool$extension" "assets/$tool-$target$extension"
             done
-            chmod +x "tools/$target/"* || true
           done
-          echo "sdk is deliberately not copied: it is the framework's own CLI and"
+          echo "sdk is deliberately left out: it is the framework's own CLI and"
           echo "has no use in a project. Its binaries stay on this run's artifacts,"
           echo "which only people with access to this private repository can reach."
-          ls -lhR tools
+          ls -lh assets
 
-      - name: Commit and push to dev
-        working-directory: scribe
+      - name: Publish them on the scribe release
+        env:
+          GH_TOKEN: ${{ secrets.SCRIBE_RELEASE_TOKEN }}
         run: |
           set -eu
-          git config user.name "scribe-tools[bot]"
-          git config user.email "scribe-tools@users.noreply.github.com"
-          git add --all tools
-          if git diff --cached --quiet; then
-            echo "tools/ already matches this build, nothing to publish"
-            exit 0
+          notes=$(printf 'Built from scribe_tools@%s.\n\nThese are the binaries `tools/install.sh` downloads. The tag is a rolling one: it always carries the newest build, so the assets are replaced rather than added to.' "${GITHUB_SHA:0:7}")
+
+          if ! gh release view tools-latest --repo d-fiber/scribe >/dev/null 2>&1; then
+            gh release create tools-latest \
+              --repo d-fiber/scribe \
+              --target main \
+              --title "scribe tools" \
+              --notes "$notes"
+          else
+            gh release edit tools-latest --repo d-fiber/scribe --notes "$notes"
           fi
-          git commit -m "[RELEASE]: publish tools binaries from scribe_tools@${GITHUB_SHA:0:7}"
-          git push origin dev
+
+          gh release upload tools-latest --repo d-fiber/scribe assets/* --clobber
+          echo "Uploaded:"
+          gh release view tools-latest --repo d-fiber/scribe --json assets --jq '.assets[] | "  " + .name + "  " + (.size/1048576 | floor | tostring) + " MB"'
