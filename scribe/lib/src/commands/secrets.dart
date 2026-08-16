@@ -28,13 +28,13 @@
 // in legal action.
 
 import 'package:dage/dage.dart';
-import 'package:scribe/src/base/common.dart';
-import 'package:scribe/src/base/terminal.dart';
-import 'package:scribe/src/globals.dart' as globals;
+import 'package:scribe/src/commands/secrets/manifest_references.dart';
+import 'package:scribe/src/commands/secrets/secret_edits.dart';
+import 'package:scribe/src/commands/secrets/secrets_report.dart';
 import 'package:scribe/src/runner/scribe_command.dart';
-import 'package:scribe/src/scribe_manifest.dart';
 import 'package:scribe/src/secrets.dart';
 
+/// Lists, adds and removes the secrets a project carries in `secrets.age`.
 class SecretsCommand extends ScribeCommand {
   SecretsCommand() {
     argParser
@@ -52,6 +52,8 @@ class SecretsCommand extends ScribeCommand {
       );
   }
 
+  final SecretsReport _report = const SecretsReport();
+
   @override
   String get name => 'secrets';
 
@@ -63,108 +65,45 @@ class SecretsCommand extends ScribeCommand {
 
   @override
   Future<ScribeCommandResult> runCommand() async {
-    final List<SecretAssignment> additions =
-        stringsArg('set').map(SecretAssignment.parse).toList();
-    final List<String> removals = stringsArg('unset').map(_validName).toList();
-
+    final SecretEdits edits = SecretEdits.parse(set: stringsArg('set'), unset: stringsArg('unset'));
     final SecretsStore store = SecretsStore.forProject(project);
 
-    if (additions.isEmpty && removals.isEmpty) return _list(store);
-
-    final bool creating = !store.exists;
-    final AgeRecipient recipient = await store.recipientOf();
-    final Map<String, String> secrets = await store.read();
-
-    final List<String> removed = <String>[];
-    for (final String name in removals) {
-      if (secrets.remove(name) == null) {
-        globals.logger.printWarning('$name was not set, nothing to remove.');
-        continue;
-      }
-      removed.add(name);
-    }
-    for (final SecretAssignment addition in additions) {
-      secrets[addition.name] = addition.value;
-    }
-
-    await store.write(secrets, recipient: recipient);
-
-    if (creating) _announceNewKey(store);
-
-    for (final SecretAssignment addition in additions) {
-      globals.logger.printStatus('${globals.terminal.successMark} set ${addition.name}');
-    }
-    for (final String name in removed) {
-      globals.logger.printStatus('${globals.terminal.successMark} unset $name');
-    }
-
-    return const ScribeCommandResult.success();
+    return edits.isEmpty ? _list(store) : _edit(store, edits);
   }
 
+  /// Prints the names in [store], and the references the manifest has left unset.
+  ///
+  /// Returns a warning status when there are unset references: nothing is
+  /// broken yet, but the next command to read one of them will fail.
   Future<ScribeCommandResult> _list(SecretsStore store) async {
     final Map<String, String> secrets = await store.read();
     final List<String> names = secrets.keys.toList()..sort();
+    _report.stored(names);
 
-    if (names.isEmpty) {
-      globals.logger.printStatus('No secret yet. Add one with `scribe secrets --set NAME=VALUE`.');
-    }
-    for (final String name in names) {
-      globals.logger.printStatus('  $name');
-    }
+    final List<String> unset = envReferencesIn(project.manifest.document).difference(names.toSet()).toList()..sort();
+    if (unset.isEmpty) return const ScribeCommandResult.success();
 
-    final List<String> missing = _referencedButUnset(names);
-    if (missing.isEmpty) return const ScribeCommandResult.success();
-
-    globals.logger.printStatus('');
-    globals.logger.printStatus('${project.config.path} reads secrets nobody has set:', emphasis: true);
-    for (final String name in missing) {
-      globals.logger.printStatus('  $name', color: TerminalColor.yellow);
-    }
-
+    _report.unsetReferences(unset, configPath: project.config.path);
     return const ScribeCommandResult.warning();
   }
 
-  List<String> _referencedButUnset(List<String> known) {
-    final Set<String> referenced = <String>{};
+  /// Applies [edits] to [store] and reports what changed.
+  ///
+  /// The recipient is settled before the store is read so that a project
+  /// without a `secrets.age` gets its key created once, not once per edit.
+  Future<ScribeCommandResult> _edit(SecretsStore store, SecretEdits edits) async {
+    final bool creating = !store.exists;
+    final AgeRecipient recipient = await store.recipientOf();
 
-    void walk(Object? node) {
-      if (node is Map) {
-        node.values.forEach(walk);
-        return;
-      }
-      if (node is List) {
-        node.forEach(walk);
-        return;
-      }
-      if (node is! String) return;
+    final Map<String, String> secrets = await store.read();
+    final AppliedEdits applied = edits.applyTo(secrets);
+    _report.nothingToRemove(applied.absent);
 
-      if (envReference.firstMatch(node.trim()) case final RegExpMatch reference) {
-        referenced.add(reference.namedGroup('name')!);
-      }
-    }
+    await store.write(secrets, recipient: recipient);
 
-    walk(project.manifest.document);
+    if (creating) _report.newKey(store);
+    _report.changed(applied);
 
-    return (referenced.difference(known.toSet()).toList())..sort();
-  }
-
-  void _announceNewKey(SecretsStore store) {
-    globals.logger.printStatus('');
-    globals.logger.printStatus('A new key was created in ${store.keyFile.path}.', emphasis: true);
-    globals.logger.printStatus(
-      'It is the only thing that opens ${store.file.path}. Back it up, and never commit it.',
-      color: TerminalColor.yellow,
-    );
-    globals.logger.printStatus('');
-  }
-
-  String _validName(String raw) {
-    final String name = raw.trim();
-    if (secretName.hasMatch(name)) return name;
-
-    throwUsageError(
-      '"$name" is not a secret name — use uppercase letters, digits and underscore, starting with a letter.',
-      command: name,
-    );
+    return const ScribeCommandResult.success();
   }
 }
