@@ -33,8 +33,14 @@ import 'package:scribe/src/base/common.dart';
 import 'package:scribe/src/base/io.dart';
 import 'package:scribe/src/base/platform.dart';
 
+/// A colour a message can be written in.
 enum TerminalColor { red, green, blue, cyan, yellow, magenta, grey }
 
+/// What the user asked the output to look like.
+///
+/// This is the wish, not the capability: [showColor] carries `--color`, while
+/// [Terminal.supportsColor] says whether the escape codes would be understood
+/// at all. A logger needs both to agree before it paints anything.
 class OutputPreferences {
   OutputPreferences({bool? wrapText, int? wrapColumn, bool? showColor, Stdio? stdio})
     : _stdio = stdio,
@@ -42,6 +48,7 @@ class OutputPreferences {
       _overrideWrapColumn = wrapColumn,
       showColor = showColor ?? false;
 
+  /// Creates preferences with fixed values, so a test never reads a real terminal.
   OutputPreferences.test({this.wrapText = false, int wrapColumn = kDefaultTerminalColumns, this.showColor = false})
     : _overrideWrapColumn = wrapColumn,
       _stdio = null;
@@ -49,41 +56,73 @@ class OutputPreferences {
   final Stdio? _stdio;
   final int? _overrideWrapColumn;
 
+  /// Whether long lines are broken to fit [wrapColumn].
   final bool wrapText;
+
+  /// Whether colour is wanted.
   final bool showColor;
 
+  /// The column long lines are broken at.
+  ///
+  /// The terminal's own width when nothing overrides it, and
+  /// [kDefaultTerminalColumns] when there is no terminal to ask.
   int get wrapColumn => _overrideWrapColumn ?? _stdio?.terminalColumns ?? kDefaultTerminalColumns;
 }
 
+/// What the terminal can do, and the escape codes that do it.
 abstract class Terminal {
   const Terminal();
 
+  /// Whether ANSI colour is rendered rather than shown as escape codes.
   bool get supportsColor;
 
+  /// Whether characters outside ASCII can be trusted to the font.
   bool get supportsEmoji;
 
+  /// Whether a line may be redrawn in place.
   bool get isAnimationEnabled;
 
+  /// Whether there is a terminal to read from.
   bool get stdinHasTerminal;
 
+  /// Whether a single keystroke can be read without waiting for a newline.
   bool get supportsRawInput;
 
+  /// Whether the code running now is allowed to ask the user a question.
+  ///
+  /// False until the runner has parsed the global options, so nothing prompts
+  /// before `--yes` has been read.
   bool get usesTerminalUi;
 
   set usesTerminalUi(bool value);
 
+  /// The mark that closes a step that succeeded.
   String get successMark;
 
+  /// The mark that closes a step the user should look at.
   String get warningMark;
 
+  /// [message] wrapped in the codes that embolden it, or unchanged when colour is off.
   String bolden(String message);
 
+  /// [message] wrapped in the codes that paint it, or unchanged when colour is off.
   String color(String message, TerminalColor color);
 
+  /// The escape sequence that erases [count] lines, the one holding the cursor first.
   String clearLines(int count);
 
+  /// The keys typed by the user.
   Stream<String> get keystrokes;
 
+  /// Asks [prompt] until the answer is one of [acceptedCharacters], and returns it.
+  ///
+  /// The answer is lowercased and trimmed before it is compared. An empty
+  /// answer picks [acceptedCharacters] at [defaultChoiceIndex] when one is
+  /// given, and is refused otherwise. The question goes out through [write]
+  /// rather than to a stream, so it takes the same path as every other message.
+  ///
+  /// Throws a [ToolExit] when there is no terminal to ask on, or when the
+  /// caller is not allowed to prompt: the value has to arrive as an option.
   Future<String> promptForCharInput(
     List<String> acceptedCharacters, {
     required void Function(String message) write,
@@ -92,6 +131,7 @@ abstract class Terminal {
   });
 }
 
+/// The [Terminal] of a real terminal that speaks ANSI.
 class AnsiTerminal extends Terminal {
   AnsiTerminal({required this._stdio, required this._platform, this._animationEnabled});
 
@@ -119,9 +159,14 @@ class AnsiTerminal extends Terminal {
   Stream<String>? _keystrokes;
   bool _usesTerminalUi = false;
 
+  /// Whether the stream takes ANSI and `NO_COLOR` is unset, as the convention asks.
   @override
   bool get supportsColor => _platform.stdoutSupportsAnsi && !_platform.environment.containsKey('NO_COLOR');
 
+  /// Whether the console renders emoji, which outside Windows is assumed.
+  ///
+  /// The Windows console only does inside Windows Terminal, which announces
+  /// itself with `WT_SESSION`.
   @override
   bool get supportsEmoji => !_platform.isWindows || _platform.environment.containsKey('WT_SESSION');
 
@@ -208,6 +253,10 @@ class AnsiTerminal extends Terminal {
   }
 }
 
+/// A [Terminal] with no colour, no animation and no answer to give.
+///
+/// [promptForCharInput] always throws: a test that reaches a prompt has found a
+/// path that would have waited for a human forever.
 class TestTerminal extends Terminal {
   TestTerminal({this.supportsColor = false, this.supportsEmoji = false, this.stdinHasTerminal = false});
 

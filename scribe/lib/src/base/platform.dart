@@ -29,17 +29,23 @@
 
 import 'dart:io' as io;
 
+/// The host system, behind something a test can replace.
 abstract class Platform {
   const Platform();
 
+  /// The system this runs on, named as `dart:io` names it: `macos`, `linux`, `windows`.
   String get operatingSystem;
 
+  /// The environment this process was started with.
   Map<String, String> get environment;
 
+  /// The character that separates the segments of a path.
   String get pathSeparator;
 
+  /// Whether standard output understands ANSI escape sequences.
   bool get stdoutSupportsAnsi;
 
+  /// The Dart version string, which also names the architecture at its end.
   String get version;
 
   bool get isWindows => operatingSystem == 'windows';
@@ -49,6 +55,7 @@ abstract class Platform {
   bool get isLinux => operatingSystem == 'linux';
 }
 
+/// The [Platform] that answers from `dart:io`.
 class LocalPlatform extends Platform {
   const LocalPlatform();
 
@@ -68,6 +75,7 @@ class LocalPlatform extends Platform {
   String get version => io.Platform.version;
 }
 
+/// A [Platform] whose answers are fixed by its constructor.
 class FakePlatform extends Platform {
   const FakePlatform({
     this.operatingSystem = 'macos',

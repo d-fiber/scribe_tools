@@ -31,15 +31,23 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io' as io;
 
+/// The three standard streams, behind something a test can replace.
 class Stdio {
   Stdio();
 
+  /// The bytes arriving on standard input.
   Stream<List<int>> get stdin => io.stdin;
 
+  /// Whether standard output goes to a terminal rather than a pipe or a file.
   bool get hasTerminal => io.stdout.hasTerminal;
 
+  /// Whether standard input comes from a terminal.
   bool get stdinHasTerminal => io.stdin.hasTerminal;
 
+  /// Whether standard input can leave line mode, so a keystroke arrives on its own.
+  ///
+  /// A terminal is not enough: reading [lineMode] throws when the process has
+  /// no controlling terminal, and that is what this answers.
   bool get supportsRawMode {
     if (!io.stdin.hasTerminal) return false;
 
@@ -51,28 +59,43 @@ class Stdio {
     }
   }
 
+  /// Whether standard input hands over whole lines instead of single keystrokes.
   bool get lineMode => io.stdin.lineMode;
 
   set lineMode(bool value) => io.stdin.lineMode = value;
 
+  /// Whether what the user types is echoed back by the terminal.
   bool get echoMode => io.stdin.echoMode;
 
   set echoMode(bool value) => io.stdin.echoMode = value;
 
+  /// The width of the terminal, or [kDefaultTerminalColumns] when there is none.
   int get terminalColumns => hasTerminal ? io.stdout.terminalColumns : kDefaultTerminalColumns;
 
+  /// Writes [message] to standard output, adding nothing to it.
   void write(String message) => io.stdout.write(message);
 
+  /// Writes [message] to standard error, adding nothing to it.
   void writeError(String message) => io.stderr.write(message);
 }
 
+/// A [Stdio] that keeps what is written to it and offers nothing to read.
+///
+/// [output] and [errorOutput] hold what a run produced, which is how a test
+/// asserts on what the user would have seen.
 class FakeStdio extends Stdio {
   FakeStdio({this.hasTerminalOverride = false, this.terminalColumnsOverride = kDefaultTerminalColumns});
 
+  /// Whether this fake claims to be attached to a terminal.
   final bool hasTerminalOverride;
+
+  /// The width this fake reports.
   final int terminalColumnsOverride;
 
+  /// Everything written to standard output.
   final StringBuffer output = StringBuffer();
+
+  /// Everything written to standard error.
   final StringBuffer errorOutput = StringBuffer();
 
   @override
@@ -109,7 +132,12 @@ class FakeStdio extends Stdio {
   void writeError(String message) => errorOutput.write(message);
 }
 
+/// The width assumed when no terminal reports one.
 const int kDefaultTerminalColumns = 100;
 
+/// The keys typed on [stdio], decoded as UTF-8.
+///
+/// The stream is a broadcast one, so a second prompt in the same run can listen
+/// after the first has stopped.
 Stream<String> keystrokesOf(Stdio stdio) =>
     stdio.stdin.transform<String>(const Utf8Decoder(allowMalformed: true)).asBroadcastStream();

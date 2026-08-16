@@ -29,14 +29,25 @@
 
 import 'dart:io' as io;
 
+/// Every external command this tool runs.
+///
+/// A command is an argument list, never a shell line: nothing is quoted,
+/// nothing is expanded, and no shell has to be installed. There is therefore
+/// nothing to escape and no way to inject a second command through an argument.
 abstract class ProcessRunner {
   const ProcessRunner();
 
+  /// Runs [command], letting it write to this process's streams, and returns its status.
   Future<int> run(List<String> command, {String? workingDirectory});
 
+  /// Runs [command] and returns what it wrote on standard output.
+  ///
+  /// Standard error is dropped, and the status is not looked at: a command that
+  /// failed comes back as an empty string.
   Future<String> capture(List<String> command, {String? workingDirectory});
 }
 
+/// The [ProcessRunner] that starts real processes.
 class LocalProcessRunner extends ProcessRunner {
   const LocalProcessRunner();
 
@@ -64,12 +75,20 @@ class LocalProcessRunner extends ProcessRunner {
   }
 }
 
+/// A [ProcessRunner] that starts nothing and remembers what it was asked to run.
+///
+/// Every call answers the same [exitCode] and [output]; [commands] is what a
+/// test asserts on.
 class RecordingProcessRunner extends ProcessRunner {
   RecordingProcessRunner({this.exitCode = 0, this.output = ''});
 
+  /// The status every call answers.
   final int exitCode;
+
+  /// The text every [capture] answers.
   final String output;
 
+  /// The commands this runner was handed, in the order they arrived.
   final List<List<String>> commands = <List<String>>[];
 
   @override

@@ -32,6 +32,7 @@ import 'package:path/path.dart' as p;
 
 import 'package:scribe/src/base/platform.dart';
 
+/// A system and processor pair the tool can be running on.
 enum HostPlatform {
   darwinArm64('macOS', 'arm64'),
   darwinX64('macOS', 'x86_64'),
@@ -42,34 +43,50 @@ enum HostPlatform {
 
   const HostPlatform(this.systemName, this.architecture);
 
+  /// The system's name as a human writes it.
   final String systemName;
+
+  /// The processor family, named as a release asset names it.
   final String architecture;
 
   @override
   String toString() => '$systemName $architecture';
 }
 
+/// What the tool needs from the host system beyond files and processes.
 abstract class OperatingSystemUtils {
   const OperatingSystemUtils();
 
+  /// Creates the implementation that matches [platform].
   factory OperatingSystemUtils.forPlatform({required Platform platform, required FileSystem fileSystem}) {
     if (platform.isWindows) return WindowsUtils(platform: platform, fileSystem: fileSystem);
     if (platform.isMacOS) return MacOsUtils(platform: platform, fileSystem: fileSystem);
     return LinuxUtils(platform: platform, fileSystem: fileSystem);
   }
 
+  /// The system this reads its environment from.
   Platform get platform;
 
+  /// The file system a candidate executable is looked for on.
   FileSystem get fileSystem;
 
+  /// The system and processor this is running on.
   HostPlatform get hostPlatform;
 
+  /// The character `PATH` is split on.
   String get pathVarSeparator;
 
+  /// The suffixes an executable may carry, a single empty one outside Windows.
   List<String> get executableSuffixes;
 
+  /// The first [executable] found on `PATH`, or null.
+  ///
+  /// No process is started: `PATH` is walked here. That is more portable than
+  /// asking `which` or `where`, and it is what lets a test answer from a memory
+  /// file system.
   File? which(String executable) => whichAll(executable).firstOrNull;
 
+  /// Every [executable] found on `PATH`, in the order `PATH` names the directories.
   List<File> whichAll(String executable) {
     final String? path = platform.environment['PATH'];
     if (path == null || path.isEmpty) return const <File>[];
@@ -88,11 +105,14 @@ abstract class OperatingSystemUtils {
     return found;
   }
 
+  /// Whether [executable] is anywhere on `PATH`.
   bool has(String executable) => which(executable) != null;
 
+  /// The processor family this is running on.
   String get architecture => hostPlatform.architecture;
 }
 
+/// The [OperatingSystemUtils] of a system with a POSIX `PATH`.
 class PosixUtils extends OperatingSystemUtils {
   const PosixUtils({required this.platform, required this.fileSystem});
 
@@ -112,6 +132,7 @@ class PosixUtils extends OperatingSystemUtils {
   HostPlatform get hostPlatform => HostPlatform.linuxX64;
 }
 
+/// The [OperatingSystemUtils] of macOS.
 class MacOsUtils extends PosixUtils {
   const MacOsUtils({required super.platform, required super.fileSystem});
 
@@ -120,6 +141,7 @@ class MacOsUtils extends PosixUtils {
       _isArm(platform) ? HostPlatform.darwinArm64 : HostPlatform.darwinX64;
 }
 
+/// The [OperatingSystemUtils] of Linux.
 class LinuxUtils extends PosixUtils {
   const LinuxUtils({required super.platform, required super.fileSystem});
 
@@ -127,6 +149,7 @@ class LinuxUtils extends PosixUtils {
   HostPlatform get hostPlatform => _isArm(platform) ? HostPlatform.linuxArm64 : HostPlatform.linuxX64;
 }
 
+/// The [OperatingSystemUtils] of Windows, where `PATH` alone does not name a file.
 class WindowsUtils extends OperatingSystemUtils {
   const WindowsUtils({required this.platform, required this.fileSystem});
 
@@ -139,6 +162,7 @@ class WindowsUtils extends OperatingSystemUtils {
   @override
   String get pathVarSeparator => ';';
 
+  /// The extensions `PATHEXT` declares, lowercased, or the Windows default when it is unset.
   @override
   List<String> get executableSuffixes {
     final String pathExt = platform.environment['PATHEXT'] ?? '.COM;.EXE;.BAT;.CMD';

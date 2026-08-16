@@ -29,6 +29,14 @@
 
 import 'package:scribe/src/base/template.dart';
 
+/// The [TemplateRenderer] this tool renders its templates with.
+///
+/// Despite the name it adds nothing of its own: it forwards to
+/// [renderTemplate], and the `{{key}}` syntax is described there.
+///
+/// It exists so the type a caller depends on stays an interface. The engine is
+/// named once, where the context is built, and everything else takes whatever
+/// the context hands it — which is how a test renders with its own.
 class ScribeTemplateRenderer extends TemplateRenderer {
   const ScribeTemplateRenderer();
 

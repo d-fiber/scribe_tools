@@ -38,8 +38,13 @@ import 'package:scribe/src/project.dart';
 import 'package:scribe/src/runner/scribe_command_runner.dart';
 import 'package:scribe/src/tools.dart';
 
+/// How a command ended.
+///
+/// [warning] is a success the user should read: the command did its work and
+/// found something worth saying. Only [fail] turns into a non-zero status.
 enum ExitStatus { success, warning, fail }
 
+/// What a command answers when it returns.
 class ScribeCommandResult {
   const ScribeCommandResult(this.exitStatus);
 
@@ -49,27 +54,51 @@ class ScribeCommandResult {
 
   const ScribeCommandResult.fail() : this(ExitStatus.fail);
 
+  /// How the command ended.
   final ExitStatus exitStatus;
 
   @override
   String toString() => exitStatus.name;
 }
 
+/// The base every scribe command extends.
+///
+/// A subclass writes [runCommand] and, when they are not the default, declares
+/// [requiresProject], [requiresCompleteManifest] and [requiredTools]. What
+/// those imply has already been checked and refused by the time [runCommand] is
+/// reached, so a command never opens with a guard of its own.
 abstract class ScribeCommand extends Command<void> {
   ScribeCommand();
 
+  /// The command being run, or null outside one.
   static ScribeCommand? get current => globals.context.get<ScribeCommand>();
 
+  /// Whether this command refuses to run anywhere but the root of a project.
+  ///
+  /// True unless a subclass says otherwise, since a command that writes into a
+  /// project needs one. `create` and `doctor` are the two that say no.
   bool get requiresProject => true;
 
+  /// Whether this command needs `config.yaml` to be valid, and not merely present.
   bool get requiresCompleteManifest => false;
 
+  /// The external tools this command cannot work without.
+  ///
+  /// They are looked for, and offered for installation, before [runCommand]
+  /// runs.
   List<ExternalTool> get requiredTools => const <ExternalTool>[];
 
+  /// The project this command runs in.
+  ///
+  /// Throws a [ToolExit] when the current directory is not a project root. A
+  /// command declaring [requiresProject] has already been refused by then.
   Project get project => _project ??= Project.current;
 
   Project? _project;
 
+  /// Opens a context for this command, runs it, and traces how long it took.
+  ///
+  /// The context carries the command itself, which is what [current] reads.
   @override
   Future<void> run() {
     final Stopwatch stopwatch = Stopwatch()..start();
@@ -89,12 +118,26 @@ abstract class ScribeCommand extends Command<void> {
     );
   }
 
+  /// Runs [validateCommand], then [runCommand].
+  ///
+  /// Override it to wrap the pair — nothing else sits between the checks and
+  /// the work.
   @protected
   Future<ScribeCommandResult> verifyThenRunCommand() async {
     await validateCommand();
     return runCommand();
   }
 
+  /// Refuses the run when something this command needs is missing.
+  ///
+  /// Three gates, in this order: the tools of [requiredTools], the project root
+  /// when [requiresProject], and the manifest when [requiresCompleteManifest].
+  ///
+  /// Being at the root is not enough on its own: a directory can hold a
+  /// `config.yaml` and nothing else, and the entries a project needs are
+  /// checked too.
+  ///
+  /// Throws a [ToolExit] naming what is missing.
   @protected
   Future<void> validateCommand() async {
     await globals.tools.ensure(
@@ -119,21 +162,32 @@ abstract class ScribeCommand extends Command<void> {
     if (requiresCompleteManifest) project.manifest.ensureComplete();
   }
 
+  /// What this command does, once every check has passed.
   @protected
   Future<ScribeCommandResult> runCommand();
 
+  /// Prints the usage through the logger, so it obeys `-q` like everything else.
   @override
   void printUsage() => globals.logger.printStatus(usage);
 
+  /// Whether flag [name] was passed.
   bool boolArg(String name) => argResults?[name] as bool? ?? false;
 
+  /// The value given to option [name], or null when it was not given.
   String? stringArg(String name) => argResults?[name] as String?;
 
+  /// The value given to option [name].
+  ///
+  /// Throws a [UsageError] when it was not given.
   String requireStringArg(String name) =>
       stringArg(name) ?? (throw UsageError('Option --$name is required.', command: this.name));
 
+  /// Every value given to the repeatable option [name], empty when it was not given.
   List<String> stringsArg(String name) => (argResults?[name] as List<String>?) ?? const <String>[];
 
+  /// The value given to option [name] read as a whole number, or null when it was not given.
+  ///
+  /// Throws a [UsageError] when what was given is not a number.
   int? intArg(String name) {
     final String? raw = stringArg(name);
     if (raw == null) return null;
@@ -143,6 +197,9 @@ abstract class ScribeCommand extends Command<void> {
     return parsed;
   }
 
+  /// The first argument left once the options are parsed, [label] naming it in the error.
+  ///
+  /// Throws a [UsageError] when there is none.
   String requirePositional(String label) {
     final List<String> rest = argResults?.rest ?? const <String>[];
     if (rest.isEmpty) throwUsageError('<$label> is required.', command: name);
@@ -150,6 +207,10 @@ abstract class ScribeCommand extends Command<void> {
   }
 }
 
+/// A command that holds subcommands and does nothing itself.
+///
+/// Running it prints its usage. It needs no project, since each subcommand
+/// decides that for itself.
 abstract class ScribeCommandGroup extends ScribeCommand {
   ScribeCommandGroup();
 

@@ -28,15 +28,29 @@
 // in legal action.
 import 'package:scribe/src/base/common.dart';
 
+/// The engine that fills the holes of a template.
 abstract class TemplateRenderer {
   const TemplateRenderer();
 
+  /// [source] with its placeholders replaced from [values], [name] naming it in errors.
   String renderString(String name, String source, Map<String, String> values);
 }
 
 final RegExp _blockPlaceholder = RegExp(r'^([ \t]*)\{\{(\w+)\}\}[ \t]*$', multiLine: true);
 final RegExp _inlinePlaceholder = RegExp(r'\{\{(\w+)\}\}');
 
+/// [source] with every `{{key}}` replaced by the [values] entry of that name.
+///
+/// A placeholder standing alone on its line inherits that line's indentation,
+/// and a value spanning several lines is indented on each of them rather than
+/// on the first only. That is what lets a block of generated code be dropped
+/// inside an indented template and still line up.
+///
+/// [name] names the template in the error.
+///
+/// Throws a [ToolExit] listing every placeholder [values] has no entry for.
+/// Nothing is rendered half-way: an unresolved placeholder fails the whole
+/// template rather than reaching a file as `{{key}}`.
 String renderTemplate(String name, String source, Map<String, String> values) {
   final Set<String> missing = <String>{};
 

@@ -27,32 +27,49 @@
 // is a violation of applicable intellectual property laws and will result
 // in legal action.
 
+/// The name this tool is invoked by, and the name it signs generated files with.
 const String kToolName = 'scribe';
 
+/// A failure the user is meant to read, rather than a bug to report.
+///
+/// The runner catches it, prints [message] and leaves with [exitCode], so no
+/// code below it has to decide how the process ends.
 final class ToolExit implements Exception {
   const ToolExit(this.message, {this.exitCode = 1});
 
+  /// What went wrong, or null to leave without a word.
   final String? message;
+
+  /// The status the process leaves with.
   final int exitCode;
 
   @override
   String toString() => message ?? 'ToolExit';
 }
 
+/// Throws a [ToolExit] carrying [message] and [exitCode].
 Never throwToolExit(String? message, {int exitCode = 1}) {
   throw ToolExit(message, exitCode: exitCode);
 }
 
+/// A command called the wrong way: an option missing, a value that does not parse.
+///
+/// The runner prints [message] and leaves with the status reserved for a usage
+/// mistake, which is not the one a [ToolExit] uses.
 final class UsageError implements Exception {
   const UsageError(this.message, {this.command});
 
+  /// What the user got wrong, and what to write instead.
   final String message;
+
+  /// The command the mistake was made on, when one had been reached.
   final String? command;
 
   @override
   String toString() => message;
 }
 
+/// Throws a [UsageError] carrying [message], blamed on [command].
 Never throwUsageError(String message, {String? command}) {
   throw UsageError(message, command: command);
 }

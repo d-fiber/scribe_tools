@@ -36,6 +36,10 @@ import 'package:scribe/src/base/logger.dart';
 import 'package:scribe/src/base/terminal.dart';
 import 'package:scribe/src/globals.dart' as globals;
 
+/// The names of the options every command accepts, wherever it sits.
+///
+/// They are read from `globalResults`, not from a command's own parser, so a
+/// subcommand nested two levels down sees the same values as the top one.
 class ScribeGlobalOptions {
   static const String verbose = 'verbose';
   static const String quiet = 'quiet';
@@ -45,6 +49,12 @@ class ScribeGlobalOptions {
   static const String version = 'version';
 }
 
+/// The runner `package:args` dispatches through.
+///
+/// It reads the global options before any command runs and rebuilds the output
+/// preferences, the terminal and the logger from them, so `-v`, `-q` and
+/// `--color` are honoured by everything underneath without a command ever
+/// asking what they were set to.
 class ScribeCommandRunner extends CommandRunner<void> {
   ScribeCommandRunner({required this.toolVersion})
     : super(

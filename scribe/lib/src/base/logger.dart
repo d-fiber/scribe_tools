@@ -32,36 +32,69 @@ import 'dart:async';
 import 'package:scribe/src/base/io.dart';
 import 'package:scribe/src/base/terminal.dart';
 
+/// The callback a [Status] runs when it ends.
 typedef VoidCallback = void Function();
 
+/// Everything this tool prints, so that no code writes to a stream itself.
+///
+/// The implementation decides where the text lands and how much of it survives:
+/// [StdoutLogger] writes to the terminal, [BufferLogger] keeps it for a test,
+/// and a [DelegatingLogger] filters or annotates what passes through it.
 abstract class Logger {
+  /// Whether [printTrace] reaches the user.
   bool get isVerbose => false;
 
+  /// Whether colour written into a message will be rendered rather than shown raw.
   bool get supportsColor;
 
+  /// Whether the output goes to a terminal rather than a pipe or a file.
   bool get hasTerminal;
 
+  /// The terminal this logger decorates its messages for.
   Terminal get terminal;
 
+  /// Whether [printError] was called at least once.
+  ///
+  /// The runner reads it after the command returns: a run that printed an error
+  /// leaves with a non-zero status even when nothing was thrown.
   bool get hadErrorOutput;
 
+  /// Whether [printWarning] was called at least once.
   bool get hadWarningOutput;
 
+  /// Prints [message] on standard error, and marks the run as having failed.
   void printError(String message, {StackTrace? stackTrace, bool emphasis = false, int indent = 0});
 
+  /// Prints [message] on standard error without marking the run as having failed.
   void printWarning(String message, {bool emphasis = false, int indent = 0});
 
+  /// Prints [message] on standard output.
+  ///
+  /// Pass `newline: false` to leave the cursor where it stopped, which is what
+  /// writing a question needs.
   void printStatus(String message, {bool emphasis = false, TerminalColor? color, int indent = 0, bool newline = true});
 
+  /// Prints [message] only when the run is verbose.
   void printTrace(String message);
 
+  /// Starts a labelled unit of work called [message], and returns the [Status] that ends it.
+  ///
+  /// What the user sees is decided here and not by the caller: a spinner on a
+  /// terminal, one summary line when the output is redirected, nothing at all
+  /// in a test. Nothing above has to ask whether it is talking to a terminal.
+  ///
+  /// [timeout] only decides when [Status.seemsSlow] turns true; it never
+  /// interrupts anything.
   Status startProgress(String message, {Duration? timeout});
 
+  /// Starts an unlabelled spinner, and returns the [Status] that ends it.
   Status startSpinner({VoidCallback? onFinish});
 
+  /// Erases what was printed last.
   void clear();
 }
 
+/// The [Logger] that writes to the terminal the user is watching.
 class StdoutLogger extends Logger {
   StdoutLogger({
     required this.terminal,
@@ -187,6 +220,10 @@ class StdoutLogger extends Logger {
   }
 }
 
+/// A [Logger] that keeps every message instead of printing it.
+///
+/// Messages arrive undecorated: neither colour, emphasis nor indentation is
+/// applied, so a test compares plain text.
 class BufferLogger extends Logger {
   BufferLogger({Terminal? terminal, this.verbose = false})
     : terminal = terminal ?? TestTerminal();
@@ -194,6 +231,7 @@ class BufferLogger extends Logger {
   @override
   final Terminal terminal;
 
+  /// Whether this logger reports itself as verbose.
   final bool verbose;
 
   final StringBuffer _error = StringBuffer();
@@ -201,9 +239,16 @@ class BufferLogger extends Logger {
   final StringBuffer _status = StringBuffer();
   final StringBuffer _trace = StringBuffer();
 
+  /// Everything passed to [printError], one message per line.
   String get errorText => _error.toString();
+
+  /// Everything passed to [printWarning], one message per line.
   String get warningText => _warning.toString();
+
+  /// Everything passed to [printStatus].
   String get statusText => _status.toString();
+
+  /// Everything passed to [printTrace], whether or not this logger is verbose.
   String get traceText => _trace.toString();
 
   @override
@@ -255,6 +300,7 @@ class BufferLogger extends Logger {
   Status startSpinner({VoidCallback? onFinish}) =>
       SilentStatus(stopwatch: Stopwatch(), onFinish: onFinish)..start();
 
+  /// Empties the four buffers, since there is no line here to erase.
   @override
   void clear() {
     _error.clear();
@@ -264,6 +310,10 @@ class BufferLogger extends Logger {
   }
 }
 
+/// A [Logger] that forwards every call to another one.
+///
+/// A subclass overrides only what it changes, which is how `-v` and `-q` are
+/// built without either of them knowing where the output ends up.
 class DelegatingLogger implements Logger {
   DelegatingLogger(this._delegate);
 
@@ -312,6 +362,10 @@ class DelegatingLogger implements Logger {
   void clear() => _delegate.clear();
 }
 
+/// A [DelegatingLogger] that lets traces through and times every message.
+///
+/// Each line is prefixed with the time since the previous one, so a slow step
+/// is visible without measuring anything on purpose. This is what `-v` builds.
 class VerboseLogger extends DelegatingLogger {
   VerboseLogger(super.delegate, {StopwatchFactory stopwatchFactory = const StopwatchFactory()})
     : _stopwatch = stopwatchFactory.createStopwatch() {
@@ -368,12 +422,22 @@ class VerboseLogger extends DelegatingLogger {
 
 enum _LogType { error, warning, status, trace }
 
+/// Where a logger gets the stopwatches it times its output with.
+///
+/// A test replaces it so the durations printed alongside a [Status] stop
+/// depending on how fast the machine is.
 class StopwatchFactory {
   const StopwatchFactory();
 
+  /// A new stopwatch, not yet started.
   Stopwatch createStopwatch() => Stopwatch();
 }
 
+/// A unit of work being shown to the user while it runs.
+///
+/// The caller holds it and ends it with [stop] or [cancel]. How much of it is
+/// visible is the logger's decision, and ranges from an animated spinner down
+/// to nothing at all.
 abstract class Status {
   Status({required Stopwatch stopwatch, VoidCallback? onFinish, Duration? timeout})
     : _stopwatch = stopwatch,
@@ -384,39 +448,55 @@ abstract class Status {
   final VoidCallback? _onFinish;
   final Duration? _timeout;
 
+  /// Whether this status has been running longer than the timeout it was given.
+  ///
+  /// False when it was given none. Nothing acts on it: it is there for a caller
+  /// that wants to say so.
   bool get seemsSlow {
     final Duration? limit = _timeout;
     return limit != null && _stopwatch.elapsed > limit;
   }
 
+  /// The time taken so far, in milliseconds below two seconds and in seconds above.
   String get elapsed {
     final Duration taken = _stopwatch.elapsed;
     if (taken.inSeconds >= 2) return '${(taken.inMilliseconds / 1000).toStringAsFixed(1)}s';
     return '${taken.inMilliseconds}ms';
   }
 
+  /// Starts the clock, and whatever this status shows.
   void start() {
     if (!_stopwatch.isRunning) _stopwatch.start();
   }
 
+  /// Ends this status, reporting how long the work took.
   void stop() => finish();
 
+  /// Ends this status without reporting a time, the work having been given up on.
   void cancel() => finish();
 
+  /// Hides this status so something else can be printed over it.
   void pause() {}
 
+  /// Shows this status again after a [pause].
   void resume() {}
 
+  /// Stops the clock and runs the callback this status was given.
   void finish() {
     if (_stopwatch.isRunning) _stopwatch.stop();
     _onFinish?.call();
   }
 }
 
+/// A [Status] that shows nothing and only measures.
 class SilentStatus extends Status {
   SilentStatus({required super.stopwatch, super.onFinish});
 }
 
+/// A [Status] that prints its message once, then the time it took when it ends.
+///
+/// This is the shape used when the output is not a terminal, so a log file gets
+/// one readable line per step instead of a stream of redrawn frames.
 class SummaryStatus extends Status {
   SummaryStatus({
     required this.message,
@@ -426,7 +506,10 @@ class SummaryStatus extends Status {
     super.timeout,
   });
 
+  /// The text naming the work being done.
   final String message;
+
+  /// Where this status writes, so it reaches the user through the logger.
   final void Function(String message) write;
 
   bool _printed = false;
@@ -458,6 +541,10 @@ class SummaryStatus extends Status {
   }
 }
 
+/// A [Status] that animates a spinner where the cursor stands, with no message.
+///
+/// The braille frames are replaced by ASCII ones when the terminal cannot be
+/// trusted with anything outside it.
 class AnonymousSpinnerStatus extends Status {
   AnonymousSpinnerStatus({
     required super.stopwatch,
@@ -471,13 +558,17 @@ class AnonymousSpinnerStatus extends Status {
   static const List<String> _asciiFrames = <String>[r'-', r'\', r'|', r'/'];
   static const Duration _interval = Duration(milliseconds: 80);
 
+  /// The terminal whose colours and character support decide how this spinner looks.
   final Terminal terminal;
+
+  /// Where this status writes, so it reaches the user through the logger.
   final void Function(String message) write;
 
   Timer? _timer;
   int _ticks = 0;
   int _lastLength = 0;
 
+  /// The number of frames drawn since this spinner started.
   int get ticks => _ticks;
 
   List<String> get _spinner => terminal.supportsEmoji ? _frames : _asciiFrames;
@@ -539,6 +630,7 @@ class AnonymousSpinnerStatus extends Status {
   }
 }
 
+/// An [AnonymousSpinnerStatus] preceded by a message and closed by a success mark.
 class SpinnerStatus extends AnonymousSpinnerStatus {
   SpinnerStatus({
     required this.message,
@@ -549,6 +641,7 @@ class SpinnerStatus extends AnonymousSpinnerStatus {
     super.timeout,
   });
 
+  /// The text naming the work being done.
   final String message;
 
   bool _printed = false;

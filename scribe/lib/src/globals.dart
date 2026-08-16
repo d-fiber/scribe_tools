@@ -27,6 +27,17 @@
 // is a violation of applicable intellectual property laws and will result
 // in legal action.
 
+/// Everything that touches the world, read from the context the zone carries.
+///
+/// Nothing here is a singleton. Each getter asks [AppContext] first and only
+/// falls back to a real implementation when nothing was registered, so a run
+/// wrapped in a context with overrides sees its own file system, logger and
+/// process runner without a single call site changing.
+///
+/// The fallbacks are there for code reached outside any context; the ones that
+/// cost something to build are kept, so a run never builds two of them.
+library;
+
 import 'package:file/file.dart';
 import 'package:file/local.dart';
 import 'package:scribe/src/base/context.dart';
@@ -42,52 +53,68 @@ import 'package:scribe/src/project.dart';
 import 'package:scribe/src/shell.dart';
 import 'package:scribe/src/tools.dart';
 
+/// The context the current zone carries.
 AppContext get context => AppContext.current;
 
 const Platform _defaultPlatform = LocalPlatform();
 
+/// The system this run is happening on.
 Platform get platform => context.get<Platform>() ?? _defaultPlatform;
 
 Stdio? _stdioInstance;
 
+/// The standard streams this run reads and writes.
 Stdio get stdio => context.get<Stdio>() ?? (_stdioInstance ??= Stdio());
 
 const FileSystem _defaultFileSystem = LocalFileSystem();
 
+/// The file system every path in this run is opened on.
 FileSystem get fs => context.get<FileSystem>() ?? _defaultFileSystem;
 
 OutputPreferences? _outputPreferencesInstance;
 
+/// What the user asked this run's output to look like.
 OutputPreferences get outputPreferences =>
     context.get<OutputPreferences>() ?? (_outputPreferencesInstance ??= OutputPreferences(stdio: stdio, showColor: true));
 
 Terminal? _terminalInstance;
 
+/// What the terminal this run writes to is capable of.
 Terminal get terminal =>
     context.get<Terminal>() ?? (_terminalInstance ??= AnsiTerminal(stdio: stdio, platform: platform));
 
 Logger? _loggerInstance;
 
+/// Everything this run prints.
 Logger get logger =>
     context.get<Logger>() ??
     (_loggerInstance ??= StdoutLogger(terminal: terminal, stdio: stdio, outputPreferences: outputPreferences));
 
+/// The project the current directory is the root of.
+///
+/// Throws a `ToolExit` when it is not one, unless a project was put in the
+/// context. Every command that needs a project has already been refused by then.
 Project get project => context.get<Project>() ?? Project.current;
 
+/// The engine that fills the templates this run writes from.
 TemplateRenderer get templateRenderer => context.get<TemplateRenderer>() ?? const ScribeTemplateRenderer();
 
 OperatingSystemUtils? _osInstance;
 
+/// What this run knows about the host beyond files and processes.
 OperatingSystemUtils get os =>
     context.get<OperatingSystemUtils>() ??
     (_osInstance ??= OperatingSystemUtils.forPlatform(platform: platform, fileSystem: fs));
 
 const ProcessRunner _defaultProcessRunner = LocalProcessRunner();
 
+/// How this run starts external commands.
 ProcessRunner get processRunner => context.get<ProcessRunner>() ?? _defaultProcessRunner;
 
+/// The shell the user came from, and where its profile lives.
 Shell get shell => context.get<Shell>() ?? Shell.detect(platform: platform, fileSystem: fs);
 
 const ToolProvisioner _defaultProvisioner = ToolProvisioner();
 
+/// The external tools this run can look for and offer to install.
 ToolProvisioner get tools => context.get<ToolProvisioner>() ?? _defaultProvisioner;

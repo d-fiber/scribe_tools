@@ -31,6 +31,7 @@ import 'package:scribe/src/base/logger.dart';
 import 'package:scribe/src/base/terminal.dart';
 import 'package:scribe/src/globals.dart' as globals;
 
+/// A program this tool needs but does not ship.
 class ExternalTool {
   const ExternalTool({
     required this.name,
@@ -40,20 +41,35 @@ class ExternalTool {
     this.packages = const <String, String>{},
   });
 
+  /// The name a human calls it by.
   final String name;
+
+  /// The file looked for on `PATH`, which is not always [name].
+  ///
+  /// Node is the case that forces the distinction: it is installed as `node`
+  /// and found by looking for `npm`.
   final String executable;
+
+  /// What a command needs it for, shown to the user when it is missing.
   final String purpose;
+
+  /// Where to get it by hand, shown when no package manager was found.
   final String homepage;
+
+  /// The package name per package manager, for the managers that name it differently.
   final Map<String, String> packages;
 
+  /// Whether [executable] is on `PATH`.
   bool get isInstalled => globals.os.has(executable);
 
+  /// The package [manager] installs this tool under, [name] when it has no entry.
   String? packageFor(PackageManager manager) => packages[manager.name] ?? name;
 
   @override
   String toString() => name;
 }
 
+/// A system package manager this tool knows how to call.
 class PackageManager {
   const PackageManager({
     required this.name,
@@ -62,6 +78,10 @@ class PackageManager {
     this.needsPrivilege = false,
   });
 
+  /// The managers looked for, in the order [detect] tries them.
+  ///
+  /// A machine can carry several, so this order is what picks the one used:
+  /// the first present wins, and nothing looks further.
   static const List<PackageManager> known = <PackageManager>[
     PackageManager(name: 'homebrew', executable: 'brew', install: <String>['brew', 'install']),
     PackageManager(name: 'winget', executable: 'winget', install: <String>['winget', 'install', '--silent', '-e', '--id']),

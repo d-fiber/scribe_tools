@@ -37,10 +37,25 @@ import 'package:scribe/src/globals.dart' as globals;
 import 'package:scribe/src/runner/scribe_command.dart';
 import 'package:scribe/src/runner/scribe_command_runner.dart';
 
+/// The status a command called the wrong way leaves with, as `sysexits.h` names it.
 const int kExitCodeUsage = 64;
 
+/// The status an error nobody expected leaves with, as `sysexits.h` names it.
 const int kExitCodeCrash = 70;
 
+/// Runs [args] against the commands [commands] builds, and returns the exit status.
+///
+/// [commands] is a callback and not a list because a command is built inside
+/// the context, where the dependencies of `globals` already answer.
+///
+/// This is where the process learns how it ends, and the only place that knows:
+/// a [ToolExit] carries its own status, a command called wrong answers
+/// [kExitCodeUsage], anything else answers [kExitCodeCrash], and a run that
+/// merely printed an error answers 1. The stack trace is only shown when the
+/// run is verbose.
+///
+/// [overrides] replaces entries of the context, which is how a test runs a
+/// command against a memory file system and a buffer logger.
 Future<int> run(
   List<String> args,
   List<ScribeCommand> Function() commands, {

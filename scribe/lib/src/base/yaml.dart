@@ -27,29 +27,39 @@
 // is a violation of applicable intellectual property laws and will result
 // in legal action.
 
+/// A block of text being built line by line, each line carrying its own indentation.
 class Indented {
   Indented(this.lines);
 
+  /// The lines written so far, indentation included.
   final List<String> lines;
 
+  /// Creates a block with nothing in it.
   static Indented empty() => Indented(<String>[]);
 
+  /// Appends [line], indented [depth] levels of two spaces.
   void add(int depth, String line) => lines.add('${'  ' * depth}$line');
 
+  /// The lines joined by newlines, with none at the end.
   String render() => lines.join('\n');
 }
 
+/// [value] quoted and escaped, unless it is plain enough to stand as it is.
+///
+/// Plain means letters, digits, underscore, dot, slash and dash: everything
+/// else is double-quoted, since YAML would otherwise read it as structure.
 String yamlScalar(String value) {
   if (RegExp(r'^[\w./-]+$').hasMatch(value)) return value;
   final String escaped = value.replaceAll('\\', r'\\').replaceAll('"', r'\"');
   return '"$escaped"';
 }
 
-/// Serialise [doc] en YAML.
+/// [doc] serialised as YAML, closed by a newline.
 ///
-/// Utilise par l'ecriture de `config.yaml` (`koko config -e`, `init`). Ne
-/// preserve pas les commentaires du fichier d'origine : le document en memoire
-/// n'en porte pas. Un fichier edite par la commande perd donc les siens.
+/// Only a map produces anything: anything else renders as the newline alone.
+///
+/// Comments are not preserved, because the parsed document does not carry any.
+/// A file written back through this function therefore loses the ones it had.
 String renderYaml(dynamic doc) {
   final Indented out = Indented.empty();
   _renderNode(out, doc, 0);

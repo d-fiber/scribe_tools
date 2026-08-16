@@ -42,6 +42,12 @@ import 'package:scribe/src/base/terminal.dart';
 import 'package:scribe/src/isolated/scribe_template.dart';
 import 'package:scribe/src/globals.dart' as globals;
 
+/// Runs [body] in a context where every dependency has its real implementation.
+///
+/// This is the one place the concrete classes are named. Everything else asks
+/// `globals`, so replacing an entry here — or through [overrides], which wins
+/// type by type — changes what the whole run talks to without a call site
+/// moving.
 Future<T> runInContext<T>(FutureOr<T> Function() body, {Map<Type, Generator>? overrides}) async {
   return AppContext.current.run<T>(
     name: 'global fallbacks',

@@ -29,17 +29,28 @@
 
 import 'dart:async';
 
+/// A generator that asked, directly or through another one, for the type it is building.
+///
+/// [cycle] lists the types in the order they were requested, the one that
+/// closed the loop last.
 class ContextDependencyCycleException implements Exception {
   const ContextDependencyCycleException(this.cycle);
 
+  /// The chain of types that led back to itself.
   final List<Type> cycle;
 
   @override
   String toString() => 'Dependency cycle detected: ${cycle.join(' -> ')}';
 }
 
+/// A function that builds the value a context serves for one type.
 typedef Generator = Object? Function();
 
+/// The dependency container the zone carries.
+///
+/// A generator runs at most once per context, and the value it returns lives as
+/// long as that context does. A lookup that finds nothing here walks up to the
+/// parent, so a child overrides only the types it names and inherits the rest.
 class AppContext {
   AppContext._(this._parent, this._name, [this._overrides = const <Type, Generator>{}]);
 
@@ -52,18 +63,28 @@ class AppContext {
 
   final List<Type> _reentrantChecks = <Type>[];
 
+  /// The name this context was opened under, or `app` when it was given none.
   String get name => _name ?? 'app';
 
+  /// The context the current zone carries, or the root one outside any [run].
   static AppContext get current => Zone.current[_key] as AppContext? ?? _root;
 
   static final AppContext _root = AppContext._(null, 'root');
 
+  /// The value registered for [T] here or in an enclosing context, or null.
   T? get<T extends Object>() {
     final Object? value = _generateIfNecessary(T);
     if (value != null) return value as T;
     return _parent?.get<T>();
   }
 
+  /// Runs [body] in a child context that adds [overrides], and returns its result.
+  ///
+  /// The child is carried by a zone, so everything [body] calls and everything
+  /// it awaits sees the same overrides without being handed them.
+  ///
+  /// Throws a [ContextDependencyCycleException] when a generator ends up asking
+  /// for the type it is building.
   Future<V> run<V>({required FutureOr<V> Function() body, String? name, Map<Type, Generator>? overrides}) async {
     final AppContext child = AppContext._(this, name, Map<Type, Generator>.unmodifiable(overrides ?? <Type, Generator>{}));
 
