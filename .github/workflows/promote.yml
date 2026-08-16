@@ -75,15 +75,20 @@ jobs:
             exit 1
           fi
 
-      - name: Move main to dev
+      - name: Bring dev into main
         run: |
           set -eu
           git fetch origin main:refs/remotes/origin/main
+          tip=$(git rev-parse HEAD)
 
           if git diff --quiet origin/main..HEAD; then
             echo "main already carries this tree, nothing to promote"
             exit 0
           fi
 
-          git push origin HEAD:main
-          echo "main now carries $(git rev-parse --short HEAD), publish takes over"
+          git config user.name "scribe-tools[bot]"
+          git config user.email "scribe-tools@users.noreply.github.com"
+          git checkout -B promotion origin/main
+          git merge --no-edit "$tip"
+          git push origin promotion:main
+          echo "main now carries ${tip}, publish takes over"
