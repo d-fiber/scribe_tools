@@ -29,100 +29,50 @@
 
 import 'dart:convert';
 
-import 'package:path/path.dart' as p;
-
+import 'package:scribe/src/commands/gen/code/generators/config/import_map.dart';
 import 'package:scribe/src/globals.dart' as globals;
 
-// Les alias de chemin de la config du SDK : ils décrivent où le SDK se trouve
-// par rapport à lui-même, donc ils ne peuvent pas être recopiés tels quels dans
-// la config d'un projet qui vit ailleurs. Tout le reste (les ~30 dépendances
-// tierces) est hérité mot pour mot, pour que la version d'une dépendance soit
-// déclarée à un seul endroit.
-const Set<String> _sdkPathAliases = <String>{
-  '@scribe/core/',
-  '@scribe/host/',
-  '@scribe/protocol/',
-  '@scribe/sdk',
-  '@scribe/sdk/',
-  '@app/',
-  '@assets/',
-};
-
-/// Écrit les deux cartes d'imports du projet.
+/// Writes the project's two import maps.
 ///
-/// C'est l'inversion de dépendance qui rend le SDK déplaçable : jusqu'ici
-/// `scribe/host/deno.json` pointait vers `../../lib/`, donc le SDK devait
-/// être le frère du projet. Désormais c'est le projet qui pointe vers le SDK,
-/// en absolu, et le SDK n'a plus à savoir qu'un projet existe.
+/// This is the dependency inversion that lets the framework be moved. The
+/// framework's own configuration used to point at `../../lib/`, so it had to be
+/// the project's sibling; now the project points at the framework, absolutely,
+/// and the framework no longer has to know a project exists.
 ///
-/// Deux fichiers parce que les chemins de l'hôte n'existent pas dans le
-/// conteneur : `scribe.json` sert à l'éditeur et aux vérifications locales ;
-/// `scribe.container.json` est monté puis passé en `--config` par le compose.
+/// There are two files because the host's paths do not exist inside the
+/// container. `scribe.json` is what the editor and a local check read;
+/// `scribe.container.json` is mounted and passed as `--config` by the compose.
 ///
-/// Le nom ne dit pas le runtime : côté projet, rien ne doit trahir avec quoi le
-/// framework est implémenté.
-///
-/// `@scribe/sdk/` (le préfixe qui ouvre l'intérieur du SDK) y figure quand même,
-/// parce que cette carte sert AUSSI à compiler l'hôte — en conteneur et dans
-/// l'éditeur. Seul le projet n'a aucune raison de s'en servir ; c'est une
-/// convention, pas une frontière que la carte peut faire respecter.
+/// Neither name says which runtime is underneath: nothing on the project's side
+/// should give away what the framework is implemented with.
 Future<void> generateScribeConfig() async {
-
-  final Map<String, dynamic> sdk = jsonDecode(await globals.project.sdk.hostDenoJson.readAsString());
-  final Map<String, String> inherited = <String, String>{
-    for (final MapEntry<String, dynamic> e in (sdk['imports'] as Map<String, dynamic>).entries)
-      if (!_sdkPathAliases.contains(e.key)) e.key: e.value as String,
-  };
-
-  final String sdkRoot = globals.project.sdk.host.path;
+  final Map<String, dynamic> frameworkConfig =
+      jsonDecode(await globals.project.sdk.hostDenoJson.readAsString()) as Map<String, dynamic>;
+  final Map<String, String> inherited = inheritedImports(frameworkConfig);
 
   await globals.project.generated.sdk.create();
 
   await globals.project.generated.sdk.importMap.writeAsString(
-    _render(
+    renderImportMap(
+      frameworkConfig,
       inherited,
-      sdk,
-      sdkRoot: _asDirectory(sdkRoot),
-      projectRoot: _asDirectory(globals.project.lib.path),
-      assetsRoot: _asDirectory(globals.project.assets.path),
+      frameworkRoot: asDirectory(globals.project.sdk.host.path),
+      projectRoot: asDirectory(globals.project.lib.path),
+      assetsRoot: asDirectory(globals.project.assets.path),
     ),
   );
 
   await globals.project.generated.sdk.containerImportMap.writeAsString(
-    _render(inherited, sdk, sdkRoot: '/app/scribe/host/', projectRoot: '/app/lib/', assetsRoot: '/app/assets/'),
+    renderImportMap(
+      frameworkConfig,
+      inherited,
+      frameworkRoot: '/app/scribe/host/',
+      projectRoot: '/app/lib/',
+      assetsRoot: '/app/assets/',
+    ),
   );
 
   globals.logger.printStatus(
     '${inherited.length} deps inherited → ${globals.project.generatedDirectoryName}/sdk/js/scribe{,.container}.json',
   );
-}
-
-String _asDirectory(String path) => path.endsWith(p.separator) ? path : '$path${p.separator}';
-
-String _render(
-  Map<String, String> inherited,
-  Map<String, dynamic> sdk, {
-  required String sdkRoot,
-  required String projectRoot,
-  required String assetsRoot,
-}) {
-  final Map<String, dynamic> document = <String, dynamic>{
-    'imports': <String, String>{
-      ...inherited,
-      '@scribe/core/': '${sdkRoot}core/',
-      '@scribe/host/': sdkRoot,
-      '@scribe/protocol/': '${p.dirname(sdkRoot)}/protocol/',
-      '@scribe/sdk': '${p.dirname(sdkRoot)}/sdk/js/mod.ts',
-      '@scribe/sdk/': '${p.dirname(sdkRoot)}/sdk/js/',
-      '@app/': projectRoot,
-      '@assets/': assetsRoot,
-      globals.project.generatedAlias: './',
-      '@generated/': './',
-    },
-    'lock': false,
-    if (sdk['compilerOptions'] != null) 'compilerOptions': sdk['compilerOptions'],
-    if (sdk['fmt'] != null) 'fmt': sdk['fmt'],
-  };
-
-  return '${const JsonEncoder.withIndent('  ').convert(document)}\n';
 }
