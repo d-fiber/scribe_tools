@@ -38,9 +38,6 @@ jobs:
         with:
           deno-version: v2.x
 
-      # dart compile exe does not create the parent directory of -o, it fails
-      # with PathNotFoundException. deno compile is not fussy, but one mkdir
-      # covers all three builds.
       - name: Create the output directory
         run: mkdir -p "$GITHUB_WORKSPACE/out/${{ matrix.target }}"
 
@@ -84,11 +81,6 @@ jobs:
           pattern: tools-*
           path: incoming
 
-      # The binaries are not committed into scribe. A compiled docs is 114 MB on
-      # Linux, over the 100 MB GitHub accepts for a single file, and a fresh set
-      # on every release would add roughly 300 MB to the history each time. They
-      # go on a release instead, and scribe's tools/install.sh fetches the pair
-      # that matches the machine asking.
       - name: Name each asset after its platform
         run: |
           set -eu
