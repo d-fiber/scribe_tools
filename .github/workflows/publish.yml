@@ -38,6 +38,12 @@ jobs:
         with:
           deno-version: v2.x
 
+      # dart compile exe does not create the parent directory of -o, it fails
+      # with PathNotFoundException. deno compile is not fussy, but one mkdir
+      # covers all three builds.
+      - name: Create the output directory
+        run: mkdir -p "$GITHUB_WORKSPACE/out/${{ matrix.target }}"
+
       - name: Build scribe for ${{ matrix.target }}
         working-directory: scribe
         run: |
