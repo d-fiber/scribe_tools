@@ -27,28 +27,68 @@
 // is a violation of applicable intellectual property laws and will result
 // in legal action.
 
-import 'dart:io';
+import 'dart:io' as io;
 
-import 'package:scribe/runner.dart' as runner;
-import 'package:scribe/src/commands/create.dart';
-import 'package:scribe/src/commands/doctor.dart';
-import 'package:scribe/src/commands/gen.dart';
-import 'package:scribe/src/commands/secrets.dart';
-import 'package:scribe/src/runner/scribe_command.dart';
+abstract class Platform {
+  const Platform();
 
-const String kToolVersion = '1.0.0';
+  String get operatingSystem;
 
-Future<void> main(List<String> args) async {
-  final int code = await runner.run(
-    args,
-    () => <ScribeCommand>[
-      CreateCommand(),
-      DoctorCommand(),
-      GenCommand(),
-      SecretsCommand(),
-    ],
-    toolVersion: kToolVersion,
-  );
+  Map<String, String> get environment;
 
-  if (code != 0) exit(code);
+  String get pathSeparator;
+
+  bool get stdoutSupportsAnsi;
+
+  String get version;
+
+  bool get isWindows => operatingSystem == 'windows';
+
+  bool get isMacOS => operatingSystem == 'macos';
+
+  bool get isLinux => operatingSystem == 'linux';
+}
+
+class LocalPlatform extends Platform {
+  const LocalPlatform();
+
+  @override
+  String get operatingSystem => io.Platform.operatingSystem;
+
+  @override
+  Map<String, String> get environment => io.Platform.environment;
+
+  @override
+  String get pathSeparator => io.Platform.pathSeparator;
+
+  @override
+  bool get stdoutSupportsAnsi => io.stdout.supportsAnsiEscapes;
+
+  @override
+  String get version => io.Platform.version;
+}
+
+class FakePlatform extends Platform {
+  const FakePlatform({
+    this.operatingSystem = 'macos',
+    this.environment = const <String, String>{},
+    this.pathSeparator = '/',
+    this.stdoutSupportsAnsi = false,
+    this.version = 'test',
+  });
+
+  @override
+  final String operatingSystem;
+
+  @override
+  final Map<String, String> environment;
+
+  @override
+  final String pathSeparator;
+
+  @override
+  final bool stdoutSupportsAnsi;
+
+  @override
+  final String version;
 }

@@ -27,28 +27,25 @@
 // is a violation of applicable intellectual property laws and will result
 // in legal action.
 
-import 'dart:io';
-
-import 'package:scribe/runner.dart' as runner;
-import 'package:scribe/src/commands/create.dart';
-import 'package:scribe/src/commands/doctor.dart';
-import 'package:scribe/src/commands/gen.dart';
-import 'package:scribe/src/commands/secrets.dart';
+import 'package:scribe/src/commands/gen/code/code_command.dart';
+import 'package:scribe/src/commands/gen/docs/docs_command.dart';
+import 'package:scribe/src/commands/gen/hosting/hosting_command.dart';
+import 'package:scribe/src/commands/gen/routes/routes_command.dart';
 import 'package:scribe/src/runner/scribe_command.dart';
 
-const String kToolVersion = '1.0.0';
+class GenCommand extends ScribeCommandGroup {
+  GenCommand() {
+    addSubcommand(GenCodeCommand());
+    addSubcommand(GenRoutesCommand());
+    addSubcommand(GenDocsCommand());
+    addSubcommand(GenHostingCommand());
+  }
 
-Future<void> main(List<String> args) async {
-  final int code = await runner.run(
-    args,
-    () => <ScribeCommand>[
-      CreateCommand(),
-      DoctorCommand(),
-      GenCommand(),
-      SecretsCommand(),
-    ],
-    toolVersion: kToolVersion,
-  );
+  @override
+  String get name => 'gen';
 
-  if (code != 0) exit(code);
+  @override
+  String get description =>
+      'Rewrite everything the project derives: the import map, the enums, the row and table types, '
+      'the relations, the route table, the docs and the template strings.';
 }

@@ -27,28 +27,54 @@
 // is a violation of applicable intellectual property laws and will result
 // in legal action.
 
-import 'dart:io';
+import 'dart:convert';
 
-import 'package:scribe/runner.dart' as runner;
-import 'package:scribe/src/commands/create.dart';
-import 'package:scribe/src/commands/doctor.dart';
-import 'package:scribe/src/commands/gen.dart';
-import 'package:scribe/src/commands/secrets.dart';
-import 'package:scribe/src/runner/scribe_command.dart';
+import 'entries.dart';
+import 'template.dart';
 
-const String kToolVersion = '1.0.0';
+String renderStringsModule(String bin, Map<String, Entry> entries) {
+  final String dataBody = entries.entries
+      .map(
+        (MapEntry<String, Entry> e) =>
+            '  ${e.key}: '
+            '{ en: ${jsonEncode(e.value.en)}, fr: ${jsonEncode(e.value.fr)} },',
+      )
+      .join('\n');
 
-Future<void> main(List<String> args) async {
-  final int code = await runner.run(
-    args,
-    () => <ScribeCommand>[
-      CreateCommand(),
-      DoctorCommand(),
-      GenCommand(),
-      SecretsCommand(),
-    ],
-    toolVersion: kToolVersion,
-  );
+  final String accessorBody = entries.entries
+      .map((MapEntry<String, Entry> e) {
+        final List<String> params = extractParams(e.value.en);
+        if (params.isEmpty) {
+          return '    ${e.key}: _data.${e.key}[locale],';
+        }
+        final String paramType = params.map((String p) => '$p: string').join('; ');
+        final String replaceChain = params.map((String p) => '.replace("{$p}", p.$p)').join();
+        return '    ${e.key}: (p: { $paramType }) => '
+            '_data.${e.key}[locale]$replaceChain,';
+      })
+      .join('\n');
 
-  if (code != 0) exit(code);
+  return '''
+// AUTO-GENERATED do not edit manually
+// File: strings.csv run `$bin gen hosting` to update
+
+export const locales = ["en", "fr"] as const;
+export type Locale = typeof locales[number];
+
+const _data = {
+$dataBody
+} as const;
+
+export type StringKey = keyof typeof _data;
+
+export function t(key: StringKey, locale: Locale): string {
+  return _data[key][locale];
+}
+
+export function strings(locale: Locale) {
+  return {
+$accessorBody
+  };
+}
+''';
 }

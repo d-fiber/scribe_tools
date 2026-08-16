@@ -26,29 +26,50 @@
 // Unauthorized copying or reproduction of this script, in whole or in part,
 // is a violation of applicable intellectual property laws and will result
 // in legal action.
+import 'package:scribe/src/base/common.dart';
 
-import 'dart:io';
+abstract class TemplateRenderer {
+  const TemplateRenderer();
 
-import 'package:scribe/runner.dart' as runner;
-import 'package:scribe/src/commands/create.dart';
-import 'package:scribe/src/commands/doctor.dart';
-import 'package:scribe/src/commands/gen.dart';
-import 'package:scribe/src/commands/secrets.dart';
-import 'package:scribe/src/runner/scribe_command.dart';
+  String renderString(String name, String source, Map<String, String> values);
+}
 
-const String kToolVersion = '1.0.0';
+final RegExp _blockPlaceholder = RegExp(r'^([ \t]*)\{\{(\w+)\}\}[ \t]*$', multiLine: true);
+final RegExp _inlinePlaceholder = RegExp(r'\{\{(\w+)\}\}');
 
-Future<void> main(List<String> args) async {
-  final int code = await runner.run(
-    args,
-    () => <ScribeCommand>[
-      CreateCommand(),
-      DoctorCommand(),
-      GenCommand(),
-      SecretsCommand(),
-    ],
-    toolVersion: kToolVersion,
+String renderTemplate(String name, String source, Map<String, String> values) {
+  final Set<String> missing = <String>{};
+
+  String resolve(String key, String raw, String indent) {
+    final String? value = values[key];
+    if (value == null) {
+      missing.add(key);
+      return raw;
+    }
+    return _indentEveryLine(value, indent);
+  }
+
+  final String blocks = source.replaceAllMapped(
+    _blockPlaceholder,
+    (Match match) => resolve(match.group(2)!, match.group(0)!, match.group(1)!),
   );
 
-  if (code != 0) exit(code);
+  final String output = blocks.replaceAllMapped(
+    _inlinePlaceholder,
+    (Match match) => resolve(match.group(1)!, match.group(0)!, ''),
+  );
+
+  if (missing.isNotEmpty) {
+    throwToolExit('$name: ${missing.length} unresolved variable(s) — ${(missing.toList()..sort()).join(', ')}');
+  }
+
+  return output;
+}
+
+String _indentEveryLine(String value, String indent) {
+  if (indent.isEmpty) return value;
+  return value
+      .split('\n')
+      .map((String line) => line.isEmpty ? line : '$indent$line')
+      .join('\n');
 }

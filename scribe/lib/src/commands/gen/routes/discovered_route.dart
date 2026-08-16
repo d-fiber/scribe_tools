@@ -27,28 +27,16 @@
 // is a violation of applicable intellectual property laws and will result
 // in legal action.
 
-import 'dart:io';
+class DiscoveredRoute {
+  const DiscoveredRoute({
+    required this.node,
+    required this.path,
+    required this.file,
+    required this.branches,
+  });
 
-import 'package:scribe/runner.dart' as runner;
-import 'package:scribe/src/commands/create.dart';
-import 'package:scribe/src/commands/doctor.dart';
-import 'package:scribe/src/commands/gen.dart';
-import 'package:scribe/src/commands/secrets.dart';
-import 'package:scribe/src/runner/scribe_command.dart';
-
-const String kToolVersion = '1.0.0';
-
-Future<void> main(List<String> args) async {
-  final int code = await runner.run(
-    args,
-    () => <ScribeCommand>[
-      CreateCommand(),
-      DoctorCommand(),
-      GenCommand(),
-      SecretsCommand(),
-    ],
-    toolVersion: kToolVersion,
-  );
-
-  if (code != 0) exit(code);
+  final String node;
+  final String path;
+  final String file;
+  final List<String> branches;
 }

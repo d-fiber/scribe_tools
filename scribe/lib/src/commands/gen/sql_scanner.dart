@@ -27,28 +27,36 @@
 // is a violation of applicable intellectual property laws and will result
 // in legal action.
 
-import 'dart:io';
 
-import 'package:scribe/runner.dart' as runner;
-import 'package:scribe/src/commands/create.dart';
-import 'package:scribe/src/commands/doctor.dart';
-import 'package:scribe/src/commands/gen.dart';
-import 'package:scribe/src/commands/secrets.dart';
-import 'package:scribe/src/runner/scribe_command.dart';
+import 'package:file/file.dart';
 
-const String kToolVersion = '1.0.0';
+import 'package:path/path.dart' as p;
 
-Future<void> main(List<String> args) async {
-  final int code = await runner.run(
-    args,
-    () => <ScribeCommand>[
-      CreateCommand(),
-      DoctorCommand(),
-      GenCommand(),
-      SecretsCommand(),
-    ],
-    toolVersion: kToolVersion,
-  );
+import 'package:scribe/src/dependencies.dart';
+import 'package:scribe/src/globals.dart' as globals;
 
-  if (code != 0) exit(code);
+List<Directory> kernelSqlRoots() => <Directory>[
+  globals.project.sdk.hostDbInit,
+  ..._moduleSqlRoots(),
+  globals.project.sdk.hostDbMigrations,
+];
+
+List<Directory> _moduleSqlRoots() {
+  final List<Directory> roots = <Directory>[
+    for (final Dependency dependency in Dependencies.load().active)
+      if (dependency.sql case final String sql) globals.fs.directory(p.join(dependency.directory.path, sql)),
+  ];
+  roots.sort((Directory a, Directory b) => a.path.compareTo(b.path));
+  return roots;
+}
+
+Future<void> walkSqlFiles(Directory dir, Future<void> Function(File file) visit) async {
+  if (!dir.existsSync()) return;
+  for (final FileSystemEntity entity in dir.listSync(followLinks: false)) {
+    if (entity is Directory) {
+      await walkSqlFiles(entity, visit);
+    } else if (entity is File && entity.path.endsWith('.sql')) {
+      await visit(entity);
+    }
+  }
 }

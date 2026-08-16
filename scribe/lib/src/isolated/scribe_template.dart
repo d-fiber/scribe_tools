@@ -27,28 +27,12 @@
 // is a violation of applicable intellectual property laws and will result
 // in legal action.
 
-import 'dart:io';
+import 'package:scribe/src/base/template.dart';
 
-import 'package:scribe/runner.dart' as runner;
-import 'package:scribe/src/commands/create.dart';
-import 'package:scribe/src/commands/doctor.dart';
-import 'package:scribe/src/commands/gen.dart';
-import 'package:scribe/src/commands/secrets.dart';
-import 'package:scribe/src/runner/scribe_command.dart';
+class ScribeTemplateRenderer extends TemplateRenderer {
+  const ScribeTemplateRenderer();
 
-const String kToolVersion = '1.0.0';
-
-Future<void> main(List<String> args) async {
-  final int code = await runner.run(
-    args,
-    () => <ScribeCommand>[
-      CreateCommand(),
-      DoctorCommand(),
-      GenCommand(),
-      SecretsCommand(),
-    ],
-    toolVersion: kToolVersion,
-  );
-
-  if (code != 0) exit(code);
+  @override
+  String renderString(String name, String source, Map<String, String> values) =>
+      renderTemplate(name, source, values);
 }

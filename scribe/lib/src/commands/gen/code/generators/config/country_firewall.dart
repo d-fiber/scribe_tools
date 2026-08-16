@@ -27,28 +27,33 @@
 // is a violation of applicable intellectual property laws and will result
 // in legal action.
 
-import 'dart:io';
 
-import 'package:scribe/runner.dart' as runner;
-import 'package:scribe/src/commands/create.dart';
-import 'package:scribe/src/commands/doctor.dart';
-import 'package:scribe/src/commands/gen.dart';
-import 'package:scribe/src/commands/secrets.dart';
-import 'package:scribe/src/runner/scribe_command.dart';
+import 'package:scribe/src/globals.dart' as globals;
+import 'package:scribe/src/base/common.dart';
 
-const String kToolVersion = '1.0.0';
+/// Écrit la liste des pays autorisés dans le dossier généré.
+///
+/// Le pare-feu lui-même (`api/public/app/_country_firewall.ts`) reste dans le
+/// SDK : c'est de la forme, identique pour tous les projets. Seules les valeurs
+/// sortent — le SDK les charge par un `await import()` optionnel et retombe sur
+/// la liste vide, qui signifie « aucune restriction », exactement le défaut
+/// documenté dans `config.yaml`.
+Future<void> generateCountryFirewall() async {
 
-Future<void> main(List<String> args) async {
-  final int code = await runner.run(
-    args,
-    () => <ScribeCommand>[
-      CreateCommand(),
-      DoctorCommand(),
-      GenCommand(),
-      SecretsCommand(),
-    ],
-    toolVersion: kToolVersion,
+  final List<String> countries = <String>[
+    ...globals.project.manifest.allowedCountries,
+  ]..sort();
+
+  final String bin = kToolName;
+
+  await globals.project.generated.sdk.create();
+  await globals.project.generated.sdk.allowedCountries.writeAsString(
+    '// This file is auto-generated do not edit manually.\n'
+    '// Run: $bin gen code\n'
+    '\n'
+    'export const ALLOWED_COUNTRIES: readonly string[] = '
+    '[${countries.map((String c) => '"$c"').join(', ')}];\n',
   );
 
-  if (code != 0) exit(code);
+  globals.logger.printStatus('${countries.length} allowed countries → ${globals.project.generatedDirectoryName}/sdk/js/allowed_countries.ts');
 }

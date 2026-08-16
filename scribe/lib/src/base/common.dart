@@ -27,28 +27,32 @@
 // is a violation of applicable intellectual property laws and will result
 // in legal action.
 
-import 'dart:io';
+const String kToolName = 'scribe';
 
-import 'package:scribe/runner.dart' as runner;
-import 'package:scribe/src/commands/create.dart';
-import 'package:scribe/src/commands/doctor.dart';
-import 'package:scribe/src/commands/gen.dart';
-import 'package:scribe/src/commands/secrets.dart';
-import 'package:scribe/src/runner/scribe_command.dart';
+final class ToolExit implements Exception {
+  const ToolExit(this.message, {this.exitCode = 1});
 
-const String kToolVersion = '1.0.0';
+  final String? message;
+  final int exitCode;
 
-Future<void> main(List<String> args) async {
-  final int code = await runner.run(
-    args,
-    () => <ScribeCommand>[
-      CreateCommand(),
-      DoctorCommand(),
-      GenCommand(),
-      SecretsCommand(),
-    ],
-    toolVersion: kToolVersion,
-  );
+  @override
+  String toString() => message ?? 'ToolExit';
+}
 
-  if (code != 0) exit(code);
+Never throwToolExit(String? message, {int exitCode = 1}) {
+  throw ToolExit(message, exitCode: exitCode);
+}
+
+final class UsageError implements Exception {
+  const UsageError(this.message, {this.command});
+
+  final String message;
+  final String? command;
+
+  @override
+  String toString() => message;
+}
+
+Never throwUsageError(String message, {String? command}) {
+  throw UsageError(message, command: command);
 }

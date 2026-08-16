@@ -18,7 +18,7 @@ packages:
     source: hosted
     version: "13.3.0"
   args:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: args
       sha256: d0481093c50b1da8910eb0bb301626d4d8eb7284aa739614d2b394ee09e3ea04
@@ -33,6 +33,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.13.1"
+  bech32:
+    dependency: transitive
+    description:
+      name: bech32
+      sha256: "156cbace936f7720c79a79d16a03efad343b1ef17106716e04b8b8e39f99f7f7"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.2.2"
   boolean_selector:
     dependency: transitive
     description:
@@ -65,14 +73,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.2.0"
-  cli_util:
-    dependency: "direct main"
-    description:
-      name: cli_util
-      sha256: "5909d2c6b66817222779e1eedc19e0e28b76d1df7bd9856a4792ccb9881df358"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.5.1"
   clock:
     dependency: transitive
     description:
@@ -82,7 +82,7 @@ packages:
     source: hosted
     version: "1.1.2"
   collection:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: collection
       sha256: "2f5709ae4d3d59dd8f7cd309b4e023046b57d8a6c82130785d2b0e5868084e76"
@@ -113,8 +113,24 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.0.7"
-  dart_console:
+  cryptography:
     dependency: "direct main"
+    description:
+      name: cryptography
+      sha256: "3eda3029d34ec9095a27a198ac9785630fe525c0eb6a49f3d575272f8e792ef0"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.9.0"
+  dage:
+    dependency: "direct main"
+    description:
+      name: dage
+      sha256: f1db6de02e2fc7452a4ecb11d74add9d2b0970be58708a9739289d1a31036c02
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.10"
+  dart_console:
+    dependency: transitive
     description:
       name: dart_console
       sha256: dfa4b63eb4382325ff975fdb6b7a0db8303bb5809ee5cb4516b44153844742ed
@@ -138,7 +154,7 @@ packages:
     source: hosted
     version: "1.0.0"
   file:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: file
       sha256: a3b4f84adafef897088c160faf7dfffb7696046cb13ae90b508c2cbc95d3b8d4
@@ -201,6 +217,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.5"
+  js:
+    dependency: transitive
+    description:
+      name: js
+      sha256: "53385261521cc4a0c4658fd0ad07a7d14591cf8fc33abbceae306ddb974888dc"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.7.2"
   lints:
     dependency: "direct dev"
     description:
@@ -226,7 +250,7 @@ packages:
     source: hosted
     version: "0.12.20"
   meta:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: meta
       sha256: "307249ce4ff29d58a18e97f6345f539382eb9c9c29ecda628900f31de0443dd9"
@@ -265,6 +289,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.9.1"
+  petitparser:
+    dependency: transitive
+    description:
+      name: petitparser
+      sha256: cb3798bef7fc021ac45b308f4b51208a152792445cce0448c9a4ba5879dd8750
+      url: "https://pub.dev"
+    source: hosted
+    version: "5.4.0"
+  pointycastle:
+    dependency: transitive
+    description:
+      name: pointycastle
+      sha256: "4be0097fcf3fd3e8449e53730c631200ebc7b88016acecab2b0da2f0149222fe"
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.9.1"
   pool:
     dependency: transitive
     description:
@@ -361,14 +401,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.4.1"
-  string_validator:
-    dependency: "direct main"
-    description:
-      name: string_validator
-      sha256: "240f4c98027dfbe8639c8271ef18cc9de735b47067aa15a720cfed9576a512b1"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.2.0"
   term_glyph:
     dependency: transitive
     description:
@@ -402,7 +434,7 @@ packages:
     source: hosted
     version: "0.6.19"
   tint:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: tint
       sha256: "9652d9a589f4536d5e392cf790263d120474f15da3cf1bee7f1fdb31b4de5f46"

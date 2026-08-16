@@ -27,28 +27,22 @@
 // is a violation of applicable intellectual property laws and will result
 // in legal action.
 
-import 'dart:io';
-
-import 'package:scribe/runner.dart' as runner;
-import 'package:scribe/src/commands/create.dart';
-import 'package:scribe/src/commands/doctor.dart';
-import 'package:scribe/src/commands/gen.dart';
-import 'package:scribe/src/commands/secrets.dart';
+import 'openapi_document.dart';
 import 'package:scribe/src/runner/scribe_command.dart';
 
-const String kToolVersion = '1.0.0';
+class GenDocsCommand extends ScribeCommand {
+  GenDocsCommand();
 
-Future<void> main(List<String> args) async {
-  final int code = await runner.run(
-    args,
-    () => <ScribeCommand>[
-      CreateCommand(),
-      DoctorCommand(),
-      GenCommand(),
-      SecretsCommand(),
-    ],
-    toolVersion: kToolVersion,
-  );
+  @override
+  String get name => 'docs';
 
-  if (code != 0) exit(code);
+  @override
+  String get description =>
+      'Rebuild the OpenAPI documents from the API source and config.yaml, which are their only source of truth.';
+
+  @override
+  Future<ScribeCommandResult> runCommand() async {
+    await generateDocs();
+    return const ScribeCommandResult.success();
+  }
 }

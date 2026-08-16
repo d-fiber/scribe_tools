@@ -27,28 +27,21 @@
 // is a violation of applicable intellectual property laws and will result
 // in legal action.
 
-import 'dart:io';
-
-import 'package:scribe/runner.dart' as runner;
-import 'package:scribe/src/commands/create.dart';
-import 'package:scribe/src/commands/doctor.dart';
-import 'package:scribe/src/commands/gen.dart';
-import 'package:scribe/src/commands/secrets.dart';
+import 'strings.dart';
 import 'package:scribe/src/runner/scribe_command.dart';
 
-const String kToolVersion = '1.0.0';
+class GenHostingCommand extends ScribeCommand {
+  GenHostingCommand();
 
-Future<void> main(List<String> args) async {
-  final int code = await runner.run(
-    args,
-    () => <ScribeCommand>[
-      CreateCommand(),
-      DoctorCommand(),
-      GenCommand(),
-      SecretsCommand(),
-    ],
-    toolVersion: kToolVersion,
-  );
+  @override
+  String get name => 'hosting';
 
-  if (code != 0) exit(code);
+  @override
+  String get description => 'Generate the hosting assets derived from config.yaml.';
+
+  @override
+  Future<ScribeCommandResult> runCommand() async {
+    await generateStrings();
+    return const ScribeCommandResult.success();
+  }
 }

@@ -27,28 +27,25 @@
 // is a violation of applicable intellectual property laws and will result
 // in legal action.
 
-import 'dart:io';
 
-import 'package:scribe/runner.dart' as runner;
-import 'package:scribe/src/commands/create.dart';
-import 'package:scribe/src/commands/doctor.dart';
-import 'package:scribe/src/commands/gen.dart';
-import 'package:scribe/src/commands/secrets.dart';
-import 'package:scribe/src/runner/scribe_command.dart';
+import 'package:scribe/src/dependencies.dart';
+import 'package:scribe/src/globals.dart' as globals;
+import 'package:scribe/src/base/common.dart';
 
-const String kToolVersion = '1.0.0';
+Future<void> generateDependencies() async {
 
-Future<void> main(List<String> args) async {
-  final int code = await runner.run(
-    args,
-    () => <ScribeCommand>[
-      CreateCommand(),
-      DoctorCommand(),
-      GenCommand(),
-      SecretsCommand(),
-    ],
-    toolVersion: kToolVersion,
+  final Dependencies dependencies = Dependencies.load();
+  final List<String> mounted = dependencies.active.map((Dependency d) => d.path).toList()..sort();
+  final String bin = kToolName;
+
+  await globals.project.generated.sdk.create();
+  await globals.project.generated.sdk.dependencies.writeAsString(
+    '// This file is auto-generated do not edit manually.\n'
+    '// Run: $bin gen code\n'
+    '\n'
+    'export const DEPENDENCIES: readonly string[] = '
+    '[${mounted.map((String path) => '"$path"').join(', ')}];\n',
   );
 
-  if (code != 0) exit(code);
+  globals.logger.printStatus('${mounted.length}/${dependencies.all.length} dependencies mounted → ${globals.project.generatedDirectoryName}/sdk/js/dependencies.ts');
 }

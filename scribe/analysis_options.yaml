@@ -28,3 +28,7 @@ include: package:lints/recommended.yaml
 
 # For additional information about configuring this file, see
 # https://dart.dev/tools/analysis
+
+linter:
+  rules:
+    prefer_initializing_formals: false

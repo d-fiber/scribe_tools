@@ -29,26 +29,26 @@
 
 import 'dart:io';
 
-import 'package:scribe/runner.dart' as runner;
-import 'package:scribe/src/commands/create.dart';
-import 'package:scribe/src/commands/doctor.dart';
-import 'package:scribe/src/commands/gen.dart';
-import 'package:scribe/src/commands/secrets.dart';
-import 'package:scribe/src/runner/scribe_command.dart';
+import 'package:change_case/change_case.dart';
+import 'package:path/path.dart' as p;
 
-const String kToolVersion = '1.0.0';
+import 'package:scribe/src/base/yaml.dart';
+import 'module_names.dart';
 
-Future<void> main(List<String> args) async {
-  final int code = await runner.run(
-    args,
-    () => <ScribeCommand>[
-      CreateCommand(),
-      DoctorCommand(),
-      GenCommand(),
-      SecretsCommand(),
-    ],
-    toolVersion: kToolVersion,
-  );
+List<String> surfaceTagNames(Directory root, String surface) {
+  final List<String> names = moduleNames(<Directory>[
+    Directory(p.join(root.path, 'scribe/host/api/public/$surface/src')),
+    Directory(p.join(root.path, 'lib/api/$surface/src')),
+  ]);
+  return names.map((String name) => name.toPascalCase()).toList();
+}
 
-  if (code != 0) exit(code);
+String renderTagsSection(List<String> tags) {
+  final Indented out = Indented.empty();
+  out.lines.add('tags:');
+  for (final String tag in tags) {
+    out.add(1, '- name: $tag');
+    out.add(2, 'description:');
+  }
+  return out.render();
 }

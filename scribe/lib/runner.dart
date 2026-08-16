@@ -27,28 +27,48 @@
 // is a violation of applicable intellectual property laws and will result
 // in legal action.
 
-import 'dart:io';
+import 'dart:async';
 
-import 'package:scribe/runner.dart' as runner;
-import 'package:scribe/src/commands/create.dart';
-import 'package:scribe/src/commands/doctor.dart';
-import 'package:scribe/src/commands/gen.dart';
-import 'package:scribe/src/commands/secrets.dart';
+import 'package:args/command_runner.dart';
+import 'package:scribe/src/base/common.dart';
+import 'package:scribe/src/base/context.dart';
+import 'package:scribe/src/context_runner.dart';
+import 'package:scribe/src/globals.dart' as globals;
 import 'package:scribe/src/runner/scribe_command.dart';
+import 'package:scribe/src/runner/scribe_command_runner.dart';
 
-const String kToolVersion = '1.0.0';
+const int kExitCodeUsage = 64;
 
-Future<void> main(List<String> args) async {
-  final int code = await runner.run(
-    args,
-    () => <ScribeCommand>[
-      CreateCommand(),
-      DoctorCommand(),
-      GenCommand(),
-      SecretsCommand(),
-    ],
-    toolVersion: kToolVersion,
-  );
+const int kExitCodeCrash = 70;
 
-  if (code != 0) exit(code);
+Future<int> run(
+  List<String> args,
+  List<ScribeCommand> Function() commands, {
+  required String toolVersion,
+  Map<Type, Generator>? overrides,
+}) async {
+  return runInContext<int>(() async {
+    final ScribeCommandRunner runner = ScribeCommandRunner(toolVersion: toolVersion);
+    commands().forEach(runner.addCommand);
+
+    try {
+      await runner.run(args);
+      return globals.logger.hadErrorOutput ? 1 : 0;
+    } on ToolExit catch (error) {
+      final String? message = error.message;
+      if (message != null && message.isNotEmpty) globals.logger.printError(message);
+      return error.exitCode;
+    } on UsageError catch (error) {
+      globals.logger.printError(error.message);
+      return kExitCodeUsage;
+    } on UsageException catch (error) {
+      globals.logger.printError(error.message);
+      globals.logger.printStatus('');
+      globals.logger.printStatus(error.usage);
+      return kExitCodeUsage;
+    } catch (error, stackTrace) {
+      globals.logger.printError('$error', stackTrace: globals.logger.isVerbose ? stackTrace : null);
+      return kExitCodeCrash;
+    }
+  }, overrides: overrides);
 }

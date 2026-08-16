@@ -27,28 +27,39 @@
 // is a violation of applicable intellectual property laws and will result
 // in legal action.
 
-import 'dart:io';
+class Conventions {
+  const Conventions._();
 
-import 'package:scribe/runner.dart' as runner;
-import 'package:scribe/src/commands/create.dart';
-import 'package:scribe/src/commands/doctor.dart';
-import 'package:scribe/src/commands/gen.dart';
-import 'package:scribe/src/commands/secrets.dart';
-import 'package:scribe/src/runner/scribe_command.dart';
+  static const String sourceExtension = '.ts';
+  static const String indexName = 'index';
+  static const String middlewareName = '_middleware';
+  static const String nodeName = '_node';
+  static const String privatePrefix = '_';
 
-const String kToolVersion = '1.0.0';
+  static bool isSource(String basename) => basename.endsWith(sourceExtension);
 
-Future<void> main(List<String> args) async {
-  final int code = await runner.run(
-    args,
-    () => <ScribeCommand>[
-      CreateCommand(),
-      DoctorCommand(),
-      GenCommand(),
-      SecretsCommand(),
-    ],
-    toolVersion: kToolVersion,
-  );
+  static bool isMiddleware(String basename) =>
+      basename == '$middlewareName$sourceExtension';
 
-  if (code != 0) exit(code);
+  static bool isObsoleteNode(String basename) =>
+      basename == '$nodeName$sourceExtension';
+
+  static bool isPrivate(String basename) => basename.startsWith(privatePrefix);
+
+  static bool isRoutable(String basename) => isSource(basename) && !isPrivate(basename);
+
+  static String withoutExtension(String basename) =>
+      basename.substring(0, basename.length - sourceExtension.length);
+
+  static String segment(String name) {
+    if (name.startsWith('[') && name.endsWith(']')) {
+      return ':${name.substring(1, name.length - 1)}';
+    }
+    return name;
+  }
+
+  static String join(String prefix, String name) {
+    final String encoded = segment(name);
+    return prefix == '/' ? '/$encoded' : '$prefix/$encoded';
+  }
 }

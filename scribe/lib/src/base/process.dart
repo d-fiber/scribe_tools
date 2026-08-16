@@ -27,28 +27,60 @@
 // is a violation of applicable intellectual property laws and will result
 // in legal action.
 
-import 'dart:io';
+import 'dart:io' as io;
 
-import 'package:scribe/runner.dart' as runner;
-import 'package:scribe/src/commands/create.dart';
-import 'package:scribe/src/commands/doctor.dart';
-import 'package:scribe/src/commands/gen.dart';
-import 'package:scribe/src/commands/secrets.dart';
-import 'package:scribe/src/runner/scribe_command.dart';
+abstract class ProcessRunner {
+  const ProcessRunner();
 
-const String kToolVersion = '1.0.0';
+  Future<int> run(List<String> command, {String? workingDirectory});
 
-Future<void> main(List<String> args) async {
-  final int code = await runner.run(
-    args,
-    () => <ScribeCommand>[
-      CreateCommand(),
-      DoctorCommand(),
-      GenCommand(),
-      SecretsCommand(),
-    ],
-    toolVersion: kToolVersion,
-  );
+  Future<String> capture(List<String> command, {String? workingDirectory});
+}
 
-  if (code != 0) exit(code);
+class LocalProcessRunner extends ProcessRunner {
+  const LocalProcessRunner();
+
+  @override
+  Future<int> run(List<String> command, {String? workingDirectory}) async {
+    final io.Process process = await io.Process.start(
+      command.first,
+      command.skip(1).toList(),
+      workingDirectory: workingDirectory,
+      mode: io.ProcessStartMode.inheritStdio,
+    );
+
+    return process.exitCode;
+  }
+
+  @override
+  Future<String> capture(List<String> command, {String? workingDirectory}) async {
+    final io.ProcessResult result = await io.Process.run(
+      command.first,
+      command.skip(1).toList(),
+      workingDirectory: workingDirectory,
+    );
+
+    return '${result.stdout}';
+  }
+}
+
+class RecordingProcessRunner extends ProcessRunner {
+  RecordingProcessRunner({this.exitCode = 0, this.output = ''});
+
+  final int exitCode;
+  final String output;
+
+  final List<List<String>> commands = <List<String>>[];
+
+  @override
+  Future<int> run(List<String> command, {String? workingDirectory}) async {
+    commands.add(command);
+    return exitCode;
+  }
+
+  @override
+  Future<String> capture(List<String> command, {String? workingDirectory}) async {
+    commands.add(command);
+    return output;
+  }
 }

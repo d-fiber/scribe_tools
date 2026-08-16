@@ -27,28 +27,36 @@
 // is a violation of applicable intellectual property laws and will result
 // in legal action.
 
-import 'dart:io';
-
-import 'package:scribe/runner.dart' as runner;
-import 'package:scribe/src/commands/create.dart';
-import 'package:scribe/src/commands/doctor.dart';
-import 'package:scribe/src/commands/gen.dart';
-import 'package:scribe/src/commands/secrets.dart';
+import 'generators/config/country_firewall.dart';
+import 'generators/config/dependencies.dart';
+import 'generators/config/scribe_config.dart';
+import 'generators/schema/enums.dart';
+import 'generators/schema/tables.dart';
+import 'relations/relations.dart';
 import 'package:scribe/src/runner/scribe_command.dart';
 
-const String kToolVersion = '1.0.0';
+class GenCodeCommand extends ScribeCommand {
+  GenCodeCommand();
 
-Future<void> main(List<String> args) async {
-  final int code = await runner.run(
-    args,
-    () => <ScribeCommand>[
-      CreateCommand(),
-      DoctorCommand(),
-      GenCommand(),
-      SecretsCommand(),
-    ],
-    toolVersion: kToolVersion,
-  );
+  @override
+  String get name => 'code';
 
-  if (code != 0) exit(code);
+  @override
+  String get description =>
+      'Rewrite the import map, the enums, the row and table types and the relations, '
+      'from config.yaml and the project SQL.';
+
+  @override
+  bool get requiresCompleteManifest => true;
+
+  @override
+  Future<ScribeCommandResult> runCommand() async {
+    await generateScribeConfig();
+    await generateCountryFirewall();
+    await generateDependencies();
+    await generateTables(await generateEnums());
+    await generateRelations();
+
+    return const ScribeCommandResult.success();
+  }
 }

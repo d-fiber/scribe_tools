@@ -27,28 +27,42 @@
 // is a violation of applicable intellectual property laws and will result
 // in legal action.
 
-import 'dart:io';
 
-import 'package:scribe/runner.dart' as runner;
-import 'package:scribe/src/commands/create.dart';
-import 'package:scribe/src/commands/doctor.dart';
-import 'package:scribe/src/commands/gen.dart';
-import 'package:scribe/src/commands/secrets.dart';
+import 'discovered_source.dart';
+import 'emitter.dart';
+import 'scanner.dart';
+import 'package:scribe/src/globals.dart' as globals;
 import 'package:scribe/src/runner/scribe_command.dart';
+import 'package:scribe/src/base/common.dart';
 
-const String kToolVersion = '1.0.0';
 
-Future<void> main(List<String> args) async {
-  final int code = await runner.run(
-    args,
-    () => <ScribeCommand>[
-      CreateCommand(),
-      DoctorCommand(),
-      GenCommand(),
-      SecretsCommand(),
-    ],
-    toolVersion: kToolVersion,
+Future<void> generateRoutes() async {
+  final DiscoveredSource source = await RouteScanner.discover();
+  final String bin = kToolName;
+
+  final String header = '// This file is auto-generated do not edit manually.\n'
+      '// Run: $bin gen routes\n';
+
+  await globals.project.generated.sdk.create();
+  await globals.project.generated.sdk.routes.writeAsString(RoutesEmitter(source).render(header));
+
+  globals.logger.printStatus(
+    '${source.routes.length} paths on ${source.nodes.length} nodes \u2192 ${globals.project.generatedDirectoryName}/sdk/js/routes.ts',
   );
+}
 
-  if (code != 0) exit(code);
+class GenRoutesCommand extends ScribeCommand {
+  GenRoutesCommand();
+
+  @override
+  String get name => 'routes';
+
+  @override
+  String get description => 'Walk lib/src/<node>/ and write the route table the worker reads at startup.';
+
+  @override
+  Future<ScribeCommandResult> runCommand() async {
+    await generateRoutes();
+    return const ScribeCommandResult.success();
+  }
 }

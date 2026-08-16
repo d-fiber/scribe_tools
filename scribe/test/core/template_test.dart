@@ -27,8 +27,8 @@
 // is a violation of applicable intellectual property laws and will result
 // in legal action.
 
-import 'package:scribe/core/exception.dart';
-import 'package:scribe/core/template/render.dart';
+import 'package:scribe/src/base/common.dart';
+import 'package:scribe/src/base/template.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -76,8 +76,8 @@ void main() {
       expect(
         () => renderTemplate('kong.yml', '{{a}}\n{{b}}\n{{a}}', const <String, String>{}),
         throwsA(
-          isA<CliException>().having(
-            (CliException e) => e.message,
+          isA<ToolExit>().having(
+            (ToolExit e) => e.message,
             'message',
             'kong.yml: 2 unresolved variable(s) — a, b',
           ),

@@ -27,28 +27,45 @@
 // is a violation of applicable intellectual property laws and will result
 // in legal action.
 
+import 'dart:convert';
 import 'dart:io';
 
-import 'package:scribe/runner.dart' as runner;
-import 'package:scribe/src/commands/create.dart';
-import 'package:scribe/src/commands/doctor.dart';
-import 'package:scribe/src/commands/gen.dart';
-import 'package:scribe/src/commands/secrets.dart';
-import 'package:scribe/src/runner/scribe_command.dart';
+import 'package:fiber_shell/fiber_shell.dart';
+import 'package:path/path.dart' as p;
 
-const String kToolVersion = '1.0.0';
+import 'generated_path.dart';
+import 'package:scribe/src/globals.dart' as globals;
+import 'package:scribe/src/base/common.dart';
 
-Future<void> main(List<String> args) async {
-  final int code = await runner.run(
-    args,
-    () => <ScribeCommand>[
-      CreateCommand(),
-      DoctorCommand(),
-      GenCommand(),
-      SecretsCommand(),
-    ],
-    toolVersion: kToolVersion,
-  );
+Future<GeneratedPathsDocument> runWalker(Directory root, String surface) async {
+  final Directory walkerDir = Directory(p.join(root.path, 'scribe/tools/docs'));
 
-  if (code != 0) exit(code);
+  final ShellResult result = await Deno.run()
+      .allowRead()
+      .allowEnv()
+      .allowSys()
+      .allowNet()
+      .file('walk_routes.ts')
+      .scriptArg('--surface=$surface')
+      .scriptArg('--root=${root.path}')
+      .output(cwd: walkerDir.path);
+
+  if (result.error.isNotEmpty) globals.logger.printWarning(result.error);
+
+  if (result.failed) {
+    throwToolExit('deno walker failed ($surface), exit code ${result.exitCode}');
+  }
+
+  return GeneratedPathsDocument.fromJson(jsonDecode(result.stdout) as Map<String, dynamic>);
+}
+
+void validateTags(GeneratedPathsDocument doc, Set<String> knownTags) {
+  for (final GeneratedPathEntry entry in doc.paths) {
+    if (!knownTags.contains(entry.tag)) {
+      throwToolExit(
+        '${doc.surface}: path "${entry.path}" uses unknown tag "${entry.tag}" '
+        '(not among ${knownTags.join(', ')})',
+      );
+    }
+  }
 }
