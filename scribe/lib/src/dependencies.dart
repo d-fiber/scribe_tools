@@ -36,8 +36,10 @@ import 'package:yaml/yaml.dart';
 import 'package:scribe/src/base/common.dart';
 import 'package:scribe/src/globals.dart' as globals;
 
+/// The file whose presence makes a directory a mountable module.
 const String manifestName = 'scribe.yaml';
 
+/// What a module asks of the stack around it, from the `ops` block of its manifest.
 class DependencyInfra {
   const DependencyInfra({
     required this.services,
@@ -46,12 +48,20 @@ class DependencyInfra {
     required this.env,
   });
 
+  /// The compose services this module needs running.
   final List<String> services;
+
+  /// The compose profile its services are started under, null when they always are.
   final String? profile;
+
+  /// The gateway fragments its routes need in front of them.
   final List<String> gateway;
+
+  /// The environment variables it reads.
   final List<String> env;
 }
 
+/// One mountable module, read from its `scribe.yaml`.
 class Dependency {
   const Dependency({
     required this.path,
@@ -67,24 +77,57 @@ class Dependency {
     required this.directory,
   });
 
+  /// The module's address, relative to the dependencies root: `security/auth`.
+  ///
+  /// This is what `config.yaml` names a module by, and what [requires] points at.
   final String path;
+
+  /// The module's identifier, its directory name when the manifest declares none.
   final String name;
+
+  /// The one line describing it to a human.
   final String title;
+
+  /// Whether a project has to ask for this module to get it.
+  ///
+  /// True unless the manifest says otherwise, so a module has to declare itself
+  /// mandatory to be mounted without being named.
   final bool optional;
+
+  /// The modules this one is useless without, by [path].
   final List<String> requires;
+
+  /// What it asks of the stack around it.
   final DependencyInfra infra;
+
+  /// Its SQL directory, relative to [directory], null when it has none.
   final String? sql;
+
+  /// Its `.proto` directory, relative to [directory], null when it has none.
   final String? protocol;
+
+  /// The file the host imports it through, null when it exports nothing.
   final String? export;
+
+  /// The route directories it mounts.
   final List<String> routes;
+
+  /// The directory holding the manifest.
   final Directory directory;
 }
 
+/// Every module found under a dependencies root.
 class Dependencies {
   const Dependencies(this.all);
 
+  /// Every module found, sorted by [Dependency.path].
   final List<Dependency> all;
 
+  /// Every module under [root], the project's vendored framework by default.
+  ///
+  /// The search is recursive and keyed on [manifestName], so a family holds as
+  /// many levels as it needs. A root that does not exist yields nothing rather
+  /// than failing: a project can be read before its framework is vendored in.
   static Dependencies load({Directory? root}) {
     final Directory modules = root ?? globals.fs.directory(globals.project.sdk.hostDependencies.path);
     if (!modules.existsSync()) return const Dependencies(<Dependency>[]);
@@ -100,8 +143,10 @@ class Dependencies {
     return Dependencies(found);
   }
 
+  /// The modules the current project mounts.
   List<Dependency> get active => selected(globals.project.manifest.dependencies);
 
+  /// The module at [path], or null when there is none.
   Dependency? byPath(String path) {
     for (final Dependency dependency in all) {
       if (dependency.path == path) return dependency;
@@ -109,6 +154,14 @@ class Dependencies {
     return null;
   }
 
+  /// The modules [wanted] asks for, the mandatory ones, and everything they require.
+  ///
+  /// [Dependency.requires] is followed until nothing more is added, so naming a
+  /// module is enough to get what it needs underneath. An empty [wanted] means
+  /// a project that declared no list, and takes everything.
+  ///
+  /// Throws a [ToolExit] naming the known modules when [wanted] holds a path
+  /// that is not one.
   List<Dependency> selected(List<String> wanted) {
     if (wanted.isEmpty) return all;
 

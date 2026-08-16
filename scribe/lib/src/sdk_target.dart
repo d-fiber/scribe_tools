@@ -31,10 +31,16 @@ import 'package:file/file.dart';
 import 'package:path/path.dart' as p;
 import 'package:scribe/src/globals.dart' as globals;
 
+/// The SDK a project targets when its manifest names none.
 const String kDefaultSdkName = 'js';
 
+/// The directory name that marks everything below it as generated.
 const String kGeneratedDirectoryName = 'gen';
 
+/// The languages an SDK directory may be written in, and how they are spelled to a human.
+///
+/// A directory of `scribe/sdk/` whose name is absent here is ignored rather
+/// than offered, so a stray directory never becomes a choice in `create`.
 const Map<String, String> kKnownSdks = <String, String>{
   'go': 'Go',
   'dart': 'Dart',
@@ -47,6 +53,7 @@ const Map<String, String> kKnownSdks = <String, String>{
   'php': 'PHP',
 };
 
+/// The names [kKnownSdks] accepts.
 List<String> get kKnownSdkNames => kKnownSdks.keys.toList();
 
 const Set<String> _ignoredDirectories = <String>{
@@ -73,6 +80,12 @@ const Set<String> _dataExtensions = <String>{
   '.proto',
 };
 
+/// One directory of `scribe/sdk/`, and how much of it is really written.
+///
+/// The two file counts are what separates a target a project can be built on
+/// from one that only holds generated stubs. They are counted rather than
+/// declared, so a target becomes offerable the day someone writes in it and
+/// nothing has to be updated by hand.
 class SdkTarget {
   const SdkTarget({
     required this.name,
@@ -81,25 +94,43 @@ class SdkTarget {
     required this.generatedFiles,
   });
 
+  /// A target named [name] that was never looked at, so it counts nothing.
   const SdkTarget.assumed(this.name) : sourceExtension = '', sourceFiles = 0, generatedFiles = 0;
 
+  /// The directory's name, which is also the language's name in [kKnownSdks].
   final String name;
+
+  /// The extension most of its sources carry, empty when it holds no source.
   final String sourceExtension;
+
+  /// The number of hand-written source files.
   final int sourceFiles;
+
+  /// The number of source files sitting under a `gen/` directory.
   final int generatedFiles;
 
+  /// Whether this directory holds no source at all, generated or not.
   bool get isEmpty => sourceFiles == 0 && generatedFiles == 0;
 
+  /// Whether [kKnownSdks] names this directory.
   bool get isRecognised => kKnownSdks.containsKey(name);
 
+  /// The language's name as a human writes it, [name] when it is not recognised.
   String get label => kKnownSdks[name] ?? name;
 
+  /// Whether a project can be built on this target.
+  ///
+  /// One hand-written file is enough: a target that is only stubs has no
+  /// transport, no runtime and no server, so a project on it does not run.
   bool get isReady => sourceFiles > 0;
 
+  /// Whether the file names a new project needs can be derived from this target.
   bool get canScaffold => sourceExtension.isNotEmpty;
 
+  /// How far along this target is, in the two words a listing shows.
   String get state => isReady ? 'ready' : 'stubs only';
 
+  /// Why this target should not be picked, or null when nothing stands against it.
   String? get caveat {
     if (!isRecognised) {
       return 'sdk/$name/ is not a language this CLI knows. The names it accepts are '
@@ -113,28 +144,42 @@ class SdkTarget {
         'this target does not run yet.';
   }
 
+  /// The name of the file the host loads a project through on this target.
   String get entrypointName => 'main$sourceExtension';
 
+  /// The name of the file a directory's middleware goes in on this target.
   String get middlewareName => '_middleware$sourceExtension';
 
   @override
   String toString() => name;
 }
 
+/// Everything found under `scribe/sdk/`, read from the framework next to the caller.
 class SdkCatalog {
   const SdkCatalog({required this.root, required this.targets});
 
+  /// The catalog of a machine where no framework was found.
   static const SdkCatalog unknown = SdkCatalog(root: null, targets: <SdkTarget>[]);
 
+  /// The `sdk/` directory this was read from, null when there was none.
   final Directory? root;
+
+  /// Every directory found, recognised or not, sorted by name.
   final List<SdkTarget> targets;
 
+  /// Whether a framework was found at all.
   bool get isKnown => root != null;
 
+  /// The targets worth showing a user: recognised, and holding something.
   List<SdkTarget> get offerable => targets.where((SdkTarget target) => target.isRecognised && !target.isEmpty).toList();
 
+  /// The targets left out of [offerable], which `doctor` says a word about.
   List<SdkTarget> get ignored => targets.where((SdkTarget target) => !target.isRecognised || target.isEmpty).toList();
 
+  /// The target called [name], or null when there is none.
+  ///
+  /// [name] is trimmed and lowercased first, since it usually comes from
+  /// `config.yaml` or from a command line.
   SdkTarget? byName(String name) {
     final String wanted = name.trim().toLowerCase();
 
@@ -144,8 +189,12 @@ class SdkCatalog {
     return null;
   }
 
+  /// The names of the [offerable] targets.
   List<String> get names => <String>[for (final SdkTarget target in offerable) target.name];
 
+  /// The catalog of the framework at or above [from], the current directory by default.
+  ///
+  /// Returns [unknown] when no framework is found, or when it holds no `sdk/`.
   static SdkCatalog discover({Directory? from}) {
     final Directory? framework = findFrameworkRoot(from ?? globals.fs.currentDirectory);
     if (framework == null) return unknown;
@@ -165,6 +214,11 @@ class SdkCatalog {
     return SdkCatalog(root: sdks, targets: found);
   }
 
+  /// The framework at or above [start], or null when there is none.
+  ///
+  /// Each directory is tried twice: as the framework itself, and as a project
+  /// holding it under `scribe/`. That second try is what lets this run from
+  /// inside a project as well as from inside the framework's own checkout.
   static Directory? findFrameworkRoot(Directory start) {
     Directory candidate = start.absolute;
 
@@ -180,6 +234,7 @@ class SdkCatalog {
     }
   }
 
+  /// Whether [directory] holds the three directories a framework checkout has.
   static bool isFrameworkRoot(Directory directory) =>
       directory.childDirectory('sdk').existsSync() &&
       directory.childDirectory('host').existsSync() &&

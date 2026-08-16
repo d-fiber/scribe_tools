@@ -133,6 +133,7 @@ class ToolCatalog {
     packages: <String, String>{'apt': 'nodejs', 'winget': 'OpenJS.NodeJS'},
   );
 
+  /// The engine the stack's services are run by.
   static const ExternalTool docker = ExternalTool(
     name: 'docker',
     executable: 'docker',
@@ -141,6 +142,7 @@ class ToolCatalog {
     packages: <String, String>{'homebrew': 'docker', 'apt': 'docker.io', 'winget': 'Docker.DockerDesktop'},
   );
 
+  /// The version control the framework is fetched and read through.
   static const ExternalTool git = ExternalTool(
     name: 'git',
     executable: 'git',
@@ -150,9 +152,21 @@ class ToolCatalog {
   );
 }
 
+/// What looks for the tools a command declared, and offers to install them.
 class ToolProvisioner {
   const ToolProvisioner();
 
+  /// Makes sure every one of [tools] is on `PATH`, installing what is missing.
+  ///
+  /// Nothing is installed without being agreed to, `sudo` included: [install]
+  /// false explains and stops, a machine with no package manager only ever gets
+  /// the homepage, and every other case is asked about one tool at a time.
+  /// [assumeYes] carries `--yes` and answers for a script; without it, a run
+  /// with no terminal to ask on declines instead of waiting for a human.
+  ///
+  /// A tool still missing afterwards is explained rather than thrown on. The
+  /// command that follows fails on its own terms, which says more than a
+  /// missing executable would.
   Future<void> ensure(List<ExternalTool> tools, {required bool install, required bool assumeYes}) async {
     final List<ExternalTool> missing = tools.where((ExternalTool tool) => !tool.isInstalled).toList();
     if (missing.isEmpty) return;

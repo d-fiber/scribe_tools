@@ -32,11 +32,30 @@ import 'package:path/path.dart' as p;
 
 import 'package:scribe/src/base/platform.dart';
 
+/// A shell whose profile syntax this tool knows.
+///
+/// [unknown] is a POSIX shell that is none of the others, and it is treated as
+/// bash: the export line and the profile path are the ones bash uses.
 enum ShellKind { bash, zsh, fish, powershell, cmd, unknown }
 
+/// The shell the user came from, and where its profile lives.
+///
+/// This is the only place a shell matters. An external command is started with
+/// an argument list and never through `sh -c`, so nothing is quoted and no
+/// shell has to be installed — see `ProcessRunner`. What is left is telling the
+/// user which line to add to which file when a binary lands outside `PATH`.
 class Shell {
   const Shell({required this.kind, required this.executable, required this.profile});
 
+  /// The shell [platform] says the user came from.
+  ///
+  /// Outside Windows it is read from `SHELL`; on Windows the presence of
+  /// `PSModulePath` separates PowerShell from cmd. [profile] comes back null
+  /// when the environment names no home directory, since there is then no file
+  /// to point at.
+  ///
+  /// `ZDOTDIR` and `XDG_CONFIG_HOME` are honoured, so a user who moved their
+  /// configuration is not told to edit a file they do not use.
   static Shell detect({required Platform platform, required FileSystem fileSystem}) {
     if (platform.isWindows) return _windows(platform, fileSystem);
 
@@ -87,10 +106,19 @@ class Shell {
     return xdg == null || xdg.isEmpty ? p.join(home, '.config') : xdg;
   }
 
+  /// Which shell this is, and so which syntax [exportLine] writes.
   final ShellKind kind;
+
+  /// The shell's own executable, as the environment named it.
   final String executable;
+
+  /// The file a line has to be added to for it to survive a new terminal.
+  ///
+  /// Null when the environment names no home directory, and on Windows outside
+  /// PowerShell, where cmd has no profile to write to.
   final File? profile;
 
+  /// The shell's name as a human writes it, or `your shell` when it is unknown.
   String get name => switch (kind) {
     ShellKind.bash => 'bash',
     ShellKind.zsh => 'zsh',
@@ -100,6 +128,7 @@ class Shell {
     ShellKind.unknown => 'your shell',
   };
 
+  /// The line that puts [directory] on `PATH`, in this shell's own syntax.
   String exportLine(String directory) => switch (kind) {
     ShellKind.fish => 'fish_add_path $directory',
     ShellKind.powershell => '\$env:Path = "$directory;\$env:Path"',
@@ -107,6 +136,10 @@ class Shell {
     _ => 'export PATH="$directory:\$PATH"',
   };
 
+  /// The sentence telling the user how to put [directory] on their `PATH`.
+  ///
+  /// The file is named when there is one to name. Nothing is written: editing
+  /// a user's profile without being asked is a surprise this tool does not make.
   String howToAdd(String directory) {
     final File? file = profile;
     if (file == null) return 'Add $directory to your PATH: ${exportLine(directory)}';

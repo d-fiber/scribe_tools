@@ -32,23 +32,37 @@ import 'package:scribe/src/base/common.dart';
 import 'package:scribe/src/globals.dart' as globals;
 import 'package:yaml/yaml.dart';
 
+/// The shortest password `api.auth` is allowed to accept.
 const int kMinPasswordLength = 8;
 
+/// One reason a manifest cannot be used yet.
 class ManifestProblem {
   const ManifestProblem(this.field, this.reason);
 
+  /// The field it is about, written as a dotted path such as `api.config.origins`.
   final String field;
+
+  /// What is wrong with it, and what to write instead.
   final String reason;
 
   @override
   String toString() => '$field — $reason';
 }
 
+/// A project's `config.yaml`, read and checked.
+///
+/// Reading is case-insensitive on keys and resolves `env(NAME)` references
+/// against the environment, so nothing above ever sees a raw reference. The
+/// checks are gathered in [problems] rather than thrown one by one: a user
+/// filling in a new manifest is told everything that is left, not the first
+/// thing that stopped the parser.
 class ScribeManifest {
   const ScribeManifest._(this.file, this.document);
 
+  /// The fields a manifest is unusable without.
   static const List<String> requiredFields = <String>['name', 'url', 'email'];
 
+  /// The manifest in [file], or null when it is missing or is not a YAML mapping.
   static ScribeManifest? loadFrom(File file) {
     if (!file.existsSync()) return null;
 
@@ -58,6 +72,9 @@ class ScribeManifest {
     return ScribeManifest._(file, parsed);
   }
 
+  /// The manifest in [file].
+  ///
+  /// Throws a [ToolExit] when it is missing or is not a YAML mapping.
   static ScribeManifest load(File file) {
     final ScribeManifest? manifest = loadFrom(file);
     if (manifest != null) return manifest;
@@ -68,28 +85,48 @@ class ScribeManifest {
     );
   }
 
+  /// The file this was read from.
   final File file;
+
+  /// The parsed YAML, as plain maps and lists.
   final Map<String, Object?> document;
 
+  /// The project's name, as it is shown to a user.
   String get name => _string(<String>['name']) ?? '';
 
+  /// The domain every other address is derived from — see [deriveUrls].
   String get url => _string(<String>['url']) ?? '';
 
+  /// The address the project's mail is sent from.
   String get email => _string(<String>['email']) ?? '';
 
+  /// The SDK this project targets, lowercased, empty when it names none.
+  ///
+  /// This one is read raw rather than through [resolve]: it names a directory,
+  /// so an `env(...)` reference would be meaningless and saying so is the job
+  /// of [problems].
   String get sdk => (read(<String>['sdk'])?.toString().trim() ?? '').toLowerCase();
 
+  /// The URL scheme the mobile application is opened by.
   String get deeplinkScheme => _string(<String>['app', 'deeplink_scheme']) ?? '';
 
+  /// The key the geocoding service is called with.
   String get geocodingApiKey => _string(<String>['integrations', 'geocoding_api_key']) ?? '';
 
+  /// The modules this project mounts, empty when it takes the default set.
   List<String> get dependencies => _strings(<String>['dependencies']);
 
+  /// The origins allowed to call the API.
   List<String> get origins => _strings(<String>['api', 'config', 'origins']);
 
+  /// The countries the firewall lets through, as uppercase ISO 3166-1 alpha-2 codes.
   List<String> get allowedCountries =>
       _strings(<String>['api', 'config', 'allowed_countries']).map((String code) => code.toUpperCase()).toList();
 
+  /// The documented API surfaces, each with the title and description it declares.
+  ///
+  /// A surface whose entry is not a mapping is dropped, and a missing title or
+  /// description simply does not appear.
   Map<String, Map<String, String>> get docsSurfaces {
     final Object? value = read(<String>['api', 'docs']);
     if (value is! Map) return const <String, Map<String, String>>{};
@@ -104,6 +141,10 @@ class ScribeManifest {
     };
   }
 
+  /// The value at [path], or null when any segment of it is absent.
+  ///
+  /// Keys are matched without regard to case, and nothing is resolved: an
+  /// `env(NAME)` reference comes back as it was written.
   Object? read(List<String> path) {
     Object? node = document;
 
@@ -123,6 +164,10 @@ class ScribeManifest {
     return node;
   }
 
+  /// Everything standing between this manifest and a project that runs.
+  ///
+  /// All the checks run, every time: a user filling in a new manifest is told
+  /// everything that is left rather than the first thing that failed.
   List<ManifestProblem> get problems => <ManifestProblem>[
     ..._committedSecrets(),
     ..._missingRequiredFields(),
@@ -133,8 +178,12 @@ class ScribeManifest {
     ..._smtpProblems(),
   ];
 
+  /// Whether this manifest has no [problems] left.
   bool get isComplete => problems.isEmpty;
 
+  /// Refuses the run when this manifest still has [problems].
+  ///
+  /// Throws a [ToolExit] listing every one of them.
   void ensureComplete() {
     final List<ManifestProblem> found = problems;
     if (found.isEmpty) return;
@@ -147,6 +196,12 @@ class ScribeManifest {
     throwToolExit(buffer.toString().trimRight());
   }
 
+  /// Every field whose name says secret and whose value is one, written in plain.
+  ///
+  /// `config.yaml` is committed, so a value written there is published the
+  /// moment the repository is. A field is suspect when its name contains one of
+  /// [secretFieldNames], and it is cleared by being empty or by holding an
+  /// [envReference] instead of a value.
   List<ManifestProblem> _committedSecrets() {
     final List<ManifestProblem> found = <ManifestProblem>[];
 
@@ -321,6 +376,13 @@ class ScribeManifest {
     return resolve(value.toString().trim(), field: path.join('.'));
   }
 
+  /// [value] with an `env(NAME)` reference replaced by what the environment holds.
+  ///
+  /// A value that is not a reference comes back untouched. [field] names the
+  /// manifest entry in the error.
+  ///
+  /// Throws a [ToolExit] when the variable is unset or empty, since a command
+  /// running on a half-resolved manifest fails later and further away.
   String resolve(String value, {required String field}) {
     final RegExpMatch? reference = envReference.firstMatch(value);
     if (reference == null) return value;
@@ -349,6 +411,7 @@ class ScribeManifest {
   String toString() => 'ScribeManifest(${file.path})';
 }
 
+/// The words that make a field name suspect, matched anywhere inside it.
 const List<String> secretFieldNames = <String>[
   'secret',
   'password',
@@ -360,6 +423,10 @@ const List<String> secretFieldNames = <String>[
   'auth_token',
 ];
 
+/// The whole-value form `env(NAME)`, which stands in for a value kept in `.env`.
+///
+/// It has to be the whole value: a reference embedded in a longer string is not
+/// one, so nothing is ever half-substituted.
 final RegExp envReference = RegExp(r'^env\((?<name>[A-Z][A-Z0-9_]*)\)$');
 
 final RegExp _origin = RegExp(r'^https?://[A-Za-z0-9.-]+(:\d+)?$');
@@ -378,6 +445,7 @@ Object? _plain(Object? node) {
   return node;
 }
 
+/// The addresses a project serves, all derived from the one domain it declares.
 class ProjectUrls {
   const ProjectUrls({
     required this.main,
@@ -387,13 +455,28 @@ class ProjectUrls {
     required this.vpnDomain,
   });
 
+  /// The public site.
   final String main;
+
+  /// The back office.
   final String admin;
+
+  /// The client application.
   final String app;
+
+  /// The internal tools, reachable through the VPN.
   final String intra;
+
+  /// The host the VPN answers on, a bare domain rather than an address.
   final String vpnDomain;
 }
 
+/// The addresses derived from [raw], the domain `config.yaml` declares.
+///
+/// [raw] is reduced to a bare domain first: the scheme, a trailing slash, a
+/// leading `www.` and anything after the host are dropped, so the four
+/// addresses come out the same whether the manifest wrote `example.com` or
+/// `https://www.example.com/`.
 ProjectUrls deriveUrls(String raw) {
   final String domain = raw
       .trim()

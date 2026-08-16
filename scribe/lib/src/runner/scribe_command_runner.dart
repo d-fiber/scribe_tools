@@ -105,10 +105,19 @@ class ScribeCommandRunner extends CommandRunner<void> {
       );
   }
 
+  /// The version `--version` prints.
   final String toolVersion;
 
+  /// Whether [results] carry `--yes`, so nothing has to be asked.
   static bool assumesYes(ArgResults? results) => results?[ScribeGlobalOptions.yes] as bool? ?? false;
 
+  /// Rebuilds the output from the global options, then dispatches to the command.
+  ///
+  /// The context opened here is what everything underneath reads, so `-v`, `-q`
+  /// and `--color` reach code that never asked what they were set to.
+  ///
+  /// Prompting is only enabled once this point is passed: nothing may ask the
+  /// user a question before `--yes` has been parsed.
   @override
   Future<void> runCommand(ArgResults topLevelResults) async {
     final bool verbose = topLevelResults[ScribeGlobalOptions.verbose] as bool;
@@ -150,6 +159,11 @@ class ScribeCommandRunner extends CommandRunner<void> {
   }
 }
 
+/// A [DelegatingLogger] that drops everything but errors and warnings.
+///
+/// Progress is silent rather than absent, so a caller still gets a [Status] to
+/// end and nothing above has to know it is being quiet. This is what `-q`
+/// builds.
 class QuietLogger extends DelegatingLogger {
   QuietLogger(super.delegate);
 

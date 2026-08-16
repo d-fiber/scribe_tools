@@ -135,11 +135,22 @@ abstract class Terminal {
 class AnsiTerminal extends Terminal {
   AnsiTerminal({required this._stdio, required this._platform, this._animationEnabled});
 
+  /// Opens bold text.
   static const String bold = '\u001B[1m';
+
+  /// Drops every attribute at once, colour and weight together.
   static const String resetAll = '\u001B[0m';
+
+  /// Closes [bold] without touching the colour.
   static const String resetBold = '\u001B[22m';
+
+  /// Returns to the default colour without touching the weight.
   static const String resetColor = '\u001B[39m';
+
+  /// Empties the line the cursor is on, and puts the cursor back at its start.
   static const String clearLine = '\u001B[2K\r';
+
+  /// Moves the cursor up one line, leaving its column alone.
   static const String cursorUp = '\u001B[A';
 
   static const Map<TerminalColor, String> _codes = <TerminalColor, String>{
