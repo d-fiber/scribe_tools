@@ -53,6 +53,7 @@ jobs:
           repository: d-fiber/scribe
           ref: dev
           path: _fixture/scribe
+          ssh-key: ${{ secrets.SCRIBE_DEPLOY_KEY }}
 
       - uses: dart-lang/setup-dart@v1
         with:
@@ -85,6 +86,7 @@ jobs:
           repository: d-fiber/scribe
           ref: dev
           path: _fixture/scribe
+          ssh-key: ${{ secrets.SCRIBE_DEPLOY_KEY }}
 
       - uses: denoland/setup-deno@v2
         with:
