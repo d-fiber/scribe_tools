@@ -95,4 +95,9 @@ jobs:
           git checkout -B promotion origin/main
           git merge --no-edit "$tip"
           git push origin promotion:main
+
+          if [ "$(git rev-parse promotion)" != "$tip" ]; then
+            git push origin promotion:dev
+            echo "main had diverged, dev realigned onto the merge"
+          fi
           echo "main now carries ${tip}, publish takes over"
