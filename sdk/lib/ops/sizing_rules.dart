@@ -33,6 +33,8 @@ import 'hardware.dart';
 
 const double _budgetShare = 0.80;
 const double _reservationShare = 0.47;
+const double _oldSpaceShare = 0.70;
+const int _v8Overhead = 96;
 
 const Map<String, double> _memoryShares = <String, double>{
   'db': 0.2122,
@@ -156,6 +158,8 @@ class SizingRules {
     values['redis_maxmemory'] = '${(_memoryFor('redis') * 0.75).round()}mb';
     values['redis_io_threads'] = '${_clamp(hardware.cores / 8, 1, 8)}';
     values['redis_io_threads_do_reads'] = hardware.cores > 8 ? 'yes' : 'no';
+
+    values['api_max_old_space'] = '${_clamp(_memoryFor('api') * _oldSpaceShare - _v8Overhead, 64, 8192)}';
 
     values['opensearch_heap'] = _mib(math.min(_memoryFor('opensearch') * 0.5, 31 * 1024));
     values['opensearch_node_processors'] = '${_clamp(hardware.cores / 2, 1, 16)}';
