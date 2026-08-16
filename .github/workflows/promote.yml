@@ -6,7 +6,9 @@ on:
     types: [completed]
 
 permissions:
-  contents: write
+  contents: read
+  checks: read
+  actions: read
 
 concurrency:
   group: promote
@@ -64,6 +66,8 @@ jobs:
         with:
           ref: dev
           fetch-depth: 0
+          ssh-key: ${{ secrets.TOOLS_PUSH_KEY }}
+          persist-credentials: true
 
       - name: Refuse to promote a commit that is no longer the tip of dev
         env:
