@@ -35,6 +35,7 @@ import 'package:scribe/src/base/context.dart';
 import 'package:scribe/src/base/logger.dart';
 import 'package:scribe/src/base/terminal.dart';
 import 'package:scribe/src/globals.dart' as globals;
+import 'package:scribe/src/runner/scribe_command.dart';
 
 /// The names of the options every command accepts, wherever it sits.
 ///
@@ -68,6 +69,7 @@ class ScribeCommandRunner extends CommandRunner<void> {
             '\n'
             '  scribe gen code\n'
             '    Rewrite everything the project derives from config.yaml and its SQL.',
+        usageLineLength: globals.stdio.terminalColumns,
       ) {
     argParser
       ..addFlag(
@@ -111,6 +113,31 @@ class ScribeCommandRunner extends CommandRunner<void> {
   /// Whether [results] carry `--yes`, so nothing has to be asked.
   static bool assumesYes(ArgResults? results) => results?[ScribeGlobalOptions.yes] as bool? ?? false;
 
+  /// The usage of the command called [name], null when no command carries it.
+  ///
+  /// [name] is a leaf name and the search goes through subcommands, so `code`
+  /// finds `scribe gen code`. It is what turns a [UsageError] into the same
+  /// message `package:args` prints on its own refusals: what went wrong, then
+  /// the options the command accepts.
+  String? usageOf(String? name) {
+    if (name == null) return null;
+
+    final Command<void>? found = _find(name, commands);
+    if (found is ScribeCommand) return found.usageWithoutDescription;
+
+    return found?.usage;
+  }
+
+  static Command<void>? _find(String name, Map<String, Command<void>> among) {
+    for (final Command<void> command in among.values) {
+      if (command.name == name) return command;
+
+      if (_find(name, command.subcommands) case final Command<void> nested) return nested;
+    }
+
+    return null;
+  }
+
   /// Rebuilds the output from the global options, then dispatches to the command.
   ///
   /// The context opened here is what everything underneath reads, so `-v`, `-q`
@@ -123,6 +150,7 @@ class ScribeCommandRunner extends CommandRunner<void> {
     final bool verbose = topLevelResults[ScribeGlobalOptions.verbose] as bool;
     final bool quiet = topLevelResults[ScribeGlobalOptions.quiet] as bool;
     final bool? color = topLevelResults[ScribeGlobalOptions.color] as bool?;
+    final Logger? injected = globals.context.get<Logger>();
 
     return globals.context.run<void>(
       name: 'global',
@@ -132,7 +160,7 @@ class ScribeCommandRunner extends CommandRunner<void> {
           showColor: color ?? globals.terminal.supportsColor,
         ),
         Terminal: () => AnsiTerminal(stdio: globals.stdio, platform: globals.platform),
-        Logger: () => _loggerFor(verbose: verbose, quiet: quiet),
+        Logger: () => _loggerFor(verbose: verbose, quiet: quiet, injected: injected),
       },
       body: () async {
         if (topLevelResults[ScribeGlobalOptions.version] as bool) {
@@ -146,14 +174,26 @@ class ScribeCommandRunner extends CommandRunner<void> {
     );
   }
 
-  Logger _loggerFor({required bool verbose, required bool quiet}) {
-    final Logger stdout = StdoutLogger(
-      terminal: globals.terminal,
-      stdio: globals.stdio,
-      outputPreferences: globals.outputPreferences,
-    );
+  /// The logger the run prints through, [injected] taking the place of stdout.
+  ///
+  /// A test registers its own logger in the context and still gets the `-v` and
+  /// `-q` wrappers around it, so what the user would have read is what the test
+  /// reads.
+  Logger _loggerFor({required bool verbose, required bool quiet, Logger? injected}) {
+    final Logger stdout =
+        injected ??
+        StdoutLogger(
+          terminal: globals.terminal,
+          stdio: globals.stdio,
+          outputPreferences: globals.outputPreferences,
+        );
 
-    if (verbose) return VerboseLogger(stdout);
+    if (verbose) {
+      final VerboseLogger logger = VerboseLogger(stdout);
+      logger.printTrace('verbose logging on; the bracket that opens each line is the time since the line above');
+      return logger;
+    }
+
     if (quiet) return QuietLogger(stdout);
     return stdout;
   }

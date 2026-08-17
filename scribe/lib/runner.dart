@@ -75,6 +75,10 @@ Future<int> run(
       return error.exitCode;
     } on UsageError catch (error) {
       globals.logger.printError(error.message);
+      if (runner.usageOf(error.command) case final String usage) {
+        globals.logger.printStatus('');
+        globals.logger.printStatus(usage);
+      }
       return kExitCodeUsage;
     } on UsageException catch (error) {
       globals.logger.printError(error.message);

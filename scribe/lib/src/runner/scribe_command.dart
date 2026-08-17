@@ -29,6 +29,7 @@
 
 import 'dart:async';
 
+import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 import 'package:meta/meta.dart';
 import 'package:scribe/src/base/common.dart';
@@ -73,6 +74,16 @@ abstract class ScribeCommand extends Command<void> {
   /// The command being run, or null outside one.
   static ScribeCommand? get current => globals.context.get<ScribeCommand>();
 
+  /// The parser this command reads its arguments with.
+  ///
+  /// The one `package:args` builds by default never wraps, so an option whose
+  /// help runs to three sentences is printed as a single line and the terminal
+  /// breaks it mid-word. This one is told how wide the terminal is.
+  @override
+  ArgParser get argParser => _argParser;
+
+  final ArgParser _argParser = ArgParser(usageLineLength: globals.stdio.terminalColumns);
+
   /// Whether this command refuses to run anywhere but the root of a project.
   ///
   /// True unless a subclass says otherwise, since a command that writes into a
@@ -96,9 +107,13 @@ abstract class ScribeCommand extends Command<void> {
 
   Project? _project;
 
-  /// Opens a context for this command, runs it, and traces how long it took.
+  /// Opens a context for this command, runs it, and traces how it ended.
   ///
   /// The context carries the command itself, which is what [current] reads.
+  ///
+  /// The trace says whether the command went through, because it is printed
+  /// before the error that stopped it: a bare duration ahead of a refusal reads
+  /// as if the work had been done.
   @override
   Future<void> run() {
     final Stopwatch stopwatch = Stopwatch()..start();
@@ -110,9 +125,12 @@ abstract class ScribeCommand extends Command<void> {
         try {
           final ScribeCommandResult result = await verifyThenRunCommand();
           if (result.exitStatus == ExitStatus.fail) throwToolExit(null);
+          globals.logger.printTrace('$invocationName finished in ${stopwatch.elapsedMilliseconds}ms');
+        } catch (_) {
+          globals.logger.printTrace('$invocationName stopped after ${stopwatch.elapsedMilliseconds}ms');
+          rethrow;
         } finally {
           stopwatch.stop();
-          globals.logger.printTrace('$name took ${stopwatch.elapsedMilliseconds}ms');
         }
       },
     );
@@ -197,13 +215,69 @@ abstract class ScribeCommand extends Command<void> {
     return parsed;
   }
 
-  /// The first argument left once the options are parsed, [label] naming it in the error.
+  /// The one argument left once the options are parsed, [label] naming it.
   ///
-  /// Throws a [UsageError] when there is none.
-  String requirePositional(String label) {
+  /// [explain] says what that argument stands for and is printed under the
+  /// refusal, ahead of the usage the runner appends. A caller who got the line
+  /// wrong then reads what to write instead of being told to try `--help`.
+  ///
+  /// A second argument is refused rather than dropped: an unknown word is
+  /// almost always a misspelled option, and silently ignoring it would create
+  /// something the user did not ask for.
+  ///
+  /// [alsoWrong] is another thing the line got wrong, already written as a
+  /// sentence, and it is said in the same refusal. A user who forgot the
+  /// argument and misspelled an option fixes both at once instead of being
+  /// refused twice.
+  ///
+  /// Throws a [UsageError] when there is no argument, and when there are
+  /// several.
+  String requirePositional(String label, {String? explain, String? alsoWrong}) {
     final List<String> rest = argResults?.rest ?? const <String>[];
-    if (rest.isEmpty) throwUsageError('<$label> is required.', command: name);
+
+    if (rest.isEmpty) {
+      throwUsageError(
+        <String>['$invocationName needs a <$label>.', ?alsoWrong, ?explain].join('\n\n'),
+        command: name,
+      );
+    }
+
+    if (rest.length > 1) {
+      final String extra = rest.skip(1).map((String word) => '"$word"').join(', ');
+      throwUsageError(
+        <String>[
+          '$invocationName takes a single <$label>. It read "${rest.first}" as the <$label>, '
+              'and has nothing to do with $extra.',
+          ?alsoWrong,
+        ].join('\n\n'),
+        command: name,
+      );
+    }
+
     return rest.first;
+  }
+
+  /// This command's usage, without the description a refusal has already said.
+  ///
+  /// `Command.usage` opens with [description], which repeats the sentence the
+  /// refusal above it is made of — two messages where there is one thing to
+  /// say. What follows it is what a reader needs and nothing else: the line to
+  /// type, the options, and where the global ones are.
+  String get usageWithoutDescription => <String>[
+    'Usage: $invocation',
+    argParser.usage,
+    '',
+    'Run "${runner?.executableName ?? kToolName} help" to see global options.',
+  ].join('\n');
+
+  /// This command as it is typed, parents included: `scribe gen code`.
+  String get invocationName {
+    final List<String> path = <String>[name];
+    for (Command<void>? above = parent; above != null; above = above.parent) {
+      path.insert(0, above.name);
+    }
+
+    return <String>[runner?.executableName ?? kToolName, ...path].join(' ');
   }
 }
 
