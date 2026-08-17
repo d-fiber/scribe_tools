@@ -28,7 +28,7 @@
 // in legal action.
 
 import 'package:file/file.dart';
-import 'package:scribe/src/base/terminal.dart';
+import 'package:scribe/src/commands/doctor/report.dart';
 import 'package:scribe/src/globals.dart' as globals;
 import 'package:scribe/src/tools.dart';
 
@@ -40,32 +40,40 @@ const List<ExternalTool> everyTool = <ExternalTool>[
   ToolCatalog.docker,
 ];
 
-/// Reports where each of [everyTool] is, and returns whether they are all there.
+/// Where each of [everyTool] is, and what to run for the ones that are missing.
 ///
-/// Nothing is installed. The exact command is shown and left for the user to
-/// run — a diagnosis that installed packages while reporting would be a
-/// surprise, and it is the difference between this and a command that declares
-/// what it needs.
-bool reportTools(PackageManager? manager) {
-  globals.logger.printStatus('Tools', emphasis: true);
-  bool ready = true;
+/// Nothing is installed here. The exact command is shown and left for the user
+/// to run, or for `--rescue` to run — a diagnosis that installed packages on
+/// its own would be a surprise.
+DoctorSection toolsSection(PackageManager? manager, {required bool assumeYes}) {
+  final List<Finding> findings = <Finding>[];
+  final List<String> found = <String>[];
 
   for (final ExternalTool tool in everyTool) {
-    final File? found = globals.os.which(tool.executable);
+    final File? where = globals.os.which(tool.executable);
 
-    if (found != null) {
-      globals.logger.printStatus('  ${globals.terminal.successMark} ${tool.name.padRight(8)} ${found.path}');
+    if (where != null) {
+      found.add(tool.name);
+      findings.add(Finding.ok('${tool.name} ${where.path}'));
       continue;
     }
 
-    ready = false;
-    globals.logger.printStatus(
-      '  ${globals.terminal.warningMark} ${tool.name.padRight(8)} missing — ${tool.purpose}',
-      color: TerminalColor.yellow,
+    findings.add(
+      Finding.problem(
+        '${tool.name} is missing — ${tool.purpose}',
+        hint: manager == null
+            ? 'Install it from ${tool.homepage}.'
+            : 'Run `${manager.commandFor(tool).join(' ')}` to install it.',
+        repair: manager == null
+            ? null
+            : () => globals.tools.ensure(<ExternalTool>[tool], install: true, assumeYes: assumeYes),
+      ),
     );
-    globals.logger.printStatus('    ${manager == null ? tool.homepage : manager.commandFor(tool).join(' ')}');
   }
 
-  globals.logger.printStatus('');
-  return ready;
+  return DoctorSection(
+    title: 'Tools',
+    summary: found.length == everyTool.length ? found.join(', ') : '${found.length} of ${everyTool.length} found',
+    findings: findings,
+  );
 }

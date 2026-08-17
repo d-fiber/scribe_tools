@@ -102,6 +102,9 @@ abstract class Terminal {
   /// The mark that closes a step the user should look at.
   String get warningMark;
 
+  /// The mark that opens something that is missing or does not work.
+  String get errorMark;
+
   /// [message] wrapped in the codes that embolden it, or unchanged when colour is off.
   String bolden(String message);
 
@@ -203,6 +206,9 @@ class AnsiTerminal extends Terminal {
   String get warningMark => bolden(color(supportsEmoji ? '!' : '[!]', TerminalColor.yellow));
 
   @override
+  String get errorMark => bolden(color(supportsEmoji ? '✗' : '[x]', TerminalColor.red));
+
+  @override
   String bolden(String message) => supportsColor ? '$bold$message$resetBold' : message;
 
   @override
@@ -294,6 +300,9 @@ class TestTerminal extends Terminal {
 
   @override
   String get warningMark => '[!]';
+
+  @override
+  String get errorMark => '[x]';
 
   @override
   String bolden(String message) => message;

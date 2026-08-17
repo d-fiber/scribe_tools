@@ -29,14 +29,32 @@
 
 import 'package:scribe/src/commands/doctor/machine_section.dart';
 import 'package:scribe/src/commands/doctor/project_section.dart';
+import 'package:scribe/src/commands/doctor/report.dart';
 import 'package:scribe/src/commands/doctor/tools_section.dart';
 import 'package:scribe/src/globals.dart' as globals;
 import 'package:scribe/src/runner/scribe_command.dart';
+import 'package:scribe/src/runner/scribe_command_runner.dart';
 import 'package:scribe/src/tools.dart';
 
-/// Reports what this machine and this project are missing, and fixes nothing.
+/// Reports what this machine and this project are missing.
+///
+/// It fixes nothing unless [rescueOption] is passed, and then only what a
+/// machine can fix on its own.
 class DoctorCommand extends ScribeCommand {
-  DoctorCommand();
+  DoctorCommand() {
+    argParser.addFlag(
+      rescueOption,
+      abbr: 'r',
+      negatable: false,
+      help:
+          'Repair what can be repaired from here: install the missing tools with the package '
+          'manager of this machine, and create the directories a project is missing. '
+          'What is left is what only a human can write.',
+    );
+  }
+
+  /// The flag that turns the diagnosis into a repair.
+  static const String rescueOption = 'rescue';
 
   @override
   String get name => 'doctor';
@@ -45,21 +63,55 @@ class DoctorCommand extends ScribeCommand {
   String get description => 'Report what this machine and this project are missing.';
 
   @override
+  String get invocation => 'scribe doctor [--rescue]';
+
+  @override
   bool get requiresProject => false;
 
   @override
   Future<ScribeCommandResult> runCommand() async {
+    if (boolArg(rescueOption)) await _rescue();
+
+    return printReport(_look()) ? const ScribeCommandResult.success() : const ScribeCommandResult.warning();
+  }
+
+  /// The three sections, read from the machine as it is right now.
+  ///
+  /// It is a function and not a field because `--rescue` reads them twice, and
+  /// the second reading has to see what the first one repaired.
+  List<DoctorSection> _look() {
     final PackageManager? manager = PackageManager.detect();
 
-    reportMachine(manager);
-    final bool toolsReady = reportTools(manager);
-    final bool projectReady = reportProject();
+    return <DoctorSection>[
+      machineSection(manager),
+      toolsSection(manager, assumeYes: ScribeCommandRunner.assumesYes(globalResults)),
+      projectSection(),
+    ];
+  }
+
+  /// Runs every repair the sections offered, then lets the report say what is left.
+  ///
+  /// Nothing is listed twice on purpose: the report printed right after already
+  /// names every problem still standing, so a list of what could not be
+  /// repaired would be the same lines a few rows higher.
+  Future<void> _rescue() async {
+    final List<Finding> repairs = <Finding>[
+      for (final DoctorSection section in _look()) ...section.repairable,
+    ];
+
+    if (repairs.isEmpty) {
+      globals.logger.printStatus('There is nothing --rescue can do from here.', emphasis: true);
+      globals.logger.printStatus('');
+      return;
+    }
+
+    globals.logger.printStatus('Repairing what can be repaired from here.', emphasis: true);
+
+    for (final Finding repair in repairs) {
+      globals.logger.printStatus('  ${repair.message}');
+      await repair.repair!();
+    }
 
     globals.logger.printStatus('');
-
-    if (!toolsReady || !projectReady) return const ScribeCommandResult.warning();
-
-    globals.logger.printStatus('${globals.terminal.successMark} Nothing to fix.', emphasis: true);
-    return const ScribeCommandResult.success();
   }
 }

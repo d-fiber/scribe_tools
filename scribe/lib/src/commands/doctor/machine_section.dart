@@ -27,17 +27,32 @@
 // is a violation of applicable intellectual property laws and will result
 // in legal action.
 
+import 'package:scribe/src/commands/doctor/report.dart';
 import 'package:scribe/src/globals.dart' as globals;
 import 'package:scribe/src/tools.dart';
 
-/// Reports what this machine is, and what it can install with.
+/// What this machine is, and what it can install with.
 ///
-/// Nothing here can fail: the machine is whatever it is. It is printed because
-/// it is the first thing anyone reading a bug report wants to know.
-void reportMachine(PackageManager? manager) {
-  globals.logger.printStatus('Machine', emphasis: true);
-  globals.logger.printStatus('  ${globals.os.hostPlatform}');
-  globals.logger.printStatus('  ${globals.shell.name}');
-  globals.logger.printStatus('  ${manager == null ? 'no package manager found' : '${manager.name} available'}');
-  globals.logger.printStatus('');
+/// Nothing here can fail: the machine is whatever it is. It is reported because
+/// it is the first thing anyone reading a bug report wants to know, and because
+/// [manager] decides what `--rescue` is able to do.
+DoctorSection machineSection(PackageManager? manager) {
+  final String installer = manager == null ? 'no package manager' : '${manager.name} available';
+
+  return DoctorSection(
+    title: 'Machine',
+    summary: '${globals.os.hostPlatform}, ${globals.shell.name}, $installer',
+    findings: <Finding>[
+      Finding.ok('${globals.os.hostPlatform}'),
+      Finding.ok(globals.shell.name),
+      if (manager == null)
+        const Finding.note(
+          'no package manager found',
+          hint: 'Install one — homebrew, winget, scoop, apt, dnf, pacman or apk — and --rescue '
+              'will be able to install what is missing.',
+        )
+      else
+        Finding.ok('${manager.name} available'),
+    ],
+  );
 }
