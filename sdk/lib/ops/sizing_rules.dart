@@ -41,6 +41,7 @@ const Map<String, double> _memoryShares = <String, double>{
   'opensearch': 0.1361,
   'api': 0.1299,
   'functions': 0.0661,
+  'worker': 0.0661,
   'gorse': 0.0661,
   'realtime': 0.0661,
   'kong': 0.0489,
@@ -170,6 +171,7 @@ class SizingRules {
     // buffers the flag does not govern, so it is not the lever for an OOM under
     // load — see `.claude/scribe/ops/global.md`.
     values['api_max_old_space'] = '${_clamp(_memoryFor('api') * _oldSpaceShare - _v8Overhead, 16, 8192)}';
+    values['worker_max_old_space'] = '${_clamp(_memoryFor('worker') * _oldSpaceShare - _v8Overhead, 16, 8192)}';
 
     values['opensearch_heap'] = _mib(math.min(_memoryFor('opensearch') * 0.5, 31 * 1024));
     values['opensearch_node_processors'] = '${_clamp(hardware.cores / 2, 1, 16)}';
