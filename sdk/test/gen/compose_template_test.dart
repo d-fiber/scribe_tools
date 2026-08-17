@@ -262,6 +262,25 @@ void main() {
       expect(dangling, isEmpty, reason: 'le module démonté laisserait une dépendance vers un service absent');
     });
 
+    test('a replicated service never fixes its container name', () {
+      final YamlMap replicated = (loadYaml(_render('replicas.yaml')) as YamlMap)['services'] as YamlMap;
+      final YamlMap compose = (loadYaml(_render('docker-compose.yaml')) as YamlMap)['services'] as YamlMap;
+
+      final List<String> clashes = <String>[
+        for (final String service in replicated.keys.cast<String>())
+          if ((compose[service] as YamlMap?)?['container_name'] != null) service,
+      ];
+
+      expect(replicated, isNotEmpty, reason: 'otherwise this test proves nothing');
+      expect(
+        clashes,
+        isEmpty,
+        reason:
+            'Compose refuses the whole project, not just the service, when one carries '
+            'container_name together with deploy.replicas',
+      );
+    });
+
     test('a fragment never redefines a service of the base', () {
       final Set<String> base = _serviceNames('docker-compose.yaml', <YamlFragment>[]);
       final List<String> collisions = <String>[
