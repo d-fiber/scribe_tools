@@ -28,34 +28,22 @@
 // in legal action.
 
 import 'package:change_case/change_case.dart';
-import 'package:file/file.dart';
+import 'package:scribe/src/commands/gen/code/generators/schema/emit/generated_header.dart';
+import 'package:scribe/src/commands/gen/code/generators/schema/enum_scan.dart';
 
-/// The line that opens the generated relations section of `tables.ts`.
-const String relationsMarkerStart = '// @generated:relations:start';
-
-/// The line that closes it.
-const String relationsMarkerEnd = '// @generated:relations:end';
-
-/// The relations section of [file], or an empty string when it has none.
+/// The lines of the project's `enums.ts`: one TypeScript enum per Postgres one.
 ///
-/// A missing file and a file without markers answer the same way: both mean no
-/// relation type is declared yet, and neither is a failure — the section is
-/// written by a later step of the same run.
-Future<String> readRelationsSection(File file) async {
-  if (!await file.exists()) return '';
-
-  final String source = await file.readAsString();
-  final int start = source.indexOf(relationsMarkerStart);
-  final int end = source.indexOf(relationsMarkerEnd);
-
-  return start == -1 || end == -1 ? '' : source.substring(start, end);
-}
-
-/// The tables [section] declares a `<X>Relations` type for.
-///
-/// Read from the section rather than recomputed, because it is the previous
-/// run's output that decides what the types are named today.
-Set<String> tablesWithRelationsIn(String section, Iterable<String> candidates) => <String>{
-  for (final String table in candidates)
-    if (section.contains('type ${table.toPascalCase()}Relations =')) table,
-};
+/// `enumValues` is re-exported rather than redeclared, so this file is a
+/// complete import point on its own: a caller reaches every enum and the helper
+/// through it, without having to know which SQL root each name came from.
+List<String> renderProjectEnums(List<ParsedEnum> enums) => <String>[
+  ...generatedHeader(),
+  'export { enumValues } from "@scribe/core/contracts/enums.ts";',
+  '',
+  for (final ParsedEnum parsed in enums) ...<String>[
+    'export enum ${parsed.name.toPascalCase()} {',
+    for (final String value in parsed.values) '  ${value.toUpperCase()} = "$value",',
+    '}',
+    '',
+  ],
+];

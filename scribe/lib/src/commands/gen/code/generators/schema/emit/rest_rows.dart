@@ -28,34 +28,36 @@
 // in legal action.
 
 import 'package:change_case/change_case.dart';
-import 'package:file/file.dart';
+import 'package:scribe/src/commands/gen/code/generators/schema/emit/generated_header.dart';
+import 'package:scribe/src/commands/gen/code/generators/schema/schema_scan.dart';
+import 'package:scribe/src/commands/gen/code/sql/table_schema.dart';
 
-/// The line that opens the generated relations section of `tables.ts`.
-const String relationsMarkerStart = '// @generated:relations:start';
-
-/// The line that closes it.
-const String relationsMarkerEnd = '// @generated:relations:end';
-
-/// The relations section of [file], or an empty string when it has none.
+/// The lines of `_rows.generated.ts`: one interface per row the project owns.
 ///
-/// A missing file and a file without markers answer the same way: both mean no
-/// relation type is declared yet, and neither is a failure — the section is
-/// written by a later step of the same run.
-Future<String> readRelationsSection(File file) async {
-  if (!await file.exists()) return '';
+/// A table the project extends gets a second interface holding only the columns
+/// the project added, so the framework's own row type stays untouched and the
+/// two are intersected where they are used.
+List<String> renderRestRows(SqlSchema schema, Set<String> projectEnums) {
+  final List<String> owned = schema.sortedProjectTables;
+  final List<String> extended = schema.extendedTables;
 
-  final String source = await file.readAsString();
-  final int start = source.indexOf(relationsMarkerStart);
-  final int end = source.indexOf(relationsMarkerEnd);
+  final Set<String> used = <String>{
+    for (final String table in owned) ...enumsUsedBy(schema.tables[table]!.cols),
+    for (final List<Col> columns in schema.projectExtensions.values) ...enumsUsedBy(columns),
+  };
 
-  return start == -1 || end == -1 ? '' : source.substring(start, end);
+  return <String>[
+    ...generatedHeader(),
+    ...enumImports(used, projectEnums),
+    for (final String table in owned) ..._interface('${table.toPascalCase()}Row', schema.tables[table]!.cols),
+    for (final String table in extended)
+      ..._interface('${table.toPascalCase()}ProjectColumns', schema.projectExtensions[table]!),
+  ];
 }
 
-/// The tables [section] declares a `<X>Relations` type for.
-///
-/// Read from the section rather than recomputed, because it is the previous
-/// run's output that decides what the types are named today.
-Set<String> tablesWithRelationsIn(String section, Iterable<String> candidates) => <String>{
-  for (final String table in candidates)
-    if (section.contains('type ${table.toPascalCase()}Relations =')) table,
-};
+List<String> _interface(String name, List<Col> columns) => <String>[
+  'export interface $name {',
+  for (final Col column in columns) '  ${column.name}: ${column.ts};',
+  '}',
+  '',
+];

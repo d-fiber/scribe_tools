@@ -28,156 +28,63 @@
 // in legal action.
 
 import 'package:file/file.dart';
-
-import 'package:change_case/change_case.dart';
-
-import '../../sql_scanner.dart';
-import 'relations_markers.dart';
-import 'package:scribe/src/globals.dart' as globals;
 import 'package:scribe/src/base/common.dart';
+import 'package:scribe/src/commands/gen/code/relations/emit_relations.dart';
+import 'package:scribe/src/commands/gen/code/relations/relation_graph.dart';
+import 'package:scribe/src/commands/gen/code/relations/relations_markers.dart';
+import 'package:scribe/src/globals.dart' as globals;
 
-final RegExp _projectExposedRe = RegExp(r'''\bnew\s+TypedQueryBuilder<[^>]+>\(\s*this\.db,\s*["'](\w+)["']''');
+final RegExp _exposedTable = RegExp(r'''\bnew\s+TypedQueryBuilder<[^>]+>\(\s*this\.db,\s*["'](\w+)["']''');
 
-final RegExp _createTableRe = RegExp(
-  r'create\s+(?:unlogged\s+)?table\s+(?:if\s+not\s+exists\s+)?public\.(\w+)\s*\(([\s\S]*?)\);',
-  caseSensitive: false,
-);
+/// Rewrites the relations section of the generated `tables.ts`.
+///
+/// This runs after the table generator and reads what it wrote: the tables a
+/// relation may name are the ones `tables.ts` exposes a query method for, so
+/// they are read back out of the file rather than recomputed.
+///
+/// Nothing happens when the project has no generated `tables.ts`, which is the
+/// case for a project that declares no table of its own.
+///
+/// Throws a [ToolExit] when the file is there but has lost its markers, since
+/// there is then no way to tell the generated section from hand-written code.
+Future<void> generateRelations() async {
+  final File tables = globals.project.generated.sdk.rest.tables;
+  if (!await tables.exists()) return;
 
-final RegExp _referencesRe = RegExp(r'\breferences\s+public\.(\w+)', caseSensitive: false);
+  final RelationGraph graph = await scanRelationGraph();
+  final String source = await tables.readAsString();
 
-// Un run par cible (kernel gen/relations.ts, project tables.ts), chacune
-// filtrée sur SON PROPRE ensemble de tables exposées uniquement — pas de
-// relation cross-boundary pour l'instant (une relation project→kernel ou
-// kernel→project est simplement omise du bloc généré, aucun des deux fichiers
-// n'importe le Row type de l'autre côté pour une relation). À ajouter plus
-// tard si besoin, une fois la migration des consommateurs project actée
-// (voir .claude/lib/extensions/manifest/global.md).
-//
-// `exported` : côté kernel les types vivent dans leur propre module et doivent
-// donc être exportés ; côté project ils restent locaux au tables.ts qui les
-// porte.
-List<String> _renderRelationTypes(
-  Map<String, Set<String>> outbound,
-  Map<String, bool> isOne,
-  Set<String> exposed,
-  List<MapEntry<String, Set<String>>> parents, {
-  required bool exported,
-}) {
-  bool many(String child, String parent) => !(isOne['$child|$parent'] ?? false);
+  final Set<String> exposed = <String>{
+    for (final RegExpMatch match in _exposedTable.allMatches(source)) match.group(1)!,
+  };
+  final List<MapEntry<String, Set<String>>> parents = graph.parentsAmong(exposed);
 
-  final List<String> lines = <String>[];
-  final String keyword = exported ? 'export type' : 'type';
+  await tables.writeAsString(_withSectionReplaced(source, parents, graph, exposed, path: tables.path));
 
-  for (final MapEntry<String, Set<String>> entry in parents) {
-    final String parent = entry.key;
-    final List<String> kids = entry.value.where(exposed.contains).toList()..sort();
-    lines.add('$keyword ${parent.toPascalCase()}Relations = {');
-
-    for (final String child in kids) {
-      final bool childMany = many(child, parent);
-      final List<String> nested =
-          (outbound[child] ?? <String>{}).where((String t) => t != parent && exposed.contains(t)).toList()..sort();
-
-      if (nested.isNotEmpty) {
-        lines.add('  $child: {');
-        lines.add('    row: ${child.toPascalCase()}Row;');
-        lines.add('    many: $childMany;');
-        lines.add('    relations: {');
-        for (final String n in nested) {
-          lines.add('      $n: { row: ${n.toPascalCase()}Row; many: false };');
-        }
-        lines.add('    };');
-        lines.add('  };');
-      } else {
-        lines.add('  $child: { row: ${child.toPascalCase()}Row; many: $childMany };');
-      }
-    }
-
-    lines.add('};\n');
-  }
-
-  return lines;
+  globals.logger.printStatus(
+    'project: ${parents.length} Relations types generated: '
+    '${parents.map((MapEntry<String, Set<String>> entry) => entry.key).join(", ")}',
+  );
 }
 
-// Les Row types référencés par les types rendus — l'import de `gen/relations.ts`
-// s'en déduit, plutôt que d'être recalculé à partir de `parents`/`kids`/`nested`.
-
-Future<void> generateRelations() async {
-
-  final Map<String, Set<String>> outbound = <String, Set<String>>{};
-  final Map<String, Set<String>> inbound = <String, Set<String>>{};
-
-  final Map<String, bool> isOne = <String, bool>{};
-
-  Future<void> parseSql(File file) async {
-    final String sql = await file.readAsString();
-    for (final RegExpMatch tableMatch in _createTableRe.allMatches(sql)) {
-      final String table = tableMatch.group(1)!;
-      final String body = tableMatch.group(2)!;
-      outbound.putIfAbsent(table, () => <String>{});
-
-      for (final RegExpMatch refMatch in _referencesRe.allMatches(body)) {
-        final String ref = refMatch.group(1)!;
-        outbound[table]!.add(ref);
-        inbound.putIfAbsent(ref, () => <String>{}).add(table);
-
-        final int refIdx = refMatch.start;
-        final int lineStart = body.lastIndexOf('\n', refIdx) + 1;
-        final int lineEnd = body.indexOf('\n', refIdx);
-        final String line = body.substring(lineStart, lineEnd == -1 ? body.length : lineEnd).toLowerCase();
-        final bool one = line.contains('primary key') || line.contains(' unique');
-        isOne['$table|$ref'] = one;
-      }
-    }
+String _withSectionReplaced(
+  String source,
+  List<MapEntry<String, Set<String>>> parents,
+  RelationGraph graph,
+  Set<String> exposed, {
+  required String path,
+}) {
+  final int start = source.indexOf(relationsMarkerStart);
+  final int end = source.indexOf(relationsMarkerEnd);
+  if (start == -1 || end == -1) {
+    throwToolExit('Markers not found in $path.');
   }
 
-  for (final Directory root in kernelSqlRoots()) {
-    await walkSqlFiles(root, parseSql);
-  }
-  await walkSqlFiles(globals.project.init, parseSql);
-
-  List<MapEntry<String, Set<String>>> parentsFor(Set<String> exposed) {
-    return inbound.entries.where((MapEntry<String, Set<String>> e) {
-      return exposed.contains(e.key) && e.value.any((String c) => exposed.contains(c));
-    }).toList()..sort((MapEntry<String, Set<String>> a, MapEntry<String, Set<String>> b) => a.key.compareTo(b.key));
-  }
-
-  void report(String label, List<MapEntry<String, Set<String>>> parents) {
-    globals.logger.printStatus(
-      '$label: ${parents.length} Relations types generated: '
-      '${parents.map((MapEntry<String, Set<String>> e) => e.key).join(", ")}',
-    );
-  }
-
-  // Kernel : fichier dédié, 100 % généré, réécrit en entier. Les tables
-  // exposées se lisent dans gen/tables.ts (les méthodes générées juste avant
-  // par generateTables()), la sortie part dans gen/relations.ts — les deux
-  // fichiers sont donc générés, aucun marqueur à patcher.
-
-  // Project : toujours une section entre marqueurs dans son tables.ts, qui
-  // porte aussi les méthodes et les imports (voir tables.dart).
-  final File projectTablesTs = globals.project.generated.sdk.rest.tables;
-  if (!await projectTablesTs.exists()) return;
-
-  final String projectSource = await projectTablesTs.readAsString();
-  final Set<String> projectExposed = <String>{
-    for (final RegExpMatch m in _projectExposedRe.allMatches(projectSource)) m.group(1)!,
-  };
-  final List<MapEntry<String, Set<String>>> projectParents = parentsFor(projectExposed);
-  final List<String> projectLines = <String>[
+  final List<String> section = <String>[
     '$relationsMarkerStart\n',
-    ..._renderRelationTypes(outbound, isOne, projectExposed, projectParents, exported: false),
+    ...renderRelationTypes(graph, exposed, parents),
     relationsMarkerEnd,
   ];
 
-  final int si = projectSource.indexOf(relationsMarkerStart);
-  final int ei = projectSource.indexOf(relationsMarkerEnd);
-  if (si == -1 || ei == -1) {
-    throwToolExit('Markers not found in ${projectTablesTs.path}.');
-  }
-
-  await projectTablesTs.writeAsString(
-    projectSource.substring(0, si) + projectLines.join('\n') + projectSource.substring(ei + relationsMarkerEnd.length),
-  );
-  report('project', projectParents);
+  return source.substring(0, start) + section.join('\n') + source.substring(end + relationsMarkerEnd.length);
 }

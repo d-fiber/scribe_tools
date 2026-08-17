@@ -27,35 +27,25 @@
 // is a violation of applicable intellectual property laws and will result
 // in legal action.
 
-import 'package:change_case/change_case.dart';
-import 'package:file/file.dart';
+import 'package:scribe/src/commands/gen/code/generators/schema/emit/generated_header.dart';
 
-/// The line that opens the generated relations section of `tables.ts`.
-const String relationsMarkerStart = '// @generated:relations:start';
-
-/// The line that closes it.
-const String relationsMarkerEnd = '// @generated:relations:end';
-
-/// The relations section of [file], or an empty string when it has none.
+/// The lines of `client.ts`: the one surface a query starts from.
 ///
-/// A missing file and a file without markers answer the same way: both mean no
-/// relation type is declared yet, and neither is a failure — the section is
-/// written by a later step of the same run.
-Future<String> readRelationsSection(File file) async {
-  if (!await file.exists()) return '';
-
-  final String source = await file.readAsString();
-  final int start = source.indexOf(relationsMarkerStart);
-  final int end = source.indexOf(relationsMarkerEnd);
-
-  return start == -1 || end == -1 ? '' : source.substring(start, end);
-}
-
-/// The tables [section] declares a `<X>Relations` type for.
+/// There is a single client, on the service role. Restricting a query to its
+/// owner is the builder's job — it injects the owning column from the identity
+/// carried by the request — so the client itself holds no scope.
 ///
-/// Read from the section rather than recomputed, because it is the previous
-/// run's output that decides what the types are named today.
-Set<String> tablesWithRelationsIn(String section, Iterable<String> candidates) => <String>{
-  for (final String table in candidates)
-    if (section.contains('type ${table.toPascalCase()}Relations =')) table,
-};
+/// `_owners.ts` is imported for its side effect: it registers the owning column
+/// of every table when it loads. Without it no project table has a known owner,
+/// so none is bounded to its user.
+List<String> renderRestClient() => <String>[
+  ...generatedHeader(),
+  'import "./_owners.ts";',
+  'import { PostgrestClients } from "@scribe/core/clients/database/client.ts";',
+  'import { ProjectTables } from "./tables.ts";',
+  '',
+  'export class ProjectRestClient extends ProjectTables {}',
+  '',
+  'export const rest = new ProjectRestClient(() => PostgrestClients.service());',
+  '',
+];

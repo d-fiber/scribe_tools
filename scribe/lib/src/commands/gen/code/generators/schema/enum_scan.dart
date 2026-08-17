@@ -27,34 +27,54 @@
 // is a violation of applicable intellectual property laws and will result
 // in legal action.
 
-import 'package:change_case/change_case.dart';
 import 'package:file/file.dart';
-import 'package:scribe/src/commands/gen/code/generators/schema/emit/project_enums.dart';
-import 'package:scribe/src/commands/gen/code/generators/schema/enum_scan.dart';
+import 'package:path/path.dart' as p;
 import 'package:scribe/src/commands/gen/sql_scanner.dart';
-import 'package:scribe/src/globals.dart' as globals;
 
-/// Rewrites the project's `enums.ts`, and names what it declared.
+final RegExp _enumType = RegExp(
+  r'create\s+type\s+public\.(\w+)\s+as\s+enum\s*\(([\s\S]*?)\);',
+  caseSensitive: false,
+);
+
+final RegExp _quotedValue = RegExp(r"'([^']+)'");
+
+/// One `CREATE TYPE ... AS ENUM` found in the SQL.
+class ParsedEnum {
+  const ParsedEnum(this.name, this.values);
+
+  /// The type's name in Postgres, as it was declared.
+  final String name;
+
+  /// Its values, in the order Postgres will order them.
+  final List<String> values;
+}
+
+/// The enums declared under [roots], sorted by name.
 ///
-/// The returned names are what the table generator routes its imports with: an
-/// enum is declared by the framework or by the project, never by both, so a
-/// name that is missing from this set comes from the SDK.
-///
-/// The framework's own enums are only read. Their TypeScript ships with the
-/// framework, so nothing is written for them here.
-Future<Set<String>> generateEnums() async {
-  final List<ParsedEnum> fromFramework = await scanEnums(kernelSqlRoots());
-  globals.logger.printStatus('${fromFramework.length} kernel enums read from the SDK');
+/// Only files whose name contains `enum` are opened. That is a convention, not
+/// a rule of Postgres: it keeps the scan off every table definition in the
+/// tree, at the cost of missing an enum someone hides in `tables.sql`.
+Future<List<ParsedEnum>> scanEnums(Iterable<Directory> roots) async {
+  final List<ParsedEnum> found = <ParsedEnum>[];
 
-  final List<ParsedEnum> fromProject = await scanEnums(<Directory>[globals.project.init]);
-  if (fromProject.isEmpty) return <String>{};
+  Future<void> collect(File file) async {
+    if (!p.basename(file.path).contains('enum')) return;
 
-  await globals.project.generated.sdk.create();
-  await globals.project.generated.sdk.enums.writeAsString(renderProjectEnums(fromProject).join('\n'));
+    final String sql = await file.readAsString();
+    for (final RegExpMatch match in _enumType.allMatches(sql)) {
+      found.add(
+        ParsedEnum(
+          match.group(1)!,
+          _quotedValue.allMatches(match.group(2)!).map((RegExpMatch value) => value.group(1)!).toList(),
+        ),
+      );
+    }
+  }
 
-  globals.logger.printStatus(
-    '${fromProject.length} project enums → ${globals.project.generatedDirectoryName}/sdk/js/enums.ts',
-  );
+  for (final Directory root in roots) {
+    await walkSqlFiles(root, collect);
+  }
 
-  return <String>{for (final ParsedEnum parsed in fromProject) parsed.name.toPascalCase()};
+  found.sort((ParsedEnum a, ParsedEnum b) => a.name.compareTo(b.name));
+  return found;
 }

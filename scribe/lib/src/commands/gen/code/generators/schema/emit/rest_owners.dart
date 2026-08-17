@@ -27,35 +27,26 @@
 // is a violation of applicable intellectual property laws and will result
 // in legal action.
 
-import 'package:change_case/change_case.dart';
-import 'package:file/file.dart';
+import 'package:scribe/src/commands/gen/code/generators/schema/emit/generated_header.dart';
+import 'package:scribe/src/commands/gen/code/generators/schema/schema_scan.dart';
 
-/// The line that opens the generated relations section of `tables.ts`.
-const String relationsMarkerStart = '// @generated:relations:start';
-
-/// The line that closes it.
-const String relationsMarkerEnd = '// @generated:relations:end';
-
-/// The relations section of [file], or an empty string when it has none.
+/// The lines of `_owners.ts`: the column each project table is scoped by.
 ///
-/// A missing file and a file without markers answer the same way: both mean no
-/// relation type is declared yet, and neither is a failure — the section is
-/// written by a later step of the same run.
-Future<String> readRelationsSection(File file) async {
-  if (!await file.exists()) return '';
+/// The file registers the map as a side effect of being imported, which is why
+/// everything that queries pulls it in first — an unregistered table has no
+/// known owner, so nothing bounds its rows to a user.
+List<String> renderRestOwners(SqlSchema schema) {
+  final Iterable<String> owned = schema.sortedProjectTables.where(schema.owners.containsKey);
 
-  final String source = await file.readAsString();
-  final int start = source.indexOf(relationsMarkerStart);
-  final int end = source.indexOf(relationsMarkerEnd);
-
-  return start == -1 || end == -1 ? '' : source.substring(start, end);
+  return <String>[
+    ...generatedHeader(),
+    'import { registerTableOwners } from "@scribe/core/clients/database/schema.ts";',
+    '',
+    'const TABLE_OWNERS: Record<string, string> = {',
+    for (final String table in owned) '  $table: "${schema.owners[table]}",',
+    '};',
+    '',
+    'registerTableOwners(TABLE_OWNERS);',
+    '',
+  ];
 }
-
-/// The tables [section] declares a `<X>Relations` type for.
-///
-/// Read from the section rather than recomputed, because it is the previous
-/// run's output that decides what the types are named today.
-Set<String> tablesWithRelationsIn(String section, Iterable<String> candidates) => <String>{
-  for (final String table in candidates)
-    if (section.contains('type ${table.toPascalCase()}Relations =')) table,
-};

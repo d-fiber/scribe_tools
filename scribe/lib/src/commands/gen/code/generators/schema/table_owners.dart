@@ -27,35 +27,38 @@
 // is a violation of applicable intellectual property laws and will result
 // in legal action.
 
-import 'package:change_case/change_case.dart';
-import 'package:file/file.dart';
-
-/// The line that opens the generated relations section of `tables.ts`.
-const String relationsMarkerStart = '// @generated:relations:start';
-
-/// The line that closes it.
-const String relationsMarkerEnd = '// @generated:relations:end';
-
-/// The relations section of [file], or an empty string when it has none.
+/// The two tables every other one is ultimately owned through, and their key.
 ///
-/// A missing file and a file without markers answer the same way: both mean no
-/// relation type is declared yet, and neither is a failure — the section is
-/// written by a later step of the same run.
-Future<String> readRelationsSection(File file) async {
-  if (!await file.exists()) return '';
-
-  final String source = await file.readAsString();
-  final int start = source.indexOf(relationsMarkerStart);
-  final int end = source.indexOf(relationsMarkerEnd);
-
-  return start == -1 || end == -1 ? '' : source.substring(start, end);
-}
-
-/// The tables [section] declares a `<X>Relations` type for.
-///
-/// Read from the section rather than recomputed, because it is the previous
-/// run's output that decides what the types are named today.
-Set<String> tablesWithRelationsIn(String section, Iterable<String> candidates) => <String>{
-  for (final String table in candidates)
-    if (section.contains('type ${table.toPascalCase()}Relations =')) table,
+/// They own themselves: a row of `app_users` belongs to the user it is.
+const Map<String, String> _rootOwners = <String, String>{
+  'internal_t__app_users': 'user_id',
+  'internal_t__admin_users': 'admin_id',
 };
+
+final RegExp _userOwned = RegExp(
+  r'\buser_id\b[^,]*references\s+public\.internal_t__app_users',
+  caseSensitive: false,
+);
+
+final RegExp _adminOwned = RegExp(
+  r'\badmin_id\b[^,]*references\s+public\.internal_t__admin_users',
+  caseSensitive: false,
+);
+
+/// The column a row of [table] is owned through, or null when nothing owns it.
+///
+/// Ownership takes the place of row-level security. The query builder injects
+/// this column from the identity carried by the request, instead of Postgres
+/// filtering on it, so the column has to be known at generation time — that is
+/// what `_owners.ts` carries.
+///
+/// A table is owned as soon as its [body] declares a foreign key to one of the
+/// two user tables, which is why this reads the SQL text rather than the parsed
+/// columns: the reference and the column name have to be seen together.
+String? ownerColumnOf(String table, String body) {
+  if (_rootOwners[table] case final String root) return root;
+  if (_userOwned.hasMatch(body)) return 'user_id';
+  if (_adminOwned.hasMatch(body)) return 'admin_id';
+
+  return null;
+}
