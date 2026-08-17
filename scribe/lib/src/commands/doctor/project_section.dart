@@ -38,6 +38,10 @@ import 'package:scribe/src/secrets.dart';
 /// Being outside a project is not a failure. This command prepares a machine as
 /// much as it checks a project, and a machine is prepared before there is one.
 ///
+/// The section says nothing when nothing is missing. Unlike the machine and the
+/// tools, it has no finding worth reading in that case: the name it would print
+/// is the directory the command was run from.
+///
 /// This is also the only place the manifest's problems are shown without the
 /// command refusing to run: everywhere else they throw.
 DoctorSection projectSection() {
@@ -47,6 +51,7 @@ DoctorSection projectSection() {
     return const DoctorSection(
       title: 'Project',
       summary: 'none here',
+      detail: SectionDetail.none,
       findings: <Finding>[
         Finding.note(
           'no ${Project.configFileName} in this directory',
@@ -59,6 +64,7 @@ DoctorSection projectSection() {
   return DoctorSection(
     title: 'Project',
     summary: here.name,
+    detail: SectionDetail.none,
     findings: <Finding>[..._entries(here), ..._manifest(here), ..._secrets(here)],
   );
 }

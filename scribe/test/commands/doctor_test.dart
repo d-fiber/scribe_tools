@@ -119,22 +119,29 @@ void main() {
   });
 
   group('what it reports', () {
-    test('a machine and a project with nothing missing collapse to three lines', () async {
+    test('the tools are listed one per line, their paths in a column', () async {
       writeProject();
 
       expect(await runScribe(<String>['doctor'], installed: everything), 0);
       expect(logger.statusText, contains('[✓] Machine'));
-      expect(logger.statusText, contains('[✓] Tools (git, deno, node, docker)'));
-      expect(logger.statusText, contains('[✓] Project (koko)'));
+      expect(logger.statusText, contains('[✓] Tools'));
+      expect(logger.statusText, contains('git    $binDirectory/git'));
+      expect(logger.statusText, contains('docker $binDirectory/docker'));
       expect(logger.statusText, contains('No issues found!'));
-      expect(logger.statusText, isNot(contains('$binDirectory/git')));
     });
 
-    test('-v prints what each section found, path by path', () async {
+    test('a project with nothing missing is not a section, it is silence', () async {
+      writeProject();
+
+      expect(await runScribe(<String>['doctor'], installed: everything), 0);
+      expect(logger.statusText, isNot(contains('Project')));
+    });
+
+    test('-v prints the project entries the report keeps to itself', () async {
       writeProject();
 
       expect(await runScribe(<String>['doctor', '-v'], installed: everything), 0);
-      expect(logger.statusText, contains('git $binDirectory/git'));
+      expect(logger.statusText, contains('[✓] Project (koko)'));
       expect(logger.statusText, contains('config.yaml is here'));
       expect(logger.statusText, contains('lib/main.ts is here'));
     });
@@ -143,7 +150,8 @@ void main() {
       writeProject();
 
       expect(await runScribe(<String>['doctor'], installed: <String>['git', 'deno', 'npm', 'brew']), 0);
-      expect(logger.statusText, contains('[!] Tools (3 of 4 found)'));
+      expect(logger.statusText, contains('[!] Tools'));
+      expect(logger.statusText, contains('git    $binDirectory/git'));
       expect(logger.statusText, contains('docker is missing'));
       expect(logger.statusText, contains('Run `brew install docker` to install it.'));
       expect(logger.statusText, contains('Doctor found issues in 1 category.'));

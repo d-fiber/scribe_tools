@@ -27,6 +27,8 @@
 // is a violation of applicable intellectual property laws and will result
 // in legal action.
 
+import 'dart:math';
+
 import 'package:file/file.dart';
 import 'package:scribe/src/commands/doctor/report.dart';
 import 'package:scribe/src/globals.dart' as globals;
@@ -42,19 +44,24 @@ const List<ExternalTool> everyTool = <ExternalTool>[
 
 /// Where each of [everyTool] is, and what to run for the ones that are missing.
 ///
+/// This is the one section that lists itself even when all is well: four tools
+/// and their paths are what a bug report is read for, and the list is where
+/// someone checks that the `deno` being run is the one they think.
+///
 /// Nothing is installed here. The exact command is shown and left for the user
 /// to run, or for `--rescue` to run — a diagnosis that installed packages on
 /// its own would be a surprise.
 DoctorSection toolsSection(PackageManager? manager, {required bool assumeYes}) {
   final List<Finding> findings = <Finding>[];
-  final List<String> found = <String>[];
+
+  // The paths line up under each other, so the longest name sets the column.
+  final int column = everyTool.map((ExternalTool tool) => tool.name.length).reduce(max);
 
   for (final ExternalTool tool in everyTool) {
     final File? where = globals.os.which(tool.executable);
 
     if (where != null) {
-      found.add(tool.name);
-      findings.add(Finding.ok('${tool.name} ${where.path}'));
+      findings.add(Finding.ok('${tool.name.padRight(column)} ${where.path}'));
       continue;
     }
 
@@ -71,9 +78,5 @@ DoctorSection toolsSection(PackageManager? manager, {required bool assumeYes}) {
     );
   }
 
-  return DoctorSection(
-    title: 'Tools',
-    summary: found.length == everyTool.length ? found.join(', ') : '${found.length} of ${everyTool.length} found',
-    findings: findings,
-  );
+  return DoctorSection(title: 'Tools', findings: findings, detail: SectionDetail.full);
 }

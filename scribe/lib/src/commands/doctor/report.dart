@@ -72,9 +72,29 @@ class Finding {
   bool get isProblem => kind == FindingKind.problem;
 }
 
+/// How much of a section is printed when nothing in it is wrong.
+///
+/// It only decides the quiet case. A section holding a problem or a note always
+/// prints it, and `-v` prints everything whatever this says.
+enum SectionDetail {
+  /// The bracketed line alone, with [DoctorSection.summary] in parentheses.
+  summary,
+
+  /// The bracketed line and every finding under it.
+  full,
+
+  /// Nothing at all.
+  none,
+}
+
 /// One block of the report, `flutter doctor` style.
 class DoctorSection {
-  const DoctorSection({required this.title, required this.findings, this.summary});
+  const DoctorSection({
+    required this.title,
+    required this.findings,
+    this.summary,
+    this.detail = SectionDetail.summary,
+  });
 
   /// The name of the block, on the bracketed line.
   final String title;
@@ -82,11 +102,17 @@ class DoctorSection {
   /// What goes in parentheses after [title], usually what was found.
   final String? summary;
 
+  /// What is left of this section when it has nothing to report.
+  final SectionDetail detail;
+
   /// Everything the section found, in the order it is printed.
   final List<Finding> findings;
 
   /// Whether nothing in here is a problem.
   bool get isGood => !findings.any((Finding finding) => finding.isProblem);
+
+  /// Whether every line of this section is one that works.
+  bool get hasNothingToReport => findings.every((Finding finding) => finding.kind == FindingKind.ok);
 
   /// The problems `--rescue` can do something about.
   List<Finding> get repairable =>
@@ -126,13 +152,17 @@ bool printReport(List<DoctorSection> sections) {
 }
 
 void _printSection(DoctorSection section) {
+  final bool verbose = globals.logger.isVerbose;
+
+  if (!verbose && section.detail == SectionDetail.none && section.hasNothingToReport) return;
+
   final String mark = section.isGood ? globals.terminal.successMark : globals.terminal.warningMark;
   final String summary = section.summary == null ? '' : ' (${section.summary})';
 
   globals.logger.printStatus('[$mark] ${section.title}$summary', emphasis: true);
 
   for (final Finding finding in section.findings) {
-    if (finding.kind == FindingKind.ok && !globals.logger.isVerbose) continue;
+    if (finding.kind == FindingKind.ok && !verbose && section.detail != SectionDetail.full) continue;
 
     _printFinding(finding);
   }
