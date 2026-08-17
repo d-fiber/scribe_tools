@@ -30,6 +30,7 @@
 import 'dart:io';
 
 import 'package:scribe/src/commands/gen/routes/discovered_route.dart';
+import 'package:scribe/src/commands/gen/routes/discovered_sink.dart';
 import 'package:scribe/src/commands/gen/routes/discovered_source.dart';
 import 'package:scribe/src/commands/gen/routes/emitter.dart';
 import 'package:scribe/src/commands/gen/routes/scanner.dart';
@@ -51,9 +52,26 @@ Directory _tree(Map<String, String> files) {
   return root;
 }
 
-DiscoveredSource _source(Map<String, String> files) {
-  final Directory root = _tree(files);
-  return RouteScanner.scan(Directory(p.join(root.path, 'lib', 'src')), root.path);
+DiscoveredSource _source(Map<String, String> files) =>
+    _sourceWith(files, root: const <String, String>{});
+
+/// Scans a tree of [files] under `lib/src/`, plus [root] files under `lib/`.
+///
+/// The root `_log.ts` is the only thing a project declares outside `lib/src/`,
+/// so it is the only reason this takes two maps rather than one.
+DiscoveredSource _sourceWith(
+  Map<String, String> files, {
+  required Map<String, String> root,
+}) {
+  final Directory tree = _tree(files);
+
+  root.forEach((String path, String content) {
+    final File file = File(p.join(tree.path, 'lib', path));
+    file.parent.createSync(recursive: true);
+    file.writeAsStringSync(content);
+  });
+
+  return RouteScanner.scan(Directory(p.join(tree.path, 'lib', 'src')), tree.path);
 }
 
 List<DiscoveredRoute> _scan(Map<String, String> files) => _source(files).routes;
@@ -150,6 +168,92 @@ void main() {
 
       expect(source.nodes, <String>['admin', 'app']);
       expect(source.routes, hasLength(1));
+    });
+  });
+
+  group('the log sink scanner', () {
+    test('a project with no _log.ts declares no sink', () {
+      expect(_source(<String, String>{'app/brand.ts': ''}).sinks, isEmpty);
+    });
+
+    test('a _log.ts at the root of lib answers for no node', () {
+      final DiscoveredSource source = _sourceWith(
+        <String, String>{'app/brand.ts': ''},
+        root: <String, String>{'_log.ts': ''},
+      );
+
+      expect(source.sinks.single.node, isNull);
+      expect(source.sinks.single.file, 'lib/_log.ts');
+    });
+
+    test('a _log.ts at the root of a node answers for that node', () {
+      final DiscoveredSource source = _source(<String, String>{
+        'app/_log.ts': '',
+        'admin/_log.ts': '',
+      });
+
+      expect(
+        source.sinks.map((DiscoveredSink sink) => sink.node),
+        <String>['admin', 'app'],
+      );
+      expect(source.sinks.first.file, 'lib/src/admin/_log.ts');
+    });
+
+    test('the root sink comes before the nodes, and the nodes are sorted', () {
+      final DiscoveredSource source = _sourceWith(
+        <String, String>{'app/_log.ts': '', 'admin/_log.ts': ''},
+        root: <String, String>{'_log.ts': ''},
+      );
+
+      expect(
+        source.sinks.map((DiscoveredSink sink) => sink.node),
+        <String?>[null, 'admin', 'app'],
+      );
+    });
+
+    test('a node without a _log.ts produces no entry at all', () {
+      final DiscoveredSource source = _source(<String, String>{
+        'app/_log.ts': '',
+        'admin/brand.ts': '',
+      });
+
+      expect(source.sinks.map((DiscoveredSink sink) => sink.node), <String>['app']);
+    });
+
+    test('a _log.ts deeper than a node root is not a sink', () {
+      final DiscoveredSource source = _source(<String, String>{'app/brand/_log.ts': ''});
+
+      expect(source.sinks, isEmpty);
+      expect(source.routes, isEmpty);
+    });
+
+    test('the emitter binds every sink to an import of its own', () {
+      final String rendered = RoutesEmitter(
+        const DiscoveredSource(
+          nodes: <String>['app'],
+          routes: <DiscoveredRoute>[],
+          sinks: <DiscoveredSink>[
+            DiscoveredSink(node: null, file: 'lib/_log.ts'),
+            DiscoveredSink(node: 'app', file: 'lib/src/app/_log.ts'),
+          ],
+        ),
+      ).render('// header');
+
+      expect(rendered, contains('import * as _l0 from "@app/_log.ts";'));
+      expect(rendered, contains('import * as _l1 from "@app/src/app/_log.ts";'));
+      expect(rendered, contains('{ node: null, file: "lib/_log.ts", module: _l0 },'));
+      expect(
+        rendered,
+        contains('{ node: "app", file: "lib/src/app/_log.ts", module: _l1 },'),
+      );
+    });
+
+    test('a project with no sink still exports the table the server reads', () {
+      final String rendered = RoutesEmitter(
+        const DiscoveredSource(nodes: <String>['app'], routes: <DiscoveredRoute>[]),
+      ).render('// header');
+
+      expect(rendered, contains('export const logSinks: readonly DiscoveredLogSink[] = [\n];'));
     });
   });
 
