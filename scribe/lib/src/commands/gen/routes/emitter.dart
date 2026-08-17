@@ -30,6 +30,7 @@
 import 'package:path/path.dart' as p;
 
 import 'discovered_route.dart';
+import 'discovered_sink.dart';
 import 'discovered_source.dart';
 
 const String _projectAlias = '@app/';
@@ -64,16 +65,28 @@ class RoutesEmitter {
       entries.writeln('  },');
     }
 
+    final StringBuffer sinks = StringBuffer();
+    for (final DiscoveredSink sink in source.sinks) {
+      final String module = _bind(sink.file, 'l');
+      final String node = sink.node == null ? 'null' : _quote(sink.node!);
+
+      sinks.writeln('  { node: $node, file: ${_quote(sink.file)}, module: $module },');
+    }
+
     final String nodes = source.nodes.map(_quote).join(', ');
 
     return '$header\n'
-        'import type { DiscoveredRoute } from "@scribe/sdk";\n'
+        'import type { DiscoveredLogSink, DiscoveredRoute } from "@scribe/sdk";\n'
         '$_imports'
         '\n'
         'export const nodes: readonly string[] = [$nodes];\n'
         '\n'
         'export const routes: readonly DiscoveredRoute[] = [\n'
         '$entries'
+        '];\n'
+        '\n'
+        'export const logSinks: readonly DiscoveredLogSink[] = [\n'
+        '$sinks'
         '];\n';
   }
 

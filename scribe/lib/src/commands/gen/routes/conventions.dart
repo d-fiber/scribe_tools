@@ -34,6 +34,7 @@ class Conventions {
   static const String indexName = 'index';
   static const String middlewareName = '_middleware';
   static const String nodeName = '_node';
+  static const String logName = '_log';
   static const String privatePrefix = '_';
 
   static bool isSource(String basename) => basename.endsWith(sourceExtension);
@@ -43,6 +44,9 @@ class Conventions {
 
   static bool isObsoleteNode(String basename) =>
       basename == '$nodeName$sourceExtension';
+
+  /// Whether [basename] is a `_log.ts`, the sink a node or the project declares.
+  static bool isLog(String basename) => basename == '$logName$sourceExtension';
 
   static bool isPrivate(String basename) => basename.startsWith(privatePrefix);
 

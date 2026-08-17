@@ -33,6 +33,7 @@ import 'package:path/path.dart' as p;
 import 'package:scribe/src/base/common.dart';
 import 'package:scribe/src/commands/gen/routes/conventions.dart';
 import 'package:scribe/src/commands/gen/routes/discovered_route.dart';
+import 'package:scribe/src/commands/gen/routes/discovered_sink.dart';
 import 'package:scribe/src/commands/gen/routes/discovered_source.dart';
 import 'package:scribe/src/commands/gen/routes/route_claims.dart';
 import 'package:scribe/src/globals.dart' as globals;
@@ -79,7 +80,31 @@ class RouteScanner {
     return DiscoveredSource(
       nodes: <String>[for (final Directory node in nodes) p.basename(node.path)],
       routes: scanner._routes,
+      sinks: scanner._sinksOf(src, nodes),
     );
+  }
+
+  /// The `_log.ts` files of the project root and of each node, in that order.
+  ///
+  /// Only those two places are looked at. A `_log.ts` deeper in a node would
+  /// read as though logging could be scoped to a subtree, which nothing
+  /// delivers on: the host routes by node and knows nothing finer.
+  List<DiscoveredSink> _sinksOf(Directory src, List<Directory> nodes) {
+    final List<DiscoveredSink> sinks = <DiscoveredSink>[];
+
+    final File root = File(p.join(src.parent.path, '${Conventions.logName}${Conventions.sourceExtension}'));
+    if (root.existsSync()) {
+      sinks.add(DiscoveredSink(node: null, file: _relative(root.path)));
+    }
+
+    for (final Directory node in nodes) {
+      final File own = File(p.join(node.path, '${Conventions.logName}${Conventions.sourceExtension}'));
+      if (!own.existsSync()) continue;
+
+      sinks.add(DiscoveredSink(node: p.basename(node.path), file: _relative(own.path)));
+    }
+
+    return sinks;
   }
 
   /// The directories of [src] that are nodes, sorted, private ones left out.

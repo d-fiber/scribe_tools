@@ -27,17 +27,14 @@
 // is a violation of applicable intellectual property laws and will result
 // in legal action.
 
-import 'discovered_route.dart';
-import 'discovered_sink.dart';
+/// A `_log.ts` the scan found, and the node it answers for.
+///
+/// [node] is null for `lib/_log.ts`, the sink that takes what no node claimed.
+/// A node without a `_log.ts` produces no entry at all, which is what makes
+/// "declare nothing and nothing is delivered" cost neither a branch nor a flag.
+class DiscoveredSink {
+  const DiscoveredSink({required this.node, required this.file});
 
-class DiscoveredSource {
-  const DiscoveredSource({
-    required this.nodes,
-    required this.routes,
-    this.sinks = const <DiscoveredSink>[],
-  });
-
-  final List<String> nodes;
-  final List<DiscoveredRoute> routes;
-  final List<DiscoveredSink> sinks;
+  final String? node;
+  final String file;
 }
