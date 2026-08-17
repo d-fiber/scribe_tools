@@ -50,7 +50,7 @@ class CreateCommand extends ScribeCommand {
       abbr: 's',
       valueHelp: 'name',
       help:
-          'The SDK the endpoints are written against. '
+          'The SDK the endpoints are written against${_sdksOnDisk()}. '
           'The choices are the directories of scribe/sdk/, so they follow the framework. '
           'Asked interactively when left out.',
     );
@@ -66,7 +66,46 @@ class CreateCommand extends ScribeCommand {
   /// cannot sit in an import specifier cannot name a project.
   static final RegExp _acceptedName = RegExp(r'^[a-z][a-z0-9_-]*$');
 
+  /// What the missing `<name>` is, printed above the usage when it is left out.
+  ///
+  /// It says the one thing the usage below it cannot: what the name becomes.
+  /// Everything else — where the project lands, what `--sdk` does — is in the
+  /// usage already, and saying it twice makes two messages out of one.
+  static final String _nameExplained =
+      'It is the name of the project, and it becomes three things at once: the directory '
+      './<name>, the generated directory ".<name>/" and the import alias "@<name>/". Lowercase '
+      'letters, digits, "-" and "_", starting with a letter.\n'
+      '\n'
+      '  scribe create my_app\n'
+      '  scribe create my_app --sdk ${sdkSpelling(kDefaultSdkName)}';
+
   final CreateReport _report = const CreateReport();
+
+  /// The SDKs of the framework next to the caller, as the option's help names them.
+  ///
+  /// Empty when there is no framework above the current directory, which is
+  /// what `--sdk` on a machine without a checkout has to read like.
+  ///
+  /// Only the names of the directories are read, never what they hold: this
+  /// runs when the command is built, and a command is built on every `scribe`
+  /// invocation, `gen` included.
+  static String _sdksOnDisk() {
+    final Directory? framework = SdkCatalog.findFrameworkRoot(globals.fs.currentDirectory);
+    final Directory? sdks = framework?.childDirectory('sdk');
+    if (sdks == null || !sdks.existsSync()) return '';
+
+    final List<String> names =
+        sdks
+            .listSync(followLinks: false)
+            .whereType<Directory>()
+            .map((Directory entry) => entry.basename)
+            .where(kKnownSdks.containsKey)
+            .map(sdkSpelling)
+            .toList()
+          ..sort();
+
+    return names.isEmpty ? '' : ', one of ${names.join(', ')}';
+  }
 
   @override
   String get name => 'create';
@@ -82,15 +121,21 @@ class CreateCommand extends ScribeCommand {
 
   @override
   Future<ScribeCommandResult> runCommand() async {
-    final String projectName = requirePositional('name');
-    final Directory root = _destinationFor(projectName);
-    final ProjectTemplates templates = _templates();
-
-    final SdkTarget target = await SdkChoice(
+    final SdkChoice choice = SdkChoice(
       catalog: SdkCatalog.discover(from: globals.fs.currentDirectory),
       commandName: name,
       assumeYes: ScribeCommandRunner.assumesYes(globalResults),
-    ).resolve(stringArg(sdkOption));
+    );
+
+    final String projectName = requirePositional(
+      'name',
+      explain: _nameExplained,
+      alsoWrong: choice.unknownSdk(stringArg(sdkOption)),
+    );
+    final Directory root = _destinationFor(projectName);
+    final ProjectTemplates templates = _templates();
+
+    final SdkTarget target = await choice.resolve(stringArg(sdkOption));
 
     final ProjectScaffold scaffold = ProjectScaffold(
       root: root,
@@ -102,7 +147,7 @@ class CreateCommand extends ScribeCommand {
 
     _report.wrote(scaffold.files);
     _report.caveats(target, templates);
-    _report.nextStep(projectName);
+    _report.nextStep(projectName, target);
 
     return const ScribeCommandResult.success();
   }
@@ -146,7 +191,7 @@ class CreateCommand extends ScribeCommand {
   }
 
   Future<void> _write(ProjectScaffold scaffold, {required String projectName, required SdkTarget target}) async {
-    final Status status = globals.logger.startProgress('Creating $projectName on the ${target.name} SDK');
+    final Status status = globals.logger.startProgress('Creating $projectName on the ${target.label} SDK');
 
     try {
       await scaffold.write();

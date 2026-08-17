@@ -45,7 +45,7 @@ const Map<String, String> kKnownSdks = <String, String>{
   'go': 'Go',
   'dart': 'Dart',
   'python': 'Python',
-  'js': 'JavaScript / TypeScript',
+  'js': 'TS',
   'java': 'Java',
   'kotlin': 'Kotlin',
   'swift': 'Swift',
@@ -53,8 +53,34 @@ const Map<String, String> kKnownSdks = <String, String>{
   'php': 'PHP',
 };
 
-/// The names [kKnownSdks] accepts.
-List<String> get kKnownSdkNames => kKnownSdks.keys.toList();
+/// What a user may type in place of a directory's name, and the directory it means.
+///
+/// `sdk/js/` holds the TypeScript SDK. The directory keeps the name the
+/// framework gives it — renaming it would strand every `config.yaml` that
+/// already says `sdk: js` — and `ts` is what someone reaches for on the command
+/// line. Both are accepted, and only `ts` is ever printed.
+const Map<String, String> kSdkAliases = <String, String>{'ts': 'js'};
+
+/// The directory [asked] names, an alias of [kSdkAliases] resolved.
+///
+/// Trimmed and lowercased first, since it usually comes from a command line or
+/// from `config.yaml`.
+String sdkDirectoryFor(String asked) {
+  final String wanted = asked.trim().toLowerCase();
+  return kSdkAliases[wanted] ?? wanted;
+}
+
+/// The name to type for the SDK directory [name]: its alias when it has one.
+String sdkSpelling(String name) {
+  for (final MapEntry<String, String> alias in kSdkAliases.entries) {
+    if (alias.value == name) return alias.key;
+  }
+
+  return name;
+}
+
+/// The names [kKnownSdks] accepts, spelled as a user types them.
+List<String> get kKnownSdkNames => <String>[for (final String name in kKnownSdks.keys) sdkSpelling(name)];
 
 const Set<String> _ignoredDirectories = <String>{
   'node_modules',
@@ -117,6 +143,9 @@ class SdkTarget {
 
   /// The language's name as a human writes it, [name] when it is not recognised.
   String get label => kKnownSdks[name] ?? name;
+
+  /// The name to type for this target: its alias when it has one, else [name].
+  String get spelling => sdkSpelling(name);
 
   /// Whether a project can be built on this target.
   ///
@@ -181,7 +210,7 @@ class SdkCatalog {
   /// [name] is trimmed and lowercased first, since it usually comes from
   /// `config.yaml` or from a command line.
   SdkTarget? byName(String name) {
-    final String wanted = name.trim().toLowerCase();
+    final String wanted = sdkDirectoryFor(name);
 
     for (final SdkTarget target in targets) {
       if (target.name == wanted) return target;
@@ -189,8 +218,8 @@ class SdkCatalog {
     return null;
   }
 
-  /// The names of the [offerable] targets.
-  List<String> get names => <String>[for (final SdkTarget target in offerable) target.name];
+  /// The names to type for the [offerable] targets.
+  List<String> get names => <String>[for (final SdkTarget target in offerable) target.spelling];
 
   /// The catalog of the framework at or above [from], the current directory by default.
   ///

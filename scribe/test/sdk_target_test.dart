@@ -94,7 +94,8 @@ void main() {
       await withFileSystem(() {
         final SdkCatalog catalog = SdkCatalog.discover(from: fs.directory('/fw'));
 
-        expect(catalog.names, <String>['dart', 'js']);
+        expect(catalog.names, <String>['dart', 'ts']);
+        expect(catalog.byName('ts'), same(catalog.byName('js')));
         expect(catalog.byName('test')!.isRecognised, isFalse);
         expect(catalog.ignored.map((SdkTarget t) => t.name), containsAll(<String>['go', 'test']));
       });

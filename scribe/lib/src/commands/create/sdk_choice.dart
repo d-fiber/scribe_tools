@@ -70,7 +70,7 @@ class SdkChoice {
     if (choices.isEmpty) return _fallback('${catalog.root!.path} holds no usable SDK');
 
     if (choices.length == 1) {
-      globals.logger.printStatus('Only one SDK is available, ${choices.single.name}.');
+      globals.logger.printStatus('Only one SDK is available, ${choices.single.label}.');
       return choices.single;
     }
 
@@ -86,18 +86,28 @@ class SdkChoice {
   /// to kill the command right after it had drawn the menu.
   bool get _canAsk => globals.terminal.supportsRawInput && !assumeYes;
 
+  /// Why [asked] cannot be the SDK, or null when nothing stands against it.
+  ///
+  /// Null also covers the two cases there is nothing to say about yet: no
+  /// `--sdk` was given, and no framework was found to check it against.
+  ///
+  /// This is the refusal [resolve] throws, handed back instead. A command that
+  /// is already refusing its line can then say both things at once, rather than
+  /// send the user to fix the name and refuse the SDK on the next try.
+  String? unknownSdk(String? asked) {
+    if (asked == null || !catalog.isKnown) return null;
+    if (catalog.byName(asked) != null) return null;
+
+    return '"$asked" is not an SDK this framework carries. '
+        'The choices come from ${catalog.root!.path}: ${catalog.names.join(', ')}.';
+  }
+
   SdkTarget _named(String asked) {
-    if (!catalog.isKnown) return SdkTarget.assumed(asked.trim().toLowerCase());
+    if (!catalog.isKnown) return SdkTarget.assumed(sdkDirectoryFor(asked));
 
-    final SdkTarget? found = catalog.byName(asked);
-    if (found == null) {
-      throwUsageError(
-        '"$asked" is not an SDK this framework carries. '
-        'The choices come from ${catalog.root!.path}: ${catalog.names.join(', ')}.',
-        command: commandName,
-      );
-    }
+    if (unknownSdk(asked) case final String refusal) throwUsageError(refusal, command: commandName);
 
+    final SdkTarget found = catalog.byName(asked)!;
     if (!found.isRecognised || found.isEmpty) {
       throwToolExit('${found.caveat}\nPick another SDK: ${catalog.names.join(', ')}.');
     }
@@ -110,8 +120,13 @@ class SdkChoice {
   /// The one from [choices] is preferred when it is there, so the project is
   /// built against the framework's real directory instead of an assumed one.
   SdkTarget _fallback(String why, {List<SdkTarget> choices = const <SdkTarget>[]}) {
-    globals.logger.printStatus('Using the $kDefaultSdkName SDK: $why to pick another.');
+    final SdkTarget target = _defaultAmong(choices);
+    globals.logger.printStatus('Using the ${target.label} SDK: $why to pick another.');
 
+    return target;
+  }
+
+  SdkTarget _defaultAmong(List<SdkTarget> choices) {
     for (final SdkTarget candidate in choices) {
       if (candidate.name == kDefaultSdkName) return candidate;
     }
@@ -119,19 +134,27 @@ class SdkChoice {
     return const SdkTarget.assumed(kDefaultSdkName);
   }
 
-  /// The menu, cursor on the default when it is one of [choices].
+  /// The menu, cursor on the first entry.
   ///
   /// Only the names are listed. A menu that annotates its own entries asks to
   /// be read before it can be answered, and there are two lines in it.
   Future<SdkTarget> _ask(List<SdkTarget> choices) async {
-    final int defaultIndex = choices.indexWhere((SdkTarget target) => target.name == kDefaultSdkName);
+    final List<SdkTarget> menu = orderedForMenu(choices);
 
     final int picked = interact.Select(
       prompt: 'Which SDK will the endpoints be written against?',
-      options: <String>[for (final SdkTarget target in choices) target.label],
-      initialIndex: defaultIndex < 0 ? 0 : defaultIndex,
+      options: <String>[for (final SdkTarget target in menu) target.label],
+      initialIndex: 0,
     ).interact();
 
-    return choices[picked];
+    return menu[picked];
   }
+
+  /// [choices] in the order the menu lists them: by label, case ignored.
+  ///
+  /// The cursor opens on the first entry and not on the default SDK. A cursor
+  /// sitting on the second line reads as a recommendation nobody wrote, and the
+  /// default is what happens anyway when there is nothing to ask on.
+  static List<SdkTarget> orderedForMenu(List<SdkTarget> choices) => <SdkTarget>[...choices]
+    ..sort((SdkTarget a, SdkTarget b) => a.label.toLowerCase().compareTo(b.label.toLowerCase()));
 }

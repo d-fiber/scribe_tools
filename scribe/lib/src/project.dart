@@ -139,7 +139,7 @@ class Project {
   /// The SDK this project targets, [kDefaultSdkName] when the manifest names none.
   String get sdkName {
     final String declared = ScribeManifest.loadFrom(config)?.sdk ?? '';
-    return declared.isEmpty ? kDefaultSdkName : declared;
+    return declared.isEmpty ? kDefaultSdkName : sdkDirectoryFor(declared);
   }
 
   /// The extension the project's sources carry, read from the entrypoint that is there.
