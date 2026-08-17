@@ -28,191 +28,79 @@
 // in legal action.
 
 import 'package:scribe/src/base/yaml.dart';
-import '../walker/generated_path.dart';
+import 'package:scribe/src/commands/gen/docs/sections/paths/path_syntax.dart';
+import 'package:scribe/src/commands/gen/docs/sections/paths/request_body.dart';
+import 'package:scribe/src/commands/gen/docs/sections/paths/responses.dart';
+import 'package:scribe/src/commands/gen/docs/walker/generated_path.dart';
 
-const Map<int, String> _statusDescriptions = <int, String>{
-  200: 'OK',
-  201: 'Created',
-  202: 'Accepted',
-  400: 'Validation error',
-  401: 'Unauthorized',
-  403: 'Forbidden',
-  404: 'Not found',
-  409: 'Conflict',
-  413: 'Payload too large',
-  422: 'Unprocessable',
-  429: 'Too many requests',
-  500: 'Unexpected error',
-};
-
-String _openApiPath(String path) => path.replaceAllMapped(RegExp(r':(\w+)'), (Match m) => '{${m[1]}}');
-
-List<String> _pathParams(String path) => RegExp(r':(\w+)').allMatches(path).map((Match m) => m[1]!).toList();
-
-String _openApiType(String type) => type == 'file' ? 'string' : type;
-
-void _renderRequestBodyField(Indented out, int depth, RequestBodyField field) {
-  out.add(depth, '${field.name}:');
-  switch (field.type) {
-    case 'nested':
-      out.add(depth + 1, 'type: object');
-      if (field.properties != null && field.properties!.isNotEmpty) {
-        out.add(depth + 1, 'properties:');
-        for (final RequestBodyField prop in field.properties!) {
-          _renderRequestBodyField(out, depth + 2, prop);
-        }
-      }
-    case 'array':
-      out.add(depth + 1, 'type: array');
-      if (field.items != null) {
-        out.add(depth + 1, 'items:');
-        if (field.items!.type == 'nested') {
-          out.add(depth + 2, 'type: object');
-          if (field.items!.properties != null) {
-            out.add(depth + 2, 'properties:');
-            for (final RequestBodyField prop in field.items!.properties!) {
-              _renderRequestBodyField(out, depth + 3, prop);
-            }
-          }
-        } else {
-          out.add(depth + 2, 'type: ${_openApiType(field.items!.type)}');
-        }
-      }
-    case 'file':
-      out.add(depth + 1, 'type: string');
-      out.add(depth + 1, 'format: binary');
-    default:
-      out.add(depth + 1, 'type: ${_openApiType(field.type)}');
-  }
-}
-
-void _renderRequestBody(Indented out, int depth, List<RequestBodyField> fields) {
-  final List<String> required = fields
-      .where((RequestBodyField f) => f.required)
-      .map((RequestBodyField f) => f.name)
-      .toList();
-
-  out.add(depth, 'requestBody:');
-  out.add(depth + 1, 'content:');
-  out.add(depth + 2, 'application/json:');
-  out.add(depth + 3, 'schema:');
-  out.add(depth + 4, 'type: object');
-  if (required.isNotEmpty) {
-    out.add(depth + 4, 'required: [${required.join(', ')}]');
-  }
-  if (fields.isNotEmpty) {
-    out.add(depth + 4, 'properties:');
-    for (final RequestBodyField field in fields) {
-      _renderRequestBodyField(out, depth + 5, field);
-    }
-  }
-}
-
-void _renderResponses(Indented out, int depth, List<GeneratedResponse> responses) {
-  out.add(depth, 'responses:');
-  for (final GeneratedResponse response in responses) {
-    final String description = _statusDescriptions[response.status] ?? 'Response';
-    out.add(depth + 1, '"${response.status}":');
-    out.add(depth + 2, 'description: $description');
-
-    if (response.status >= 200 && response.status < 300) {
-      out.add(depth + 2, 'content:');
-      out.add(depth + 3, 'application/json:');
-      out.add(depth + 4, 'schema:');
-      out.add(depth + 5, 'type: object');
-      out.add(depth + 5, 'properties:');
-      out.add(depth + 6, 'code:');
-      out.add(depth + 7, 'type: string');
-      final String? code = response.variants.isNotEmpty ? response.variants.first.code : null;
-      if (code != null) out.add(depth + 7, 'example: ${yamlScalar(code)}');
-      continue;
-    }
-
-    out.add(depth + 2, 'content:');
-    out.add(depth + 3, 'application/json:');
-    out.add(depth + 4, 'schema:');
-    out.add(depth + 5, r'$ref: "#/components/schemas/Error"');
-
-    if (response.variants.length <= 1) {
-      final ResponseVariant? variant = response.variants.isNotEmpty ? response.variants.first : null;
-      if (variant != null) {
-        out.add(depth + 4, 'example:');
-        if (variant.code != null) {
-          out.add(depth + 5, 'code: ${yamlScalar(variant.code!)}');
-        }
-        if (variant.message != null) {
-          out.add(depth + 5, 'message: ${yamlScalar(variant.message!)}');
-        }
-      }
-    } else {
-      out.add(depth + 4, 'examples:');
-      final Map<String, int> seenKeys = <String, int>{};
-      for (final ResponseVariant variant in response.variants) {
-        final String baseKey = variant.code ?? 'variant';
-        final int occurrence = (seenKeys[baseKey] ?? 0) + 1;
-        seenKeys[baseKey] = occurrence;
-        final String key = occurrence == 1 ? baseKey : '${baseKey}_$occurrence';
-        out.add(depth + 5, '$key:');
-        out.add(depth + 6, 'value:');
-        if (variant.code != null) {
-          out.add(depth + 7, 'code: ${yamlScalar(variant.code!)}');
-        }
-        if (variant.message != null) {
-          out.add(depth + 7, 'message: ${yamlScalar(variant.message!)}');
-        }
-      }
-    }
-  }
-}
-
+/// The `paths` section of an OpenAPI document, one block per route.
+///
+/// Entries are sorted by path and then by method, so a document only changes
+/// when a route does — the order the walker found them in would otherwise leak
+/// into the diff.
+///
+/// Routes sharing a path are written under one key: OpenAPI groups the methods
+/// of a path together, which is why the path is only emitted when it changes.
 String renderPathsSection(List<GeneratedPathEntry> entries) {
-  final List<GeneratedPathEntry> sorted = List<GeneratedPathEntry>.of(entries)
-    ..sort((GeneratedPathEntry a, GeneratedPathEntry b) {
-      final int byPath = a.path.compareTo(b.path);
-      return byPath != 0 ? byPath : a.method.compareTo(b.method);
-    });
+  final List<GeneratedPathEntry> sorted = List<GeneratedPathEntry>.of(entries)..sort(_byPathThenMethod);
 
   final Indented out = Indented.empty();
-  out.lines.add('paths:');
+  out.add(0, 'paths:');
 
   String? currentPath;
   for (final GeneratedPathEntry entry in sorted) {
     if (entry.path != currentPath) {
-      out.add(1, '${_openApiPath(entry.path)}:');
+      out.add(1, '${openApiPath(entry.path)}:');
       currentPath = entry.path;
     }
-
-    out.add(2, '${entry.method}:');
-    out.add(3, 'tags: [${entry.tag}]');
-    out.add(3, 'summary: ${yamlScalar(entry.summary)}');
-
-    final List<String> params = _pathParams(entry.path);
-    if (params.isNotEmpty) {
-      out.add(3, 'parameters:');
-      for (final String param in params) {
-        out.add(4, '- name: $param');
-        out.add(5, 'in: path');
-        out.add(5, 'required: true');
-        out.add(5, 'schema:');
-        out.add(6, 'type: string');
-      }
-    }
-
-    if (entry.requiresAuth) {
-      out.add(3, 'security:');
-      out.add(4, '- bearerAuth: []');
-    }
-
-    if (entry.requiredPermission != null) {
-      out.add(3, 'x-required-permission: ${entry.requiredPermission}');
-    }
-
-    if (entry.requestBody != null && entry.requestBody!.isNotEmpty) {
-      _renderRequestBody(out, 3, entry.requestBody!);
-    }
-
-    _renderResponses(out, 3, entry.responses);
+    _renderOperation(out, entry);
   }
 
   return out.render();
+}
+
+int _byPathThenMethod(GeneratedPathEntry a, GeneratedPathEntry b) {
+  final int byPath = a.path.compareTo(b.path);
+  return byPath != 0 ? byPath : a.method.compareTo(b.method);
+}
+
+void _renderOperation(Indented out, GeneratedPathEntry entry) {
+  out.add(2, '${entry.method}:');
+  out.add(3, 'tags: [${entry.tag}]');
+  out.add(3, 'summary: ${yamlScalar(entry.summary)}');
+
+  _renderPathParameters(out, entry.path);
+
+  if (entry.requiresAuth) {
+    out.add(3, 'security:');
+    out.add(4, '- bearerAuth: []');
+  }
+
+  if (entry.requiredPermission case final String permission) {
+    out.add(3, 'x-required-permission: $permission');
+  }
+
+  if (entry.requestBody case final List<RequestBodyField> body when body.isNotEmpty) {
+    renderRequestBody(out, 3, body);
+  }
+
+  renderResponses(out, 3, entry.responses);
+}
+
+/// Declares every `:name` of [path] as a required string parameter.
+///
+/// They are always required and always strings: a path parameter that could be
+/// absent would be a different route, and the router hands them over as text.
+void _renderPathParameters(Indented out, String path) {
+  final List<String> names = pathParameters(path);
+  if (names.isEmpty) return;
+
+  out.add(3, 'parameters:');
+  for (final String name in names) {
+    out.add(4, '- name: $name');
+    out.add(5, 'in: path');
+    out.add(5, 'required: true');
+    out.add(5, 'schema:');
+    out.add(6, 'type: string');
+  }
 }
