@@ -46,7 +46,7 @@ class ManifestProblem {
   final String reason;
 
   @override
-  String toString() => '$field — $reason';
+  String toString() => '$field: $reason';
 }
 
 /// A project's `config.yaml`, read and checked.
@@ -94,7 +94,7 @@ class ScribeManifest {
   /// The project's name, as it is shown to a user.
   String get name => _string(<String>['name']) ?? '';
 
-  /// The domain every other address is derived from — see [deriveUrls].
+  /// The domain every other address is derived from. See [deriveUrls].
   String get url => _string(<String>['url']) ?? '';
 
   /// The address the project's mail is sent from.
@@ -230,7 +230,7 @@ class ScribeManifest {
       found.add(
         ManifestProblem(
           path.join('.'),
-          'holds a secret in a file meant to be committed — write env(${_envNameFor(path)}) and put the value in .env',
+          'holds a secret in a file meant to be committed. Write env(${_envNameFor(path)}) and put the value in .env',
         ),
       );
     }
@@ -264,7 +264,7 @@ class ScribeManifest {
     final Object? value = read(<String>['api', 'config', 'origins']);
     if (value == null) {
       return const <ManifestProblem>[
-        ManifestProblem('api.config.origins', 'required — at least one origin allowed to call the API'),
+        ManifestProblem('api.config.origins', 'required: at least one origin allowed to call the API'),
       ];
     }
     if (value is! List || value.isEmpty) {

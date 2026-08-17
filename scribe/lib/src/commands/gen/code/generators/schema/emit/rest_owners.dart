@@ -33,7 +33,7 @@ import 'package:scribe/src/commands/gen/code/generators/schema/schema_scan.dart'
 /// The lines of `_owners.ts`: the column each project table is scoped by.
 ///
 /// The file registers the map as a side effect of being imported, which is why
-/// everything that queries pulls it in first — an unregistered table has no
+/// everything that queries pulls it in first. An unregistered table has no
 /// known owner, so nothing bounds its rows to a user.
 List<String> renderRestOwners(SqlSchema schema) {
   final Iterable<String> owned = schema.sortedProjectTables.where(schema.owners.containsKey);

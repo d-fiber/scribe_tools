@@ -155,7 +155,7 @@ abstract class ScribeCommand extends Command<void> {
 
   /// Runs [validateCommand], then [runCommand], then the version notice.
   ///
-  /// Override it to wrap the three — nothing else sits between the checks and
+  /// Override it to wrap the three. Nothing else sits between the checks and
   /// the work.
   ///
   /// The notice comes last because it is the least of what is on screen: a
@@ -178,7 +178,7 @@ abstract class ScribeCommand extends Command<void> {
   ///
   /// The first one is `doctor` run under its breath. It says nothing on a
   /// machine that has everything, and prints the whole report on one that does
-  /// not — a missing `deno` is going to stop the run anyway, and it stops it
+  /// not, because a missing `deno` is going to stop the run anyway, and it stops it
   /// here before anything has been written.
   ///
   /// Being at the root is not enough on its own: a directory can hold a
@@ -294,7 +294,7 @@ abstract class ScribeCommand extends Command<void> {
   /// This command's usage, without the description a refusal has already said.
   ///
   /// `Command.usage` opens with [description], which repeats the sentence the
-  /// refusal above it is made of — two messages where there is one thing to
+  /// refusal above it is made of, two messages where there is one thing to
   /// say. What follows it is what a reader needs and nothing else: the line to
   /// type, the options, and where the global ones are.
   String get usageWithoutDescription => <String>[

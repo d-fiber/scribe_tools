@@ -42,7 +42,7 @@ enum ShellKind { bash, zsh, fish, powershell, cmd, unknown }
 ///
 /// This is the only place a shell matters. An external command is started with
 /// an argument list and never through `sh -c`, so nothing is quoted and no
-/// shell has to be installed — see `ProcessRunner`. What is left is telling the
+/// shell has to be installed. See `ProcessRunner`. What is left is telling the
 /// user which line to add to which file when a binary lands outside `PATH`.
 class Shell {
   const Shell({required this.kind, required this.executable, required this.profile});

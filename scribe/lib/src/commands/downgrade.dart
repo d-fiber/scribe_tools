@@ -69,7 +69,7 @@ class DowngradeCommand extends ScribeCommand {
     if (older.isEmpty) {
       throwToolExit(
         'There is nothing to go back to: $here is the oldest version this checkout knows.\n'
-        'A shallow clone only carries the commits it was cloned with — `git fetch --unshallow` brings the rest.',
+        'A shallow clone only carries the commits it was cloned with. Run `git fetch --unshallow` to bring the rest.',
       );
     }
 

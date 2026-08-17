@@ -61,16 +61,16 @@ class CreateCommand extends ScribeCommand {
 
   /// What a project may be called.
   ///
-  /// The name becomes three things at once — the directory, the derived
-  /// directory `.<name>/` and the import alias `@<name>/` — so anything that
-  /// cannot sit in an import specifier cannot name a project.
+  /// The name becomes three things at once: the directory, the derived
+  /// directory `.<name>/` and the import alias `@<name>/`. Anything that cannot
+  /// sit in an import specifier therefore cannot name a project.
   static final RegExp _acceptedName = RegExp(r'^[a-z][a-z0-9_-]*$');
 
   /// What the missing `<name>` is, printed above the usage when it is left out.
   ///
   /// It says the one thing the usage below it cannot: what the name becomes.
-  /// Everything else — where the project lands, what `--sdk` does — is in the
-  /// usage already, and saying it twice makes two messages out of one.
+  /// Everything else is in the usage already, from where the project lands to
+  /// what `--sdk` does, and saying it twice makes two messages out of one.
   static final String _nameExplained =
       'It is the name of the project, and it becomes three things at once: the directory '
       './<name>, the generated directory ".<name>/" and the import alias "@<name>/". Lowercase '
@@ -155,7 +155,7 @@ class CreateCommand extends ScribeCommand {
   /// The directory the project is written into.
   ///
   /// Throws a [ToolExit] when [projectName] cannot name one, or when something
-  /// is already there — nothing is ever merged into an existing directory.
+  /// is already there, since nothing is ever merged into an existing directory.
   Directory _destinationFor(String projectName) {
     if (!_acceptedName.hasMatch(projectName)) {
       throwToolExit(

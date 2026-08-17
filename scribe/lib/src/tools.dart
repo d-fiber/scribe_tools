@@ -211,7 +211,7 @@ class ToolProvisioner {
     final String answer = await globals.terminal.promptForCharInput(
       <String>['y', 'n'],
       write: (String message) => globals.logger.printStatus(message, newline: false),
-      prompt: '${tool.name} is missing — install it with ${manager.name}?',
+      prompt: '${tool.name} is missing. Install it with ${manager.name}?',
       defaultChoiceIndex: 0,
     );
 
@@ -233,7 +233,7 @@ class ToolProvisioner {
   }
 
   void _explainOne(ExternalTool tool, PackageManager? manager) {
-    globals.logger.printStatus('  ${tool.name} — ${tool.purpose}', color: TerminalColor.yellow);
+    globals.logger.printStatus('  ${tool.name}: ${tool.purpose}', color: TerminalColor.yellow);
 
     if (manager != null) {
       globals.logger.printStatus('    ${manager.commandFor(tool).join(' ')}');

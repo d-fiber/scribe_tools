@@ -75,7 +75,7 @@ Future<Finding?> frameworkFinding() async {
 
   return newer == null
       ? Finding.ok('scribe $here')
-      : Finding.note('scribe $here — $newer is available', hint: 'Run `scribe upgrade` to get it.');
+      : Finding.note('scribe $here, $newer is available', hint: 'Run `scribe upgrade` to get it.');
 }
 
 /// Stops [invocation] before it starts when one of [everyTool] is not installed.
@@ -87,7 +87,7 @@ Future<Finding?> frameworkFinding() async {
 ///
 /// Nothing is printed when all four are there, so the usual run is unchanged.
 /// When one is missing the whole report is printed, sections included, because
-/// what to type next is in it — the install line under the tool, and
+/// what to type next is in it: the install line under the tool, and
 /// `scribe doctor --rescue` under the report.
 ///
 /// Throws a [ToolExit] carrying [invocation], so what is on screen says which

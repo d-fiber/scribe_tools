@@ -36,7 +36,7 @@ import 'package:scribe/src/base/template.dart';
 ///
 /// It exists so the type a caller depends on stays an interface. The engine is
 /// named once, where the context is built, and everything else takes whatever
-/// the context hands it — which is how a test renders with its own.
+/// the context hands it, which is how a test renders with its own.
 class ScribeTemplateRenderer extends TemplateRenderer {
   const ScribeTemplateRenderer();
 

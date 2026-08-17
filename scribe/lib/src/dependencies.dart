@@ -202,8 +202,8 @@ class Dependencies {
     for (final String path in wanted) {
       if (byPath(path) == null) {
         throwToolExit(
-          'config.yaml: unknown dependency "$path" — '
-          'known ones are ${all.map((Dependency d) => d.path).join(', ')}',
+          'config.yaml: unknown dependency "$path". The '
+          'known ones are ${all.map((Dependency d) => d.path).join(', ')}.',
         );
       }
       keep.add(path);

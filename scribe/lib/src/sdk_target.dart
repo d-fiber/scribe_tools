@@ -56,8 +56,8 @@ const Map<String, String> kKnownSdks = <String, String>{
 /// What a user may type in place of a directory's name, and the directory it means.
 ///
 /// `sdk/js/` holds the TypeScript SDK. The directory keeps the name the
-/// framework gives it — renaming it would strand every `config.yaml` that
-/// already says `sdk: js` — and `ts` is what someone reaches for on the command
+/// framework gives it, since renaming it would strand every `config.yaml` that
+/// already says `sdk: js`, and `ts` is what someone reaches for on the command
 /// line. Both are accepted, and only `ts` is ever printed.
 const Map<String, String> kSdkAliases = <String, String>{'ts': 'js'};
 
@@ -168,7 +168,7 @@ class SdkTarget {
     if (isReady) return null;
     if (isEmpty) return 'sdk/$name/ is an empty directory: there is nothing to write against yet.';
 
-    return 'everything under sdk/$name/ is generated — $generatedFiles stub files and no '
+    return 'everything under sdk/$name/ is generated: $generatedFiles stub files and no '
         'hand-written line. There is no transport, no runtime and no server, so a project on '
         'this target does not run yet.';
   }

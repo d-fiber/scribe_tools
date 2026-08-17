@@ -59,7 +59,7 @@ class Project {
   ///
   /// This is only ever used to improve an error message. A command runs at the
   /// root and nowhere else, the way `flutter` needs `pubspec.yaml` in the
-  /// current directory — see [current].
+  /// current directory. See [current].
   static Project? findAbove(Directory start) {
     Directory candidate = start.absolute;
 
@@ -95,11 +95,11 @@ class Project {
     final Project? above = findAbove(here);
 
     if (above == null) {
-      return 'This command must run from the root of a scribe project — the directory that holds $configFileName.\n'
+      return 'This command must run from the root of a scribe project, the directory that holds $configFileName.\n'
           'There is none here, nor in any directory above. Run `scribe create <name>` to start one.';
     }
 
-    return 'This command must run from the root of a scribe project — the directory that holds $configFileName.\n'
+    return 'This command must run from the root of a scribe project, the directory that holds $configFileName.\n'
         'One is at ${above.directory.path}: cd there and run it again.';
   }
 

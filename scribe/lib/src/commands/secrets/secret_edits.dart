@@ -83,7 +83,7 @@ class SecretEdits {
     if (secretName.hasMatch(name)) return name;
 
     throwUsageError(
-      '"$name" is not a secret name — use uppercase letters, digits and underscore, starting with a letter.',
+      '"$name" is not a secret name. Use uppercase letters, digits and underscore, starting with a letter.',
       command: 'secrets',
     );
   }

@@ -65,7 +65,7 @@ class TemplateFile {
 ///
 /// They are two layers deep: [kSharedTemplateName] holds what every project
 /// gets, and a directory per SDK holds what only that target needs. The SDK
-/// layer wins file by file — see [filesFor].
+/// layer wins file by file. See [filesFor].
 class ProjectTemplates {
   const ProjectTemplates({required this.directory});
 

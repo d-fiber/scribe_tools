@@ -48,7 +48,7 @@ DoctorSection machineSection(PackageManager? manager) {
       if (manager == null)
         const Finding.note(
           'no package manager found',
-          hint: 'Install one — homebrew, winget, scoop, apt, dnf, pacman or apk — and --rescue '
+          hint: 'Install one of homebrew, winget, scoop, apt, dnf, pacman or apk, and --rescue '
               'will be able to install what is missing.',
         )
       else

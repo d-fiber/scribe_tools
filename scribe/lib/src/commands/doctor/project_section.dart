@@ -131,7 +131,7 @@ List<Finding> _manifest(Project project) => <Finding>[
 
 /// The one secrets problem worth reporting: a store nothing can open.
 ///
-/// A project without a `secrets.age` is fine — most are. A project with one and
+/// A project without a `secrets.age` is fine, and most are. A project with one and
 /// no key is stuck, and the failure would otherwise only show up at the command
 /// that needed a secret.
 List<Finding> _secrets(Project project) {

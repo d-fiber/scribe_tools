@@ -32,8 +32,8 @@ import 'package:scribe/src/commands/gen/code/generators/schema/emit/generated_he
 /// The lines of `client.ts`: the one surface a query starts from.
 ///
 /// There is a single client, on the service role. Restricting a query to its
-/// owner is the builder's job — it injects the owning column from the identity
-/// carried by the request — so the client itself holds no scope.
+/// owner is the builder's job, since it injects the owning column from the
+/// identity carried by the request, so the client itself holds no scope.
 ///
 /// `_owners.ts` is imported for its side effect: it registers the owning column
 /// of every table when it loads. Without it no project table has a known owner,

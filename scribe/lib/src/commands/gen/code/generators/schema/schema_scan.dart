@@ -51,7 +51,7 @@ class SqlSchema {
   /// table it merely adds a column to.
   final Set<String> projectTables;
 
-  /// The column each owned table is owned through — see [ownerColumnOf].
+  /// The column each owned table is owned through. See [ownerColumnOf].
   final Map<String, String> owners;
 
   /// The columns the project's SQL adds to a table the framework declares.
@@ -95,7 +95,7 @@ class _PendingAlter {
 ///
 /// The framework roots are read first, so a project file that repeats a table
 /// name does not take it over. `ALTER TABLE` statements are held back until the
-/// whole scan is done — see [_PendingAlter].
+/// whole scan is done. See [_PendingAlter].
 Future<SqlSchema> scanSqlSchema() async {
   final Map<String, TableSchema> tables = <String, TableSchema>{};
   final Set<String> projectTables = <String>{};

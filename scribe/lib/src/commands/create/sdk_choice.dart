@@ -36,7 +36,7 @@ import 'package:scribe/src/sdk_target.dart';
 ///
 /// The choices come from the framework on disk, never from a list in here, so
 /// an SDK that appears in `scribe/sdk/` appears in the menu without this file
-/// changing — see [SdkCatalog].
+/// changing. See [SdkCatalog].
 ///
 /// Four ways out, in this order: what `--sdk` named, the only SDK available,
 /// what the user picked from the menu, or the default. Each fallback says why

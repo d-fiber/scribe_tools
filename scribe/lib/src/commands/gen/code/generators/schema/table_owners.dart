@@ -49,7 +49,7 @@ final RegExp _adminOwned = RegExp(
 ///
 /// Ownership takes the place of row-level security. The query builder injects
 /// this column from the identity carried by the request, instead of Postgres
-/// filtering on it, so the column has to be known at generation time — that is
+/// filtering on it, so the column has to be known at generation time. That is
 /// what `_owners.ts` carries.
 ///
 /// A table is owned as soon as its [body] declares a foreign key to one of the

@@ -39,7 +39,7 @@ const String relationsMarkerEnd = '// @generated:relations:end';
 /// The relations section of [file], or an empty string when it has none.
 ///
 /// A missing file and a file without markers answer the same way: both mean no
-/// relation type is declared yet, and neither is a failure — the section is
+/// relation type is declared yet, and neither is a failure, since the section is
 /// written by a later step of the same run.
 Future<String> readRelationsSection(File file) async {
   if (!await file.exists()) return '';

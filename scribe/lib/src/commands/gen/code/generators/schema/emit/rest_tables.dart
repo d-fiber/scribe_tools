@@ -36,7 +36,7 @@ import 'package:scribe/src/commands/gen/code/relations/relations_markers.dart';
 ///
 /// [tablesWithRelations] names the tables a `<X>Relations` type exists for. It
 /// comes from the previous run, because relations are generated after tables
-/// and read what tables wrote — a table that gains a relation is therefore
+/// and read what tables wrote, so a table that gains a relation is
 /// typed with it one run later. That is accepted rather than ordering the two
 /// generators strictly.
 ///

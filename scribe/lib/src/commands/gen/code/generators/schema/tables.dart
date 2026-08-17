@@ -41,7 +41,7 @@ import 'package:scribe/src/project.dart';
 /// Rewrites the typed PostgREST client from the SQL of the framework and the project.
 ///
 /// [projectEnums] names the enums the project declares, so an import can be
-/// routed to the right side — it comes from the enum generator, which runs
+/// routed to the right side. It comes from the enum generator, which runs
 /// first.
 ///
 /// Nothing is written for the framework's own tables. They are read to know

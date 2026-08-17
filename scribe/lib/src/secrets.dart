@@ -71,7 +71,7 @@ class SecretsStore {
   /// The store of [project], with the key file this machine keeps its identities in.
   ///
   /// The key file sits under `XDG_CONFIG_HOME`, or under `~/.config` when that
-  /// is unset — outside the project, so it is never committed by accident.
+  /// is unset, outside the project, so it is never committed by accident.
   ///
   /// Throws a [ToolExit] when neither variable is set, since there is then
   /// nowhere to keep a key.
@@ -256,7 +256,7 @@ class SecretAssignment {
     final String name = raw.substring(0, separator).trim();
     if (!secretName.hasMatch(name)) {
       throwUsageError(
-        '"$name" is not a secret name — use uppercase letters, digits and underscore, starting with a letter.',
+        '"$name" is not a secret name. Use uppercase letters, digits and underscore, starting with a letter.',
         command: 'secrets',
       );
     }

@@ -35,8 +35,8 @@ import 'package:scribe/src/globals.dart' as globals;
 /// The aliases of the framework's own configuration that a project must not inherit.
 ///
 /// They say where the framework sits relative to itself, so they mean something
-/// else once the project is somewhere else. Everything besides them — the third
-/// party dependencies and their versions — is copied word for word, so that a
+/// else once the project is somewhere else. Everything besides them, the third
+/// party dependencies and their versions, is copied word for word, so that a
 /// version is declared in one place only.
 const Set<String> _frameworkPathAliases = <String>{
   '@scribe/core/',

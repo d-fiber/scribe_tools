@@ -33,7 +33,7 @@ import 'package:scribe/src/commands/gen/code/relations/relation_graph.dart';
 /// The `<X>Relations` type of every parent in [parents].
 ///
 /// Only tables of [exposed] appear, on both ends of every relation. Each child
-/// carries one level of nesting — the tables it points at in turn — and no
+/// carries one level of nesting, the tables it points at in turn, and no
 /// more: a deeper walk would need cycle detection for a depth nobody queries.
 List<String> renderRelationTypes(
   RelationGraph graph,

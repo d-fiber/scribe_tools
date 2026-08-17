@@ -79,7 +79,7 @@ void main() {
           isA<ToolExit>().having(
             (ToolExit e) => e.message,
             'message',
-            'kong.yml: 2 unresolved variable(s) — a, b',
+            'kong.yml: 2 unresolved variable(s): a, b',
           ),
         ),
       );

@@ -36,7 +36,7 @@ import 'package:scribe/src/commands/gen/docs/walker/generated_path.dart';
 /// The `paths` section of an OpenAPI document, one block per route.
 ///
 /// Entries are sorted by path and then by method, so a document only changes
-/// when a route does — the order the walker found them in would otherwise leak
+/// when a route does. The order the walker found them in would otherwise leak
 /// into the diff.
 ///
 /// Routes sharing a path are written under one key: OpenAPI groups the methods

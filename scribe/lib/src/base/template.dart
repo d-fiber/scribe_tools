@@ -74,7 +74,7 @@ String renderTemplate(String name, String source, Map<String, String> values) {
   );
 
   if (missing.isNotEmpty) {
-    throwToolExit('$name: ${missing.length} unresolved variable(s) — ${(missing.toList()..sort()).join(', ')}');
+    throwToolExit('$name: ${missing.length} unresolved variable(s): ${(missing.toList()..sort()).join(', ')}');
   }
 
   return output;

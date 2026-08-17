@@ -35,7 +35,7 @@ import 'package:scribe/src/secrets.dart';
 /// Everything `scribe secrets` prints, kept out of the command itself.
 ///
 /// The command decides what happened; this decides how it reads. Values are
-/// never printed, only names — a secret shown on a terminal ends up in a
+/// never printed, only names, because a secret shown on a terminal ends up in a
 /// scrollback buffer and in a screenshot.
 class SecretsReport {
   const SecretsReport();

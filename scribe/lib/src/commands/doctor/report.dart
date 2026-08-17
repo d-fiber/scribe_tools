@@ -58,8 +58,8 @@ class Finding {
 
   /// What to do about it, printed under [message].
   ///
-  /// It names a command whenever one exists, the way `flutter doctor` does —
-  /// the point of a diagnosis is the next thing to type.
+  /// It names a command whenever one exists, the way `flutter doctor` does,
+  /// because the point of a diagnosis is the next thing to type.
   final String? hint;
 
   /// What `--rescue` runs to repair it, null when nothing can.

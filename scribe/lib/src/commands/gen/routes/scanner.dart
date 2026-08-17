@@ -44,7 +44,7 @@ import 'package:scribe/src/globals.dart' as globals;
 /// whose name starts with `_` is invisible to both.
 ///
 /// Everything is sorted before it is read, so the table only changes when the
-/// tree does — the order the file system hands entries back in would otherwise
+/// tree does. The order the file system hands entries back in would otherwise
 /// end up in the generated file.
 class RouteScanner {
   RouteScanner(this.projectRoot);

@@ -49,7 +49,7 @@ const List<ExternalTool> everyTool = <ExternalTool>[
 /// someone checks that the `deno` being run is the one they think.
 ///
 /// Nothing is installed here. The exact command is shown and left for the user
-/// to run, or for `--rescue` to run — a diagnosis that installed packages on
+/// to run, or for `--rescue` to run, because a diagnosis that installed packages on
 /// its own would be a surprise.
 DoctorSection toolsSection(PackageManager? manager, {required bool assumeYes}) {
   final List<Finding> findings = <Finding>[];
@@ -67,7 +67,7 @@ DoctorSection toolsSection(PackageManager? manager, {required bool assumeYes}) {
 
     findings.add(
       Finding.problem(
-        '${tool.name} is missing — ${tool.purpose}',
+        '${tool.name} is missing: ${tool.purpose}',
         hint: manager == null
             ? 'Install it from ${tool.homepage}.'
             : 'Run `${manager.commandFor(tool).join(' ')}` to install it.',

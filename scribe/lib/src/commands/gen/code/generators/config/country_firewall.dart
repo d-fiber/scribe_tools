@@ -31,13 +31,13 @@
 import 'package:scribe/src/globals.dart' as globals;
 import 'package:scribe/src/base/common.dart';
 
-/// Écrit la liste des pays autorisés dans le dossier généré.
+/// Writes the list of allowed countries into the generated directory.
 ///
-/// Le pare-feu lui-même (`api/public/app/_country_firewall.ts`) reste dans le
-/// SDK : c'est de la forme, identique pour tous les projets. Seules les valeurs
-/// sortent — le SDK les charge par un `await import()` optionnel et retombe sur
-/// la liste vide, qui signifie « aucune restriction », exactement le défaut
-/// documenté dans `config.yaml`.
+/// The firewall itself, `api/public/app/_country_firewall.ts`, stays in the
+/// SDK, because it is shape and every project has the same one. Only the values
+/// come out. The SDK loads them through an optional `await import()` and falls
+/// back to the empty list, which means no restriction at all, the very default
+/// `config.yaml` documents.
 Future<void> generateCountryFirewall() async {
 
   final List<String> countries = <String>[
