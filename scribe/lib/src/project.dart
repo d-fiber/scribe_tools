@@ -354,8 +354,16 @@ class ScribeSdk {
   /// The endpoints the framework serves on its own.
   Directory get hostApi => host.childDirectory('api');
 
-  /// The modules a project can mount, each one holding a `scribe.yaml`.
+  /// The modules the framework owns, each one holding a `scribe.yaml`.
   Directory get hostDependencies => host.childDirectory('dependencies');
+
+  /// The mountable packages, in the submodule that carries them.
+  ///
+  /// Same shape as [hostDependencies] and read the same way: the two are
+  /// searched together, and a module is addressed relative to whichever holds
+  /// it. Absent from a clone made without `--recurse-submodules`, which is why
+  /// nothing may assume it exists.
+  Directory get hostPackages => host.childDirectory('packages');
 
   /// The primitive package, `@scribe/core`.
   Directory get hostCore => host.childDirectory('core');
