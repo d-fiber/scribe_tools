@@ -144,7 +144,7 @@ Future<void> generateEnv() async {
 
   final String bin = Config.read().get('NAME').toSnakeCase();
   final List<String> names = <String>{
-    ...readComposeEnvNames(<File>[InfraFiles.tree.scribe.ops.docker.dockerComposeYaml], 'api'),
+    ...readComposeEnvNames(<File>[InfraFiles.tree.scribe.templates.ops.docker.dockerComposeYaml], 'api'),
     ...smtpEnvNames(),
   }.toList();
 

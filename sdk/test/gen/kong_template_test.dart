@@ -19,7 +19,7 @@ const List<String> _expectedPlaceholders = <String>[
 
 final Dependencies _dependencies = Dependencies.load(root: Directory('../../scribe/host/dependencies'));
 
-String _base() => File('../../scribe/ops/gateway/kong.yml').readAsStringSync();
+String _base() => File('../../scribe/templates/ops/gateway/kong.yml').readAsStringSync();
 
 String _template() => mergeYamlDocuments(_base(), _dependencies.fragmentsFor('kong.yml', _dependencies.all));
 

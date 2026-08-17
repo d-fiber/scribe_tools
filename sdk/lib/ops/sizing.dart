@@ -100,10 +100,10 @@ class ComposeTemplates {
     _logSelection(dependencies, active);
 
     final List<File> sources = <File>[
-      InfraFiles.tree.scribe.ops.docker.dockerComposeYaml,
-      InfraFiles.tree.scribe.ops.docker.resourcesYaml,
-      InfraFiles.tree.scribe.ops.docker.replicasYaml,
-      InfraFiles.tree.scribe.ops.docker.tuningYaml,
+      InfraFiles.tree.scribe.templates.ops.docker.dockerComposeYaml,
+      InfraFiles.tree.scribe.templates.ops.docker.resourcesYaml,
+      InfraFiles.tree.scribe.templates.ops.docker.replicasYaml,
+      InfraFiles.tree.scribe.templates.ops.docker.tuningYaml,
     ];
 
     final List<File> rendered = <File>[];

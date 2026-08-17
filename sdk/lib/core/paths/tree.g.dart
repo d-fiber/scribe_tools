@@ -156,6 +156,8 @@ class Scribe {
 
   ScribeOps get ops => ScribeOps(_self);
 
+  ScribeTemplates get templates => ScribeTemplates(_self);
+
   ScribePostgres get postgres => ScribePostgres(_self);
 
   Host get host => Host(_self);
@@ -167,8 +169,11 @@ class Scribe {
   FoundationStorage get storage => FoundationStorage(_self);
 }
 
-/// Ecrit a la main : `docker/`, `gateway/`, `proxy/`, `logs/` et `pooler/` ont
-/// ete regroupes sous `scribe/ops/` (2026-08-14), l'arbre genere date d'avant.
+/// Written by hand: `docker/`, `gateway/`, `proxy/`, `logs/` and `pooler/` were
+/// regrouped under `scribe/ops/` after this tree was last generated.
+///
+/// This node holds only what the stack mounts or builds as it is. Everything
+/// carrying a `{{variable}}` is under [ScribeTemplates] instead.
 class ScribeOps {
   ScribeOps(Directory parent) : _self = Directory(p.join(parent.path, 'ops'));
 
@@ -195,6 +200,53 @@ class ScribeOpsGateway {
   Directory get directory => _self;
 
   File get kongEntrypointSh => File(p.join(_self.path, 'kong-entrypoint.sh'));
+}
+
+/// Written by hand: everything the framework renders rather than reads.
+class ScribeTemplates {
+  ScribeTemplates(Directory parent) : _self = Directory(p.join(parent.path, 'templates'));
+
+  final Directory _self;
+
+  Directory get directory => _self;
+
+  ScribeTemplatesOps get ops => ScribeTemplatesOps(_self);
+}
+
+class ScribeTemplatesOps {
+  ScribeTemplatesOps(Directory parent) : _self = Directory(p.join(parent.path, 'ops'));
+
+  final Directory _self;
+
+  Directory get directory => _self;
+
+  ScribeTemplatesOpsDocker get docker => ScribeTemplatesOpsDocker(_self);
+
+  ScribeTemplatesOpsGateway get gateway => ScribeTemplatesOpsGateway(_self);
+}
+
+class ScribeTemplatesOpsDocker {
+  ScribeTemplatesOpsDocker(Directory parent) : _self = Directory(p.join(parent.path, 'docker'));
+
+  final Directory _self;
+
+  Directory get directory => _self;
+
+  File get dockerComposeYaml => File(p.join(_self.path, 'docker-compose.yaml'));
+
+  File get resourcesYaml => File(p.join(_self.path, 'resources.yaml'));
+
+  File get replicasYaml => File(p.join(_self.path, 'replicas.yaml'));
+
+  File get tuningYaml => File(p.join(_self.path, 'tuning.yaml'));
+}
+
+class ScribeTemplatesOpsGateway {
+  ScribeTemplatesOpsGateway(Directory parent) : _self = Directory(p.join(parent.path, 'gateway'));
+
+  final Directory _self;
+
+  Directory get directory => _self;
 
   File get kongYml => File(p.join(_self.path, 'kong.yml'));
 }

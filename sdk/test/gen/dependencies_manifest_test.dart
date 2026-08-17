@@ -43,12 +43,12 @@ String _assembled(String base, String template) {
 }
 
 Set<String> _composeServices() => RegExp(r'^  ([a-z0-9-]+):$', multiLine: true)
-    .allMatches(_assembled('$_root/scribe/ops/docker/docker-compose.yaml', 'docker-compose.yaml'))
+    .allMatches(_assembled('$_root/scribe/templates/ops/docker/docker-compose.yaml', 'docker-compose.yaml'))
     .map((RegExpMatch m) => m.group(1)!)
     .toSet();
 
 Set<String> _gatewayBlocks() => RegExp(r'^  - name: ([a-z0-9-]+)$', multiLine: true)
-    .allMatches(_assembled('$_root/scribe/ops/gateway/kong.yml', 'kong.yml'))
+    .allMatches(_assembled('$_root/scribe/templates/ops/gateway/kong.yml', 'kong.yml'))
     .map((RegExpMatch m) => m.group(1)!)
     .toSet();
 

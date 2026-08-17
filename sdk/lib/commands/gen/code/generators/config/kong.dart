@@ -70,7 +70,7 @@ Future<void> generateKong() async {
   final List<Dependency> active = dependencies.active;
 
   final String template = mergeYamlDocuments(
-    await InfraFiles.tree.scribe.ops.gateway.kongYml.readAsString(),
+    await InfraFiles.tree.scribe.templates.ops.gateway.kongYml.readAsString(),
     dependencies.fragmentsFor('kong.yml', active),
   );
   final File output = InfraFiles.tree.alchemy.ops.gateway.kongYml;

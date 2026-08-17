@@ -48,7 +48,7 @@ final Dependencies _dependencies = Dependencies.load(root: Directory('../../scri
 
 List<YamlFragment> _fragments(String name) => _dependencies.fragmentsFor(name, _dependencies.all);
 
-String _base(String name) => File('../../scribe/ops/docker/$name').readAsStringSync();
+String _base(String name) => File('../../scribe/templates/ops/docker/$name').readAsStringSync();
 
 String _template(String name) => mergeYamlDocuments(_base(name), _fragments(name));
 
@@ -143,7 +143,7 @@ void main() {
 
     test('no include is left pointing at the deleted smtp compose', () {
       expect((loadYaml(_render('docker-compose.yaml')) as YamlMap)['include'], isNull);
-      expect(File('../../scribe/ops/docker/docker-compose.smtp.yaml').existsSync(), isFalse);
+      expect(File('../../scribe/templates/ops/docker/docker-compose.smtp.yaml').existsSync(), isFalse);
     });
 
     test('auth reads the GoTrue account written to .env by gen code', () {
