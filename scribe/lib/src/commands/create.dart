@@ -184,7 +184,8 @@ class CreateCommand extends ScribeCommand {
     if (found != null) return found;
 
     throwToolExit(
-      'The project templates live in <scribe>/$kTemplatesDirectoryName/, and there is no scribe '
+      'The project templates live in <scribe>/$kTemplatesDirectoryName/$kProjectTemplatesDirectoryName/, '
+      'and there is no scribe '
       'checkout above ${globals.fs.currentDirectory.path}.\n'
       'Run this from inside a checkout, or next to one.',
     );

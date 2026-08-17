@@ -178,7 +178,7 @@ class ComposeRender {
     Directory target,
     List<YamlFragment> fragments,
   ) async {
-    final File source = project.sdk.ops.childDirectory('docker').childFile(name);
+    final File source = project.sdk.opsTemplates.childDirectory('docker').childFile(name);
     if (!source.existsSync()) {
       throwToolExit('No template at ${source.path}');
     }

@@ -62,16 +62,16 @@ void _framework() {
   fs.directory('/fw/sdk/go').createSync(recursive: true);
   _write('/fw/sdk/test/whatever.ts', 'export {};');
 
-  _write('/fw/templates/common/gitignore', '.env\n.{{name}}/\n');
-  _write('/fw/templates/common/config.yaml', 'name: "{{name}}"\nsdk: "{{sdk}}"\nurl: "https://{{host}}.example.com"\n');
-  _write('/fw/templates/common/init/.gitkeep');
-  _write('/fw/templates/common/lib/hostings/.gitkeep');
-  _write('/fw/templates/js/lib/main.ts', 'import "@{{name}}/routes.ts";\n');
-  _write('/fw/templates/js/lib/src/app/_middleware.ts', 'export class AppBrowsing {}\n');
-  _write('/fw/templates/dart/lib/main.dart', 'void main() {}\n');
-  _write('/fw/templates/dart/lib/src/app/_middleware.dart', 'class AppBrowsing {}\n');
-  _write('/fw/templates/dart/pubspec.yaml', 'name: {{name}}\n');
-  _write('/fw/templates/dart/gitignore', '.env\n.{{name}}/\n.dart_tool/\n');
+  _write('/fw/templates/project/common/gitignore', '.env\n.{{name}}/\n');
+  _write('/fw/templates/project/common/config.yaml', 'name: "{{name}}"\nsdk: "{{sdk}}"\nurl: "https://{{host}}.example.com"\n');
+  _write('/fw/templates/project/common/init/.gitkeep');
+  _write('/fw/templates/project/common/lib/hostings/.gitkeep');
+  _write('/fw/templates/project/js/lib/main.ts', 'import "@{{name}}/routes.ts";\n');
+  _write('/fw/templates/project/js/lib/src/app/_middleware.ts', 'export class AppBrowsing {}\n');
+  _write('/fw/templates/project/dart/lib/main.dart', 'void main() {}\n');
+  _write('/fw/templates/project/dart/lib/src/app/_middleware.dart', 'class AppBrowsing {}\n');
+  _write('/fw/templates/project/dart/pubspec.yaml', 'name: {{name}}\n');
+  _write('/fw/templates/project/dart/gitignore', '.env\n.{{name}}/\n.dart_tool/\n');
 }
 
 void main() {
@@ -169,7 +169,7 @@ void main() {
         final TemplateFile ignore = templates
             .filesFor('dart')
             .firstWhere((TemplateFile f) => f.destination == '.gitignore');
-        expect(ignore.source.path, '/fw/templates/dart/gitignore');
+        expect(ignore.source.path, '/fw/templates/project/dart/gitignore');
       });
     });
 

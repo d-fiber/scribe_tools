@@ -32,8 +32,16 @@ import 'package:path/path.dart' as p;
 
 import 'package:scribe/src/globals.dart' as globals;
 
-/// The directory of the framework holding what `create` copies.
+/// The directory of the framework holding everything it renders.
 const String kTemplatesDirectoryName = 'templates';
+
+/// The layer of [kTemplatesDirectoryName] holding what `create` copies.
+///
+/// It sits under its own name rather than at the top so that the directories
+/// next to it are SDK names and nothing else: [ProjectTemplates.sdkNames] reads
+/// that level, and `templates/ops/` would otherwise answer as an SDK called
+/// `ops`.
+const String kProjectTemplatesDirectoryName = 'project';
 
 /// The layer every project gets, whatever SDK it targets.
 const String kSharedTemplateName = 'common';
@@ -69,7 +77,7 @@ class TemplateFile {
 class ProjectTemplates {
   const ProjectTemplates({required this.directory});
 
-  /// The `templates/` directory these were read from.
+  /// The `templates/project/` directory these were read from.
   final Directory directory;
 
   /// The templates of the framework at [frameworkRoot], or null when there are none.
@@ -79,7 +87,9 @@ class ProjectTemplates {
   static ProjectTemplates? find(Directory? frameworkRoot) {
     if (frameworkRoot == null) return null;
 
-    final Directory templates = frameworkRoot.childDirectory(kTemplatesDirectoryName);
+    final Directory templates = frameworkRoot
+        .childDirectory(kTemplatesDirectoryName)
+        .childDirectory(kProjectTemplatesDirectoryName);
     if (!templates.existsSync()) return null;
 
     return ProjectTemplates(directory: templates);

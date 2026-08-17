@@ -79,8 +79,8 @@ Future<int> runScribe(List<String> args) => runner.run(
 /// Writes a framework checkout at `/framework`, with a template per SDK.
 ///
 /// [sdks] names the directories of `sdk/`, each given one hand-written file so
-/// it counts as ready. [templates] names the layers of `templates/`, `common`
-/// included, so a test can drop the one it wants missing.
+/// it counts as ready. [templates] names the layers of `templates/project/`,
+/// `common` included, so a test can drop the one it wants missing.
 void writeFramework({
   Map<String, String> sdks = const <String, String>{'js': '.ts', 'dart': '.dart'},
   List<String> templates = const <String>['common', 'js'],
@@ -94,20 +94,20 @@ void writeFramework({
 
   for (final String layer in templates) {
     if (layer == 'common') {
-      fs.file('/framework/templates/common/gitignore')
+      fs.file('/framework/templates/project/common/gitignore')
         ..createSync(recursive: true)
         ..writeAsStringSync('/{{name}}.log\n');
-      fs.file('/framework/templates/common/config.yaml')
+      fs.file('/framework/templates/project/common/config.yaml')
         ..createSync(recursive: true)
         ..writeAsStringSync('name: {{name}}\nhost: {{host}}\nsdk: {{sdk}}\n');
-      fs.file('/framework/templates/common/lib/main.txt')
+      fs.file('/framework/templates/project/common/lib/main.txt')
         ..createSync(recursive: true)
         ..writeAsStringSync('the shared entrypoint\n');
-      fs.file('/framework/templates/common/tests/.gitkeep').createSync(recursive: true);
+      fs.file('/framework/templates/project/common/tests/.gitkeep').createSync(recursive: true);
       continue;
     }
 
-    fs.file('/framework/templates/$layer/lib/main.txt')
+    fs.file('/framework/templates/project/$layer/lib/main.txt')
       ..createSync(recursive: true)
       ..writeAsStringSync('the $layer entrypoint of {{name}}\n');
   }

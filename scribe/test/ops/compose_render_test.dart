@@ -58,9 +58,14 @@ Future<T> _withContext<T>(FileSystem fs, Future<T> Function() body) => AppContex
 /// below, so the test reads the ones that ship rather than a fixture: a
 /// fragment that stops matching its base has to fail here.
 void _vendorFramework(FileSystem fs, String root) {
-  for (final String name in <String>[...composeTemplates, capacityFileName]) {
-    _copy(fs, p.join(_repository, 'ops/docker', name), p.join(root, 'ops/docker', name));
+  for (final String name in composeTemplates) {
+    _copy(fs, p.join(_repository, 'templates/ops/docker', name), p.join(root, 'templates/ops/docker', name));
   }
+  _copy(
+    fs,
+    p.join(_repository, 'ops/docker', capacityFileName),
+    p.join(root, 'ops/docker', capacityFileName),
+  );
 
   final io.Directory modules = io.Directory(p.join(_repository, 'host/dependencies'));
   for (final io.FileSystemEntity entity in modules.listSync(recursive: true)) {

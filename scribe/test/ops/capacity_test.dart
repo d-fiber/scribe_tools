@@ -141,13 +141,13 @@ void main() {
     test('name the profile the compose fragment starts the service under', () {
       final List<String> mismatched = <String>[];
 
-      for (final MapEntry<String, Directory> ops in capacityDirectories().entries) {
-        if (!ops.value.childFile(capacityFileName).existsSync()) continue;
+      for (final MapEntry<String, CapacitySource> ops in capacitySources().entries) {
+        if (!ops.value.weights.childFile(capacityFileName).existsSync()) continue;
 
-        final Object? document = loadYaml(ops.value.childFile('docker-compose.yaml').readAsStringSync());
+        final Object? document = loadYaml(ops.value.compose.readAsStringSync());
         final Object? services = document is YamlMap ? document['services'] : null;
 
-        for (final ServiceCapacity service in Capacity.read(ops.value, const <File>[]).services) {
+        for (final ServiceCapacity service in Capacity.read(ops.value.weights, const <File>[]).services) {
           final YamlMap? declared = services is YamlMap ? services[service.name] as YamlMap? : null;
           final Object? profiles = declared?['profiles'];
           final String? started = profiles is YamlList && profiles.isNotEmpty ? profiles.first as String : null;

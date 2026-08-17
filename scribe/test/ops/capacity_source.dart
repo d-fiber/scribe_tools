@@ -40,17 +40,41 @@ const FileSystem _fs = LocalFileSystem();
 /// Where the modules of the framework live.
 Directory get modulesRoot => _fs.directory(p.join(repository, 'host/dependencies'));
 
-/// The socle's own ops directory, which holds the templates every project reads.
+/// The socle's own ops directory, which holds the `capacity.yaml` every project reads.
 Directory get socleOps => _fs.directory(p.join(repository, 'ops/docker'));
 
-/// Every directory holding a `capacity.yaml` and the fragment it goes with.
+/// Where the socle's compose templates live, which is not next to its weights.
+Directory get socleComposeTemplates => _fs.directory(p.join(repository, 'templates/ops/docker'));
+
+/// A `capacity.yaml` and the compose document its weights have to agree with.
+///
+/// A module keeps both in the same directory, since neither is read without the
+/// other. The socle does not: its compose carries `{{variables}}` and so lives
+/// under `templates/`, while its weights are plain numbers and stay in `ops/`.
+class CapacitySource {
+  const CapacitySource({required this.weights, required this.compose});
+
+  /// The directory holding the `capacity.yaml`.
+  final Directory weights;
+
+  /// The compose document declaring the services those weights name.
+  final File compose;
+}
+
+/// Every `capacity.yaml` of the framework and the compose it goes with.
 ///
 /// The socle comes first, then one per module, keyed the way a mismatch has to
 /// be reported for a reader to know which file to open.
-Map<String, Directory> capacityDirectories() => <String, Directory>{
-  'ops/docker': socleOps,
+Map<String, CapacitySource> capacitySources() => <String, CapacitySource>{
+  'ops/docker': CapacitySource(
+    weights: socleOps,
+    compose: socleComposeTemplates.childFile('docker-compose.yaml'),
+  ),
   for (final MapEntry<String, Directory> module in frameworkModules().entries)
-    module.key: module.value.childDirectory('ops'),
+    module.key: CapacitySource(
+      weights: module.value.childDirectory('ops'),
+      compose: module.value.childDirectory('ops').childFile('docker-compose.yaml'),
+    ),
 };
 
 /// Every module directory holding a manifest, by module path.
