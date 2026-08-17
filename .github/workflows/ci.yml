@@ -16,22 +16,35 @@ concurrency:
 jobs:
   scribe:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: scribe
     steps:
       - uses: actions/checkout@v4
+
+      # The ops tests read the capacity files and the compose templates that
+      # ship, so the framework has to sit where they look for it. The workspace
+      # puts it two levels above the CLI, the way the two checkouts sit locally.
+      - name: Check out scribe
+        uses: actions/checkout@v4
+        with:
+          repository: d-fiber/scribe
+          ref: dev
+          path: _fixture/scribe
+          ssh-key: ${{ secrets.SCRIBE_DEPLOY_KEY }}
 
       - uses: dart-lang/setup-dart@v1
         with:
           sdk: 3.12.2
 
+      - name: Set up the test workspace
+        run: sh .github/fixture/workspace.sh "$GITHUB_WORKSPACE/_fixture" "$GITHUB_WORKSPACE"
+
       - name: Analyze
+        working-directory: _fixture/tools/scribe
         run: |
           dart pub get
           dart analyze
 
       - name: Run tests
+        working-directory: _fixture/tools/scribe
         run: dart test
 
   headers:
