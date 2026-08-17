@@ -28,31 +28,45 @@
 // in legal action.
 
 import 'package:file/file.dart';
-import 'package:interact/interact.dart' as interact;
 import 'package:scribe/src/base/common.dart';
 import 'package:scribe/src/base/logger.dart';
+import 'package:scribe/src/commands/create/create_report.dart';
 import 'package:scribe/src/commands/create/project_scaffold.dart';
+import 'package:scribe/src/commands/create/sdk_choice.dart';
 import 'package:scribe/src/globals.dart' as globals;
-import 'package:scribe/src/runner/scribe_command.dart';
 import 'package:scribe/src/project_templates.dart';
+import 'package:scribe/src/runner/scribe_command.dart';
 import 'package:scribe/src/runner/scribe_command_runner.dart';
 import 'package:scribe/src/sdk_target.dart';
 
+/// Scaffolds a project in `./<name>`, and nothing else.
+///
+/// No repository is initialised and no generator is run: what this writes is
+/// what the templates hold.
 class CreateCommand extends ScribeCommand {
   CreateCommand() {
     argParser.addOption(
       sdkOption,
       abbr: 's',
       valueHelp: 'name',
-      help: 'The SDK the endpoints are written against. '
+      help:
+          'The SDK the endpoints are written against. '
           'The choices are the directories of scribe/sdk/, so they follow the framework. '
           'Asked interactively when left out.',
     );
   }
 
+  /// The option that settles the SDK without asking.
   static const String sdkOption = 'sdk';
 
+  /// What a project may be called.
+  ///
+  /// The name becomes three things at once — the directory, the derived
+  /// directory `.<name>/` and the import alias `@<name>/` — so anything that
+  /// cannot sit in an import specifier cannot name a project.
   static final RegExp _acceptedName = RegExp(r'^[a-z][a-z0-9_-]*$');
+
+  final CreateReport _report = const CreateReport();
 
   @override
   String get name => 'create';
@@ -69,26 +83,14 @@ class CreateCommand extends ScribeCommand {
   @override
   Future<ScribeCommandResult> runCommand() async {
     final String projectName = requirePositional('name');
-    _rejectUnusableName(projectName);
+    final Directory root = _destinationFor(projectName);
+    final ProjectTemplates templates = _templates();
 
-    final Directory root = globals.fs.currentDirectory.childDirectory(projectName);
-    if (root.existsSync()) {
-      throwToolExit('${root.path} already exists. Pick another name, or remove it first.');
-    }
-
-    final Directory? framework = SdkCatalog.findFrameworkRoot(globals.fs.currentDirectory);
-    final SdkCatalog catalog = SdkCatalog.discover(from: globals.fs.currentDirectory);
-    final ProjectTemplates? templates = ProjectTemplates.find(framework);
-
-    if (templates == null) {
-      throwToolExit(
-        'The project templates live in <scribe>/$kTemplatesDirectoryName/, and there is no scribe '
-        'checkout above ${globals.fs.currentDirectory.path}.\n'
-        'Run this from inside a checkout, or next to one.',
-      );
-    }
-
-    final SdkTarget target = await _resolveTarget(catalog, templates);
+    final SdkTarget target = await SdkChoice(
+      catalog: SdkCatalog.discover(from: globals.fs.currentDirectory),
+      commandName: name,
+      assumeYes: ScribeCommandRunner.assumesYes(globalResults),
+    ).resolve(stringArg(sdkOption));
 
     final ProjectScaffold scaffold = ProjectScaffold(
       root: root,
@@ -96,6 +98,54 @@ class CreateCommand extends ScribeCommand {
       target: target,
       templates: templates,
     );
+    await _write(scaffold, projectName: projectName, target: target);
+
+    _report.wrote(scaffold.files);
+    _report.caveats(target, templates);
+    _report.nextStep(projectName);
+
+    return const ScribeCommandResult.success();
+  }
+
+  /// The directory the project is written into.
+  ///
+  /// Throws a [ToolExit] when [projectName] cannot name one, or when something
+  /// is already there — nothing is ever merged into an existing directory.
+  Directory _destinationFor(String projectName) {
+    if (!_acceptedName.hasMatch(projectName)) {
+      throwToolExit(
+        '"$projectName" cannot name a project. Use lowercase letters, digits, "-" and "_", '
+        'starting with a letter: the name becomes the folder, the generated directory '
+        '".$projectName/" and the import alias "@$projectName/".',
+      );
+    }
+
+    final Directory root = globals.fs.currentDirectory.childDirectory(projectName);
+    if (root.existsSync()) {
+      throwToolExit('${root.path} already exists. Pick another name, or remove it first.');
+    }
+
+    return root;
+  }
+
+  /// The templates of the framework above the current directory.
+  ///
+  /// Throws a [ToolExit] when there is none. A project without the framework
+  /// would not run anyway, so this refuses rather than writing half of one.
+  ProjectTemplates _templates() {
+    final ProjectTemplates? found = ProjectTemplates.find(
+      SdkCatalog.findFrameworkRoot(globals.fs.currentDirectory),
+    );
+    if (found != null) return found;
+
+    throwToolExit(
+      'The project templates live in <scribe>/$kTemplatesDirectoryName/, and there is no scribe '
+      'checkout above ${globals.fs.currentDirectory.path}.\n'
+      'Run this from inside a checkout, or next to one.',
+    );
+  }
+
+  Future<void> _write(ProjectScaffold scaffold, {required String projectName, required SdkTarget target}) async {
     final Status status = globals.logger.startProgress('Creating $projectName on the ${target.name} SDK');
 
     try {
@@ -103,115 +153,5 @@ class CreateCommand extends ScribeCommand {
     } finally {
       status.stop();
     }
-
-    globals.logger.printStatus('');
-    for (final String file in scaffold.files) {
-      globals.logger.printStatus('  $file');
-    }
-    globals.logger.printStatus('');
-
-    _warnAbout(target, templates);
-
-    globals.logger.printStatus(
-      'Next: cd $projectName, fill config.yaml, then run `scribe gen routes`.',
-      emphasis: true,
-    );
-
-    return const ScribeCommandResult.success();
-  }
-
-  Future<SdkTarget> _resolveTarget(SdkCatalog catalog, ProjectTemplates templates) async {
-    final String? asked = stringArg(sdkOption);
-
-    if (asked != null) return _named(asked, catalog);
-    if (!catalog.isKnown) return _assumeDefault('no scribe checkout above this directory');
-
-    final List<SdkTarget> choices = catalog.offerable;
-    _reportIgnored(catalog);
-
-    if (choices.isEmpty) return _assumeDefault('${catalog.root!.path} holds no usable SDK');
-    if (choices.length == 1) {
-      globals.logger.printStatus('Only one SDK is available, ${choices.single.name}.');
-      return choices.single;
-    }
-
-    final bool canAsk = globals.terminal.supportsRawInput && !ScribeCommandRunner.assumesYes(globalResults);
-    if (!canAsk) return _assumeDefault('nothing to ask on', choices: choices);
-
-    return _ask(choices);
-  }
-
-  SdkTarget _named(String asked, SdkCatalog catalog) {
-    if (!catalog.isKnown) return SdkTarget.assumed(asked.trim().toLowerCase());
-
-    final SdkTarget? found = catalog.byName(asked);
-    if (found == null) {
-      throwUsageError(
-        '"$asked" is not an SDK this framework carries. '
-        'The choices come from ${catalog.root!.path}: ${catalog.names.join(', ')}.',
-        command: name,
-      );
-    }
-    if (!found.isRecognised || found.isEmpty) {
-      throwToolExit('${found.caveat}\nPick another SDK: ${catalog.names.join(', ')}.');
-    }
-
-    return found;
-  }
-
-  void _reportIgnored(SdkCatalog catalog) {
-    for (final SdkTarget target in catalog.ignored) {
-      globals.logger.printTrace('skipping sdk/${target.name}: ${target.caveat}');
-    }
-  }
-
-  SdkTarget _assumeDefault(String why, {List<SdkTarget> choices = const <SdkTarget>[]}) {
-    for (final SdkTarget candidate in choices) {
-      if (candidate.name == kDefaultSdkName) {
-        globals.logger.printStatus('Using the $kDefaultSdkName SDK: $why to pick another.');
-        return candidate;
-      }
-    }
-
-    globals.logger.printStatus('Using the $kDefaultSdkName SDK: $why to pick another.');
-    return const SdkTarget.assumed(kDefaultSdkName);
-  }
-
-  Future<SdkTarget> _ask(List<SdkTarget> choices) async {
-    final int defaultIndex = choices.indexWhere((SdkTarget target) => target.name == kDefaultSdkName);
-
-    final int picked = interact.Select(
-      prompt: 'Which SDK will the endpoints be written against?',
-      options: <String>[for (final SdkTarget target in choices) target.label],
-      initialIndex: defaultIndex < 0 ? 0 : defaultIndex,
-    ).interact();
-
-    return choices[picked];
-  }
-
-  void _warnAbout(SdkTarget target, ProjectTemplates templates) {
-    if (!templates.has(target.name)) {
-      globals.logger.printWarning(
-        'There is no template for the ${target.name} SDK in ${templates.path}, so only the files '
-        'shared by every project were written. Add ${target.name}/ next to common/ to fix that.',
-      );
-      globals.logger.printStatus('');
-    }
-
-    final String? caveat = target.caveat;
-    if (caveat == null) return;
-
-    globals.logger.printWarning('The ${target.name} SDK is not usable yet: $caveat');
-    globals.logger.printStatus('');
-  }
-
-  void _rejectUnusableName(String projectName) {
-    if (_acceptedName.hasMatch(projectName)) return;
-
-    throwToolExit(
-      '"$projectName" cannot name a project. Use lowercase letters, digits, "-" and "_", '
-      'starting with a letter: the name becomes the folder, the generated directory '
-      '".$projectName/" and the import alias "@$projectName/".',
-    );
   }
 }
