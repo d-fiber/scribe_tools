@@ -17,13 +17,13 @@ jobs:
   scribe:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # The ops tests read the capacity files and the compose templates that
       # ship, so the framework has to sit where they look for it. The workspace
       # puts it two levels above the CLI, the way the two checkouts sit locally.
       - name: Check out scribe
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: d-fiber/scribe
           ref: dev
@@ -50,7 +50,7 @@ jobs:
   headers:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check license headers
         run: bash .github/headers/check.sh
@@ -58,10 +58,10 @@ jobs:
   sdk:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check out scribe
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: d-fiber/scribe
           ref: dev
@@ -91,10 +91,10 @@ jobs:
   docs:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check out scribe
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: d-fiber/scribe
           ref: dev
@@ -116,7 +116,7 @@ jobs:
     if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: denoland/setup-deno@v2
         with:
