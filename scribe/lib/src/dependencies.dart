@@ -35,9 +35,13 @@ import 'package:yaml/yaml.dart';
 
 import 'package:scribe/src/base/common.dart';
 import 'package:scribe/src/globals.dart' as globals;
+import 'package:scribe/src/ops/fragments.dart';
 
 /// The file whose presence makes a directory a mountable module.
 const String manifestName = 'scribe.yaml';
+
+/// The directory, inside a module, holding its slices of the ops templates.
+const String fragmentDirectory = 'ops';
 
 /// What a module asks of the stack around it, from the `ops` block of its manifest.
 class DependencyInfra {
@@ -114,6 +118,20 @@ class Dependency {
 
   /// The directory holding the manifest.
   final Directory directory;
+
+  /// The file this module's slice of [template] would be read from.
+  ///
+  /// The file is not required to exist: a module contributes to the templates
+  /// it has something to say about and to no others.
+  File fragment(String template) => directory.childDirectory(fragmentDirectory).childFile(template);
+
+  /// This module's slice of [template], or null when it declares none.
+  YamlFragment? fragmentFor(String template) {
+    final File file = fragment(template);
+    if (!file.existsSync()) return null;
+
+    return YamlFragment(path, file.readAsStringSync());
+  }
 }
 
 /// Every module found under a dependencies root.
@@ -145,6 +163,17 @@ class Dependencies {
 
   /// The modules the current project mounts.
   List<Dependency> get active => selected(globals.project.manifest.dependencies);
+
+  /// The Compose profiles [mounted] asks for, sorted, without repetition.
+  ///
+  /// A module declares its profile in the `ops` block of its manifest, and
+  /// several share one: `security/vpn` and `features/observability` are both
+  /// under `ops`, so either of them switches the whole profile on, `studio`
+  /// included. A module that declares none has services that always start.
+  static List<String> profilesOf(Iterable<Dependency> mounted) => <String>{
+    for (final Dependency dependency in mounted)
+      if (dependency.infra.profile case final String profile) profile,
+  }.toList()..sort();
 
   /// The module at [path], or null when there is none.
   Dependency? byPath(String path) {
@@ -190,6 +219,16 @@ class Dependencies {
 
     return all.where((Dependency dependency) => keep.contains(dependency.path)).toList();
   }
+
+  /// The slices of [template] declared by [active], in the order they are given.
+  ///
+  /// A module that declares none is skipped rather than contributing an empty
+  /// block, so the merged document only names the modules that had something
+  /// to add to it.
+  List<YamlFragment> fragmentsFor(String template, List<Dependency> active) => <YamlFragment>[
+    for (final Dependency dependency in active)
+      if (dependency.fragmentFor(template) case final YamlFragment fragment) fragment,
+  ];
 }
 
 

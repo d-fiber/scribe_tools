@@ -116,6 +116,13 @@ class ScribeManifest {
   /// The modules this project mounts, empty when it takes the default set.
   List<String> get dependencies => _strings(<String>['dependencies']);
 
+  /// Whether this project runs its own code in a worker process of its own.
+  ///
+  /// False by default, and false is the ordinary case: the host loads the
+  /// project in its own process, and the `worker` container would be a second
+  /// Deno nobody talks to. Saying true starts it and gives it a memory budget.
+  bool get worker => read(<String>['worker']) == true;
+
   /// The origins allowed to call the API.
   List<String> get origins => _strings(<String>['api', 'config', 'origins']);
 
