@@ -27,39 +27,45 @@
 // is a violation of applicable intellectual property laws and will result
 // in legal action.
 
-import 'package:scribe/src/commands/doctor/machine_section.dart';
-import 'package:scribe/src/commands/doctor/project_section.dart';
-import 'package:scribe/src/commands/doctor/tools_section.dart';
+import 'package:file/file.dart';
+import 'package:scribe/src/base/terminal.dart';
 import 'package:scribe/src/globals.dart' as globals;
-import 'package:scribe/src/runner/scribe_command.dart';
 import 'package:scribe/src/tools.dart';
 
-/// Reports what this machine and this project are missing, and fixes nothing.
-class DoctorCommand extends ScribeCommand {
-  DoctorCommand();
+/// The tools a project needs at one point or another.
+const List<ExternalTool> everyTool = <ExternalTool>[
+  ToolCatalog.git,
+  ToolCatalog.deno,
+  ToolCatalog.npm,
+  ToolCatalog.docker,
+];
 
-  @override
-  String get name => 'doctor';
+/// Reports where each of [everyTool] is, and returns whether they are all there.
+///
+/// Nothing is installed. The exact command is shown and left for the user to
+/// run — a diagnosis that installed packages while reporting would be a
+/// surprise, and it is the difference between this and a command that declares
+/// what it needs.
+bool reportTools(PackageManager? manager) {
+  globals.logger.printStatus('Tools', emphasis: true);
+  bool ready = true;
 
-  @override
-  String get description => 'Report what this machine and this project are missing.';
+  for (final ExternalTool tool in everyTool) {
+    final File? found = globals.os.which(tool.executable);
 
-  @override
-  bool get requiresProject => false;
+    if (found != null) {
+      globals.logger.printStatus('  ${globals.terminal.successMark} ${tool.name.padRight(8)} ${found.path}');
+      continue;
+    }
 
-  @override
-  Future<ScribeCommandResult> runCommand() async {
-    final PackageManager? manager = PackageManager.detect();
-
-    reportMachine(manager);
-    final bool toolsReady = reportTools(manager);
-    final bool projectReady = reportProject();
-
-    globals.logger.printStatus('');
-
-    if (!toolsReady || !projectReady) return const ScribeCommandResult.warning();
-
-    globals.logger.printStatus('${globals.terminal.successMark} Nothing to fix.', emphasis: true);
-    return const ScribeCommandResult.success();
+    ready = false;
+    globals.logger.printStatus(
+      '  ${globals.terminal.warningMark} ${tool.name.padRight(8)} missing — ${tool.purpose}',
+      color: TerminalColor.yellow,
+    );
+    globals.logger.printStatus('    ${manager == null ? tool.homepage : manager.commandFor(tool).join(' ')}');
   }
+
+  globals.logger.printStatus('');
+  return ready;
 }

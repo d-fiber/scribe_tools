@@ -27,39 +27,17 @@
 // is a violation of applicable intellectual property laws and will result
 // in legal action.
 
-import 'package:scribe/src/commands/doctor/machine_section.dart';
-import 'package:scribe/src/commands/doctor/project_section.dart';
-import 'package:scribe/src/commands/doctor/tools_section.dart';
 import 'package:scribe/src/globals.dart' as globals;
-import 'package:scribe/src/runner/scribe_command.dart';
 import 'package:scribe/src/tools.dart';
 
-/// Reports what this machine and this project are missing, and fixes nothing.
-class DoctorCommand extends ScribeCommand {
-  DoctorCommand();
-
-  @override
-  String get name => 'doctor';
-
-  @override
-  String get description => 'Report what this machine and this project are missing.';
-
-  @override
-  bool get requiresProject => false;
-
-  @override
-  Future<ScribeCommandResult> runCommand() async {
-    final PackageManager? manager = PackageManager.detect();
-
-    reportMachine(manager);
-    final bool toolsReady = reportTools(manager);
-    final bool projectReady = reportProject();
-
-    globals.logger.printStatus('');
-
-    if (!toolsReady || !projectReady) return const ScribeCommandResult.warning();
-
-    globals.logger.printStatus('${globals.terminal.successMark} Nothing to fix.', emphasis: true);
-    return const ScribeCommandResult.success();
-  }
+/// Reports what this machine is, and what it can install with.
+///
+/// Nothing here can fail: the machine is whatever it is. It is printed because
+/// it is the first thing anyone reading a bug report wants to know.
+void reportMachine(PackageManager? manager) {
+  globals.logger.printStatus('Machine', emphasis: true);
+  globals.logger.printStatus('  ${globals.os.hostPlatform}');
+  globals.logger.printStatus('  ${globals.shell.name}');
+  globals.logger.printStatus('  ${manager == null ? 'no package manager found' : '${manager.name} available'}');
+  globals.logger.printStatus('');
 }
