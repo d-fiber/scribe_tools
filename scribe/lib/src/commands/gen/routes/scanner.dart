@@ -30,21 +30,34 @@
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
-
-import 'conventions.dart';
-import 'discovered_route.dart';
-import 'discovered_source.dart';
 import 'package:scribe/src/base/common.dart';
+import 'package:scribe/src/commands/gen/routes/conventions.dart';
+import 'package:scribe/src/commands/gen/routes/discovered_route.dart';
+import 'package:scribe/src/commands/gen/routes/discovered_source.dart';
+import 'package:scribe/src/commands/gen/routes/route_claims.dart';
 import 'package:scribe/src/globals.dart' as globals;
 
+/// Turns the file tree of `lib/src/` into the routes it declares.
+///
+/// The tree is the routing table: a directory of `lib/src/` is a node, a `.ts`
+/// file under it is a route at the path its own place spells, and a directory
+/// whose name starts with `_` is invisible to both.
+///
+/// Everything is sorted before it is read, so the table only changes when the
+/// tree does — the order the file system hands entries back in would otherwise
+/// end up in the generated file.
 class RouteScanner {
   RouteScanner(this.projectRoot);
 
+  /// The directory every path in the result is written relative to.
   final String projectRoot;
 
   final List<DiscoveredRoute> _routes = <DiscoveredRoute>[];
-  final Map<String, String> _claimed = <String, String>{};
+  final RouteClaims _claims = RouteClaims();
 
+  /// Scans the current project's `lib/src/`.
+  ///
+  /// Throws a [ToolExit] when there is no `lib/src/` to scan.
   static Future<DiscoveredSource> discover() async {
     final Directory src = globals.project.sources;
     if (!src.existsSync()) {
@@ -54,25 +67,29 @@ class RouteScanner {
     return scan(src, globals.project.directory.path);
   }
 
+  /// Scans [src] as a `lib/src/`, writing paths relative to [projectRoot].
   static DiscoveredSource scan(Directory src, String projectRoot) {
     final RouteScanner scanner = RouteScanner(projectRoot);
-
-    final List<Directory> nodes = src
-        .listSync(followLinks: false)
-        .whereType<Directory>()
-        .where((Directory directory) => !p.basename(directory.path).startsWith(Conventions.privatePrefix))
-        .toList()
-      ..sort((Directory a, Directory b) => a.path.compareTo(b.path));
+    final List<Directory> nodes = _nodesOf(src);
 
     for (final Directory node in nodes) {
       scanner._walk(node, p.basename(node.path), '/', const <String>[]);
     }
 
     return DiscoveredSource(
-      nodes: nodes.map((Directory node) => p.basename(node.path)).toList(),
+      nodes: <String>[for (final Directory node in nodes) p.basename(node.path)],
       routes: scanner._routes,
     );
   }
+
+  /// The directories of [src] that are nodes, sorted, private ones left out.
+  static List<Directory> _nodesOf(Directory src) =>
+      src
+          .listSync(followLinks: false)
+          .whereType<Directory>()
+          .where((Directory directory) => !Conventions.isPrivate(p.basename(directory.path)))
+          .toList()
+        ..sort((Directory a, Directory b) => a.path.compareTo(b.path));
 
   void _walk(Directory directory, String node, String prefix, List<String> branches) {
     final List<FileSystemEntity> entries = directory.listSync(followLinks: false)
@@ -81,10 +98,27 @@ class RouteScanner {
     _rejectObsoleteNode(entries, node);
 
     final List<String> inherited = _inherit(entries, branches);
-    final Set<String> directories = entries
-        .whereType<Directory>()
-        .map((Directory child) => p.basename(child.path))
-        .toSet();
+    _collectRoutes(entries, directory: directory, node: node, prefix: prefix, branches: inherited);
+    _descend(entries, node: node, prefix: prefix, branches: inherited);
+  }
+
+  /// Adds one route per routable file of [entries].
+  ///
+  /// A file named `index` answers the directory's own path rather than a path
+  /// of its own.
+  ///
+  /// Throws a [ToolExit] when a file and a directory of the same name would
+  /// answer the same path, which the tree cannot express.
+  void _collectRoutes(
+    List<FileSystemEntity> entries, {
+    required Directory directory,
+    required String node,
+    required String prefix,
+    required List<String> branches,
+  }) {
+    final Set<String> directories = <String>{
+      for (final Directory child in entries.whereType<Directory>()) p.basename(child.path),
+    };
 
     for (final File file in entries.whereType<File>()) {
       final String basename = p.basename(file.path);
@@ -99,28 +133,34 @@ class RouteScanner {
       }
 
       final String path = name == Conventions.indexName ? prefix : Conventions.join(prefix, name);
-      _claim(node, path, file.path);
-      _routes.add(
-        DiscoveredRoute(
-          node: node,
-          path: path,
-          file: _relative(file.path),
-          branches: inherited,
-        ),
-      );
-    }
-
-    for (final Directory child in entries.whereType<Directory>()) {
-      final String name = p.basename(child.path);
-      if (name.startsWith(Conventions.privatePrefix)) continue;
-      _walk(child, node, Conventions.join(prefix, name), inherited);
+      _claims.claim(node: node, path: path, file: _relative(file.path));
+      _routes.add(DiscoveredRoute(node: node, path: path, file: _relative(file.path), branches: branches));
     }
   }
 
+  void _descend(
+    List<FileSystemEntity> entries, {
+    required String node,
+    required String prefix,
+    required List<String> branches,
+  }) {
+    for (final Directory child in entries.whereType<Directory>()) {
+      final String name = p.basename(child.path);
+      if (Conventions.isPrivate(name)) continue;
+
+      _walk(child, node, Conventions.join(prefix, name), branches);
+    }
+  }
+
+  /// Refuses a `_node.ts` left over from when a node had to name its caller.
+  ///
+  /// Throws a [ToolExit]: the directory's own name carries that now, so the
+  /// file is not merely useless, it describes something that no longer happens.
   void _rejectObsoleteNode(List<FileSystemEntity> entries, String node) {
-    final File? obsolete = entries.whereType<File>().where((File file) {
-      return Conventions.isObsoleteNode(p.basename(file.path));
-    }).firstOrNull;
+    final File? obsolete = entries
+        .whereType<File>()
+        .where((File file) => Conventions.isObsoleteNode(p.basename(file.path)))
+        .firstOrNull;
 
     if (obsolete == null) return;
 
@@ -130,24 +170,17 @@ class RouteScanner {
     );
   }
 
+  /// [branches] plus this directory's own `_middleware.ts`, when it has one.
+  ///
+  /// Middleware accumulates downwards: a route runs every one between the node
+  /// and itself, outermost first, which is the order this list keeps.
   List<String> _inherit(List<FileSystemEntity> entries, List<String> branches) {
-    final File? middleware = entries.whereType<File>().where((File file) {
-      return Conventions.isMiddleware(p.basename(file.path));
-    }).firstOrNull;
+    final File? middleware = entries
+        .whereType<File>()
+        .where((File file) => Conventions.isMiddleware(p.basename(file.path)))
+        .firstOrNull;
 
-    if (middleware == null) return branches;
-    return <String>[...branches, _relative(middleware.path)];
-  }
-
-  void _claim(String node, String path, String file) {
-    final String key = '$node:$path';
-    final String? previous = _claimed[key];
-    if (previous != null) {
-      throwToolExit(
-        '[gen:routes] ${_relative(file)} and $previous both answer /$node$path.',
-      );
-    }
-    _claimed[key] = _relative(file);
+    return middleware == null ? branches : <String>[...branches, _relative(middleware.path)];
   }
 
   String _relative(String path) => p.relative(path, from: projectRoot);
