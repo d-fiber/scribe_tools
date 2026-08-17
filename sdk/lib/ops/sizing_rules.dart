@@ -35,6 +35,7 @@ const double _budgetShare = 0.80;
 const double _reservationShare = 0.47;
 const double _oldSpaceShare = 0.70;
 const int _v8Overhead = 96;
+const double _inflightBodyShare = 0.15;
 
 const Map<String, double> _memoryShares = <String, double>{
   'db': 0.2122,
@@ -114,6 +115,19 @@ class SizingRules {
 
   int _parallelism(int divisor) => _clamp(hardware.cores / divisor, 1, 16);
 
+  /// The server connections the pooler opens to the tenant database.
+  int get _poolerPool => _clamp(hardware.cores * 2, 8, 40);
+
+  /// The connections the pooler keeps for its own metadata database.
+  int get _poolerOwnPool => 5;
+
+  /// What Postgres keeps for everything the calculation does not name.
+  ///
+  /// meta, studio, the migration job, the pg_cron workers and the connections
+  /// Postgres reserves for a superuser. Every other consumer is counted, so
+  /// this covers the ones that open a handful and close them again.
+  static const int _connectionReserve = 30;
+
   String get profiles {
     final int ram = hardware.memoryGb;
     if (ram < 8) return '';
@@ -154,9 +168,18 @@ class SizingRules {
     final int authPool = _clamp(hardware.cores, 4, 32);
     values['rest_db_pool'] = '${math.max(4, restPoolTotal ~/ restReplicas)}';
     values['auth_db_pool'] = '$authPool';
-    values['db_max_connections'] = '${math.max(_clamp(hardware.cores * 8, 60, 400), restPoolTotal + authPool + 60)}';
+    // Postgres has to seat every pool that dials it, whatever the core count
+    // would have asked for on its own. The pooler is counted here rather than
+    // left to the reserve: it opens more connections than rest and auth
+    // together, and it used to be able to exhaust the server alone.
+    final int connectionFloor =
+        restPoolTotal + authPool + _poolerPool + _poolerOwnPool + _connectionReserve;
+    values['db_max_connections'] = '${math.max(_clamp(hardware.cores * 8, 60, 400), connectionFloor)}';
 
-    values['redis_maxmemory'] = '${(_memoryFor('redis') * 0.75).round()}mb';
+    // Half, not three quarters: rewriting the append-only file doubles the
+    // footprint, so a container sized on maxmemory alone is killed during a
+    // rewrite. See `.claude/scribe/ops/docker/global.md`.
+    values['redis_maxmemory'] = '${(_memoryFor('redis') * 0.50).round()}mb';
     values['redis_io_threads'] = '${_clamp(hardware.cores / 8, 1, 8)}';
     values['redis_io_threads_do_reads'] = hardware.cores > 8 ? 'yes' : 'no';
 
@@ -171,6 +194,11 @@ class SizingRules {
     // buffers the flag does not govern, so it is not the lever for an OOM under
     // load. See `.claude/scribe/ops/global.md`.
     values['api_max_old_space'] = '${_clamp(_memoryFor('api') * _oldSpaceShare - _v8Overhead, 16, 8192)}';
+    // Request bodies live in external buffers, outside the heap the flag above
+    // bounds. The two therefore add up, and the budget was a fixed 256 MiB
+    // against replicas that can be smaller than that. Fifteen percent leaves
+    // the heap its share and still admits real bodies.
+    values['api_max_inflight_body'] = '${_clamp(_memoryFor('api') * _inflightBodyShare, 8, 1024)}';
     values['worker_max_old_space'] = '${_clamp(_memoryFor('worker') * _oldSpaceShare - _v8Overhead, 16, 8192)}';
 
     values['opensearch_heap'] = _mib(math.min(_memoryFor('opensearch') * 0.5, 31 * 1024));
@@ -189,6 +217,12 @@ class SizingRules {
     final String schedulers = '${_parallelism(4)}';
     values['realtime_schedulers'] = schedulers;
     values['supavisor_schedulers'] = schedulers;
+    values['supavisor_pool_size'] = '$_poolerPool';
+    values['supavisor_db_pool'] = '$_poolerOwnPool';
+    // Client connections cost the pooler a socket, not a server connection, so
+    // this is bounded by what the machine can hold rather than by what Postgres
+    // accepts.
+    values['supavisor_max_clients'] = '${_clamp(hardware.cores * 250, 500, 5000)}';
     values['analytics_schedulers'] = schedulers;
     values['realtime_max_connections'] = '${_clamp(hardware.threads * 2000, 2000, 64000)}';
     values['realtime_num_acceptors'] = '${_clamp(hardware.cores * 10, 20, 200)}';
