@@ -69,7 +69,7 @@ function aliasConfigPath(repoRoot: string): string {
     return generated;
   } catch {
     console.error(
-      `⚠ ${generated} absent — falling back to the SDK config, ` +
+      `⚠ ${generated} is absent, falling back to the SDK config, ` +
         "which maps neither @app/ nor @artefacts/: project routes will not resolve. " +
         "Run `koko gen code` first.",
     );

@@ -31,11 +31,11 @@ import { assert, assertEquals } from "jsr:@std/assert@1";
 
 const repoRoot = new URL("../../../../", import.meta.url).pathname.replace(/\/$/, "");
 
-/// Les fichiers du SDK que le walker adresse par chemin, pas par alias.
+/// The SDK files the walker reaches by path rather than by alias.
 ///
-/// C'est exactement ce qui l'avait mis hors service : `kernel/` a demenage dans
-/// `caleb/` sans que ces chemins suivent, le walker plantait au demarrage, et
-/// rien ne le signalait puisque personne ne lancait `gen docs`.
+/// This is exactly what put it out of service once. `kernel/` moved and these
+/// paths did not follow, so the walker crashed on startup, and nothing said so
+/// because nobody was running `gen docs`.
 const hardcodedTargets: string[] = [
   "scribe/host/core/kernel/http/response/json.ts",
   "scribe/host/core/contracts/enums.ts",
@@ -43,7 +43,7 @@ const hardcodedTargets: string[] = [
   "scribe/host/api/public/app/index.ts",
 ];
 
-/// Les racines que `buildProject` charge dans le projet ts-morph.
+/// The roots `buildProject` loads into the ts-morph project.
 const sourceRoots: string[] = [
   "scribe/host/api/public",
   "scribe/host/core/kernel",
@@ -74,7 +74,7 @@ Deno.test("the walker sources its aliases from the generated map, not the SDK on
 
   assert(
     setup.includes("generatedRoot(repoRoot)}/sdk/js/scribe.json"),
-    "buildProject must read the generated sdk/js/scribe.json — the SDK config maps neither @app/ nor the " +
+    "buildProject must read the generated sdk/js/scribe.json. The SDK config maps neither @app/ nor the " +
       "project alias, so no project route can resolve without it.",
   );
 });

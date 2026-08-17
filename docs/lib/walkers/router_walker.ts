@@ -117,12 +117,12 @@ interface AppCall {
   args: Node[];
 }
 
-/// Les montages d'un `if`/`else` comptent autant que ceux du corps.
+/// A mount inside an `if` or an `else` counts as much as one in the body.
 ///
-/// Un router charge sous seam est monte conditionnellement — `if (projectApp)
-/// app.route("/", projectApp)` — puisqu'il peut etre absent. Ne lire que les
-/// statements de premier niveau revenait a ignorer en silence toute l'API
-/// metier, sans meme un warning.
+/// A router loaded under a seam is mounted conditionally, as in `if (projectApp)
+/// app.route("/", projectApp)`, because it may be absent. Reading only the
+/// top-level statements silently ignored the whole business API, without so
+/// much as a warning.
 function statementsInOrder(root: SourceFile | Block): Node[] {
   const flattened: Node[] = [];
 
