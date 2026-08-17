@@ -37,8 +37,8 @@ import '../../ops/project_command.dart';
 Future<void> _pgbackrest(List<String> arguments) async {
   if (!EnvFile.exists() || EnvFile.read('PGBACKREST_ARCHIVE_MODE') != 'on') {
     throw CliException(
-      "L'archivage n'est pas configuré : remplis integrations.backup dans "
-      'config.yaml, régénère le .env, puis redémarre la stack.',
+      'Archiving is not configured. Fill in integrations.backup in config.yaml, '
+      'regenerate the .env, then restart the stack.',
     );
   }
 

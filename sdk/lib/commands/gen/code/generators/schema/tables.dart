@@ -42,11 +42,11 @@ import '../../sql/table_schema.dart';
 
 const Set<String> _skip = <String>{};
 
-// Une table « appartient » à quelqu'un dès qu'elle porte une clé étrangère
-// user_id → app_users ou admin_id → admin_users ; les deux tables racines
-// s'appartiennent à elles-mêmes via leur clé primaire. C'est cette map que le
-// builder consomme pour injecter le filtre du propriétaire à la place de la RLS
-// (voir caleb/clients/database/query/scope.ts).
+// A table belongs to someone as soon as it carries a user_id foreign key to
+// app_users, or an admin_id one to admin_users. The two root tables belong to
+// themselves through their primary key. This is the map the builder reads to
+// inject the owner filter in place of the RLS, in the scope helper of the
+// database client.
 final RegExp _userOwnedRe = RegExp(r'\buser_id\b[^,]*references\s+public\.internal_t__app_users', caseSensitive: false);
 final RegExp _adminOwnedRe = RegExp(
   r'\badmin_id\b[^,]*references\s+public\.internal_t__admin_users',
@@ -105,15 +105,15 @@ List<String> _renderRowLines(String bin, List<String> names, Map<String, TableSc
   return lines;
 }
 
-/// Section relations (marqueurs `@generated:relations:*`) déjà présente dans
-/// [tablesTsFile], lue telle quelle — peut être périmée d'un run précédent
-/// (generateRelations() tourne après generateTables() dans code_command.dart),
-/// accepté comme limitation connue plutôt qu'une dépendance d'ordre stricte
-/// entre les deux générateurs.
+/// The relations section already in [tablesTsFile], read as it stands.
 ///
-/// C'est un fichier entier (`gen/relations.ts`, 100 % généré) : plus de section
-/// entre marqueurs depuis la scission de rest/ en gen/ + fichiers écrits à la
-/// main (voir la version cli, identique sur ce point).
+/// It can be one run stale, since generateRelations() runs after
+/// generateTables(). That is a known limitation, taken on purpose rather than a
+/// strict ordering dependency between the two generators.
+///
+/// It is a whole file, `gen/relations.ts`, generated end to end. There has been
+/// no section between markers since rest/ was split into gen/ and hand-written
+/// files.
 Future<String> _readGeneratedRelations(File file) async {
   if (!await file.exists()) return '';
   return await file.readAsString();
@@ -153,9 +153,8 @@ List<String> _renderKernelTables(
   ];
 }
 
-/// `gen/metadata.ts` : le propriétaire de chaque table, seule métadonnée de
-/// schéma dont le builder a besoin. Données pures — le registre vit dans
-/// `schema.ts`.
+/// `gen/metadata.ts`: the owner of every table, the only schema metadata the
+/// builder needs. Pure data, since the registry itself lives in `schema.ts`.
 List<String> _renderMetadata(String bin, List<String> tableNames, Map<String, String> owners) {
   final List<String> ownerKeys = tableNames.where(owners.containsKey).toList()..sort();
 
@@ -177,10 +176,10 @@ Future<void> generateTables() async {
   final Map<String, TableSchema> tables = <String, TableSchema>{};
   final Map<String, String> owners = <String, String>{};
 
-  // Kernel-only : jamais lib/db/init/ (voir generateEnums()/generateRelations()
-  // pour la même règle). Toutes les tables scannées ici sont donc kernel par
-  // construction — pas de détection/filtrage project nécessaire, contrairement
-  // à la version cli qui distingue kernelTableNames de projectTableNames.
+  // Kernel-only, so never lib/db/init/, the same rule generateEnums() and
+  // generateRelations() follow. Every table scanned here is therefore kernel by
+  // construction, and nothing has to tell kernel tables from project ones the
+  // way the shipped CLI does.
   Future<void> scanTables(File file) async {
     final String sql = await file.readAsString();
     for (final RegExpMatch m in createTableRe.allMatches(sql)) {
@@ -208,10 +207,11 @@ Future<void> generateTables() async {
 
   final String bin = Config.read().get('NAME').toSnakeCase();
 
-  // Tout ce qui est généré côté kernel vit dans rest/gen/, réécrit en entier :
-  // aucune section écrite à la main à préserver, donc plus aucun marqueur
-  // @generated à patcher. Ce qui reste écrit à la main (from()/TablesBase dans
-  // rest/tables.ts, le registre de rest/schema.ts) n'est jamais touché ici.
+  // Everything generated on the kernel side lives in rest/gen/ and is rewritten
+  // whole. There is no hand-written section to preserve, so there is no
+  // @generated marker left to patch. What stays hand-written, from() and
+  // TablesBase in rest/tables.ts and the registry in rest/schema.ts, is never
+  // touched here.
   final FoundationFunctionsDependenciesDatabaseRest rest = InfraFiles.tree.scribe.host.dependencies.database.rest;
   await rest.gen.directory.create(recursive: true);
 

@@ -46,10 +46,9 @@ final RegExp _createTableRe = RegExp(
 
 final RegExp _referencesRe = RegExp(r'\breferences\s+public\.(\w+)', caseSensitive: false);
 
-// Version kernel-only : un seul fichier cible (kernel tables.ts), filtré sur
-// les tables exposées dans ce fichier. Voir scripts/cli/lib/commands/gen/code/
-// relations/relations.dart pour la version unifiée qui patche aussi le
-// tables.ts project.
+// The kernel-only version: one target file, the kernel tables.ts, filtered on
+// the tables that file exposes. The shipped CLI has the unified version, which
+// patches the project tables.ts as well.
 List<String> _renderRelationTypes(
   Map<String, Set<String>> outbound,
   Map<String, bool> isOne,
@@ -91,8 +90,8 @@ List<String> _renderRelationTypes(
   return lines;
 }
 
-// Les Row types référencés par les types rendus — l'import de `gen/relations.ts`
-// s'en déduit, plutôt que d'être recalculé à partir de `parents`/`kids`/`nested`.
+// The Row types the rendered types refer to. The import of `gen/relations.ts`
+// is read off them, rather than worked out again from parents, kids and nested.
 final RegExp _rowTypeRe = RegExp(r'\b[A-Z][A-Za-z0-9]*Row\b');
 
 List<String> _renderRelationsFile(String bin, List<String> types) {
@@ -158,11 +157,11 @@ Future<void> generateRelations() async {
       ..sort((MapEntry<String, Set<String>> a, MapEntry<String, Set<String>> b) => a.key.compareTo(b.key));
   }
 
-  // Kernel-only : une seule cible, et elle est 100 % générée des deux côtés —
-  // les tables exposées se lisent dans gen/tables.ts (les méthodes écrites
-  // juste avant par generateTables()), la sortie part dans gen/relations.ts,
-  // réécrit en entier. Plus aucun marqueur à patcher. Voir la version cli pour
-  // le second passage côté project, qui en garde, lui.
+  // Kernel-only: one target, and it is generated end to end on both sides. The
+  // exposed tables are read from gen/tables.ts, the methods generateTables()
+  // wrote a moment ago, and the output goes to gen/relations.ts, rewritten
+  // whole. No marker is left to patch. The shipped CLI is the one with a second
+  // pass on the project side, which does keep markers.
   final FoundationFunctionsDependenciesDatabaseRest rest = InfraFiles.tree.scribe.host.dependencies.database.rest;
   final String source = await rest.gen.tablesTs.readAsString();
   final Set<String> exposed = <String>{for (final RegExpMatch m in _exposedRe.allMatches(source)) m.group(1)!};

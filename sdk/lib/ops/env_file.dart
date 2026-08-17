@@ -166,7 +166,7 @@ class EnvFile {
 
     final String content =
         '''
-# ── Identité ──────────────────────────────────────────────────────────────────
+# ── Identity ─────────────────────────────────────────────────────────────────
 APP_NAME=${cfg.get('NAME')}
 APP_NAME_SNAKE=$jwtIssuer
 ACME_EMAIL=${cfg.get('EMAIL')}
@@ -177,8 +177,8 @@ ADMIN_URL=${urls.admin}
 APP_URL=${urls.app}
 INTRA_URL=${urls.intra}
 
-# ── Adresses internes (surchargeables pour un déploiement multi-machines : les
-# ── triggers Postgres et GoTrue rappellent l'étage compute par ces URL) ───────
+# ── Internal addresses. Override them for a deployment spread over several
+# ── machines: Postgres triggers and GoTrue call the compute tier back on these.
 API_INTERNAL_URL=http://api:3000
 FUNCTIONS_INTERNAL_URL=http://functions:9000
 VPN_DOMAIN=${urls.vpnDomain}
@@ -230,7 +230,7 @@ LOGFLARE_PRIVATE_ACCESS_TOKEN=${Secrets.randBase64(48)}
 INTERNAL_SECRET=${Secrets.randBase64(32)}
 PENDING_TOKEN_SECRET=${Secrets.randBase64(48)}
 
-# ── Clés d'application (admin API / app API) ──────────────────────────────────
+# ── Application keys, for the admin API and the app API ──────────────────────
 ADMIN_APP_KEYS=${Secrets.randBase64(32)}
 APP_KEYS=${Secrets.randBase64(32)}
 

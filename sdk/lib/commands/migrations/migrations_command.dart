@@ -47,11 +47,10 @@ const _MigrationScope _defaultScope = _MigrationScope(
   table: 'schema_migrations',
 );
 
-// Kernel-only : pas de scope lib/db/migrations ici (kernel-cli n'a pas
-// connaissance de lib/, voir tool/generate_paths.dart). Le service
-// db-migrate (scripts/db/run-migrations.sh) applique de toute façon les deux
-// scopes en interne quel que soit le CLI qui le déclenche ; ceci n'affecte
-// que l'affichage du statut côté Dart.
+// Kernel-only, so no lib/db/migrations scope here: this CLI knows nothing of
+// lib/, see tool/generate_paths.dart. The db-migrate service applies both
+// scopes itself whichever CLI triggers it, so this only changes what the status
+// prints.
 List<_MigrationScope> _activeScopes() => const <_MigrationScope>[_defaultScope];
 
 Future<void> _printStatus(_MigrationScope scope) async {

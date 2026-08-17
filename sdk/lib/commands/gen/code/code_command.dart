@@ -37,12 +37,11 @@ import 'generators/schema/enums.dart';
 import 'generators/schema/tables.dart';
 import 'relations/relations.dart';
 
-// Version kernel-only de gen code : ne scanne jamais lib/db/init/ et
-// n'inclut aucun générateur piloté par du contenu lib/ (design system,
-// mail l10n, searcher, broadcast — ce dernier lit désormais
-// lib/extensions/manifest/features/broadcast.ts, 100% project). Voir
-// scripts/cli/lib/commands/gen/code/code_command.dart pour la version
-// unifiée kernel+project.
+// The kernel-only version of gen code. It never scans lib/db/init/, and it
+// includes no generator driven by lib/ content: design system, mail l10n,
+// searcher, and broadcast, that last one now reading
+// lib/extensions/manifest/features/broadcast.ts, which is all project. The
+// unified kernel and project version is the one in the shipped CLI.
 class GenCodeCommand extends Command<dynamic> {
   @override
   final String name = 'code';

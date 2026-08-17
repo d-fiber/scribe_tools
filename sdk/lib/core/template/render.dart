@@ -55,7 +55,7 @@ String renderTemplate(String name, String source, Map<String, String> values) {
   );
 
   if (missing.isNotEmpty) {
-    throw CliException('$name: ${missing.length} unresolved variable(s) — ${(missing.toList()..sort()).join(', ')}');
+    throw CliException('$name: ${missing.length} unresolved variable(s): ${(missing.toList()..sort()).join(', ')}');
   }
 
   return output;

@@ -64,7 +64,7 @@ Future<void> generateSmtpAccounts() async {
   final Iterable<String> extra = accounts.keys.where((String n) => !foundationSmtpAccounts.contains(n));
   if (extra.isNotEmpty) {
     log.warn(
-      'ignored SMTP account(s) in config: ${extra.join(", ")} — '
+      'ignored SMTP account(s) in config: ${extra.join(", ")}. '
       'extra accounts are rows in internal_t__smtp_accounts, use public.upsert_smtp_account().',
     );
   }

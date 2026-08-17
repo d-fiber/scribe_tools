@@ -50,16 +50,16 @@ class Sizing {
     final SizingRules rules = SizingRules(hardware);
     final Map<String, String> values = rules.resolve();
 
-    _log.info('matériel détecté : $hardware');
+    _log.info('detected hardware: $hardware');
     _log.info(
-      'api x${rules.apiReplicas}, rest x${rules.restReplicas}, storage x${rules.storageReplicas} — '
+      'api x${rules.apiReplicas}, rest x${rules.restReplicas}, storage x${rules.storageReplicas}, '
       'db ${values['db_mem_limit']} (shared_buffers ${values['db_shared_buffers']}), '
       'pool ${values['rest_db_pool']}/instance',
     );
-    _log.info('profils actifs : ${rules.profiles.isEmpty ? 'socle seul' : rules.profiles}');
+    _log.info('active profiles: ${rules.profiles.isEmpty ? 'the socle alone' : rules.profiles}');
 
     if (hardware.memoryGb < 4 || hardware.cores < 2) {
-      _log.warn('machine très petite (${hardware.toString()}) : la stack risque de ne pas démarrer.');
+      _log.warn('very small machine (${hardware.toString()}), the stack may not start.');
     }
 
     return <String, String>{...values, ..._overrides()};
@@ -75,7 +75,7 @@ class Sizing {
     final Map<String, String> overrides = <String, String>{
       for (final MapEntry<dynamic, dynamic> entry in document.entries) '${entry.key}': '${entry.value}',
     };
-    _log.warn('${overrides.length} valeur(s) forcée(s) par docker/sizing.override.yaml');
+    _log.warn('${overrides.length} value(s) forced by docker/sizing.override.yaml');
     return overrides;
   }
 }
@@ -133,10 +133,10 @@ class ComposeTemplates {
         if (!active.contains(dependency)) dependency.path,
     ];
     if (dropped.isEmpty) {
-      _log.info('${active.length} dépendance(s) montée(s) : toutes');
+      _log.info('${active.length} dependency(ies) mounted: all of them');
       return;
     }
-    _log.info('${active.length} dépendance(s) montée(s), écartée(s) : ${dropped.join(', ')}');
+    _log.info('${active.length} dependency(ies) mounted, dropped: ${dropped.join(', ')}');
   }
 
   static Future<File> _renderOne(

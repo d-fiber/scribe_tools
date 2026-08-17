@@ -61,9 +61,9 @@ Future<void> generateEnums() async {
     }
   }
 
-  // Kernel-only : jamais lib/db/init/, kernel-cli n'a pas ce chemin dans
-  // son InfrastructureRoot (voir tool/generate_paths.dart, lib/ exclu du
-  // scan). Voir la version cli pour le scan unifié kernel+project.
+  // Kernel-only, so never lib/db/init/: this CLI has no such path in its
+  // InfrastructureRoot, since tool/generate_paths.dart leaves lib/ out of the
+  // scan. The shipped CLI is the one that scans kernel and project together.
   for (final Directory root in kernelSqlRoots()) {
     await walkSqlFiles(root, collect);
   }

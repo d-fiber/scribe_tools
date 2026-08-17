@@ -49,8 +49,8 @@ List<Site> hostedSites() => <Site>[
   ),
 ];
 
-/// Les variantes construites vivent dans la sortie generee, pas dans le SDK :
-/// `scribe/` ne porte aucune trace du projet qui le consomme.
+/// The built variants live in the generated output and not in the SDK, because
+/// `scribe/` carries no trace of the project that consumes it.
 List<Directory> _builtVariants() {
   final Directory dist = InfraFiles.tree.alchemy.docs.dist.directory;
   if (!dist.existsSync()) return const <Directory>[];

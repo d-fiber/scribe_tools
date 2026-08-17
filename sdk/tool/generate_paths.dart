@@ -32,9 +32,9 @@ import 'dart:io';
 import 'package:sdk/core/paths/infra_files.dart';
 import 'package:path/path.dart' as p;
 
-// kernel-cli ne doit jamais connaître de chemin sous lib/ (kernel ne
-// dépend jamais de project, voir CLAUDE.md) — exclu du scan en plus des
-// exclusions déjà présentes côté cli.
+// This CLI must never know a path under lib/, because the kernel never depends
+// on the project. That exclusion comes on top of the ones the shipped CLI
+// already has.
 const Set<String> excludedNames = {
   'node_modules',
   'build',

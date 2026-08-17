@@ -94,7 +94,7 @@ void main() {
         }
       }
 
-      expect(undeclared, isEmpty, reason: 'le manifeste doit rester le relevé exact du fragment');
+      expect(undeclared, isEmpty, reason: 'the manifest has to stay the exact reading of the fragment');
     });
 
     test('every declared gateway block exists in kong.yml', () {

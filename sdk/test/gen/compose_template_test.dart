@@ -10,21 +10,21 @@ import 'package:yaml/yaml.dart';
 
 final RegExp _placeholder = RegExp(r'\{\{(\w+)\}\}');
 
-/// Chemins qu'aucun checkout ne porte : Docker les cree au premier demarrage.
+/// The paths no checkout carries, because Docker creates them on first start.
 const Set<String> _runtimeDataDirs = <String>{
   './scribe/postgres',
   './scribe/storage',
   './scribe/opensearch',
 };
 
-/// Les montages resolus depuis la racine du SDK, une fois `{{sdk_root}}` rendu.
+/// The mounts resolved from the SDK root, once `{{sdk_root}}` is rendered.
 const String _sdkRoot = './scribe';
 
-/// La sortie de generation, une fois `{{alchemy_dir}}` rendu.
+/// The generated output, once `{{alchemy_dir}}` is rendered.
 const String _generated = './.example';
 
-/// Ce que le projet possede a sa racine, a cote de `lib/` : `assets/` porte la
-/// marque (logos), montee en lecture seule par le compose.
+/// What the project owns at its root, next to `lib/`. `assets/` carries the
+/// branding, and the compose mounts it read only.
 const List<String> _projectRoots = <String>['./lib/', './assets'];
 
 const List<String> _templateNames = <String>[
@@ -194,7 +194,7 @@ void main() {
           expect(
             _serviceNames(overlay, fragments(overlay)).difference(defined),
             isEmpty,
-            reason: '$overlay, module monté : $mounted',
+            reason: '$overlay, module mounted: $mounted',
           );
         }
       }
@@ -259,7 +259,7 @@ void main() {
         }
       }
 
-      expect(dangling, isEmpty, reason: 'le module démonté laisserait une dépendance vers un service absent');
+      expect(dangling, isEmpty, reason: 'the unmounted module would leave a dependency on a service that is gone');
     });
 
     test('a replicated service never fixes its container name', () {
@@ -290,7 +290,7 @@ void main() {
               '${dependency.path} → $service',
       ];
 
-      expect(collisions, isEmpty, reason: 'un doublon de clé casserait le YAML fusionné');
+      expect(collisions, isEmpty, reason: 'a duplicate key would break the merged YAML');
     });
   });
 }
