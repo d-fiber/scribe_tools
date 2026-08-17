@@ -36,6 +36,7 @@ const double _budgetShare = 0.80;
 const double _reservationShare = 0.47;
 const double _oldSpaceShare = 0.70;
 const int _v8Overhead = 96;
+const double _inflightBodyShare = 0.15;
 
 
 const int _minShares = 256;
@@ -104,6 +105,22 @@ class SizingRules {
   int get _restPoolTotal => _clamp(hardware.cores * 2, 8, 64);
   int get _authPool => _clamp(hardware.cores, 4, 32);
 
+  /// The server connections the pooler opens to the tenant database.
+  int get _poolerPool => _clamp(hardware.cores * 2, 8, 40);
+
+  /// The connections the pooler keeps for its own metadata database.
+  int get _poolerOwnPool => 5;
+
+  /// What Postgres keeps for everything the calculation does not name.
+  ///
+  /// meta, studio, the migration job, the pg_cron workers and the connections
+  /// Postgres reserves for a superuser. Every other consumer is counted, so
+  /// this covers the ones that open a handful and close them again.
+  static const int _connectionReserve = 30;
+
+  /// The connections Postgres has to be able to seat before anything else.
+  int get _connectionFloor => _restPoolTotal + _authPool + _poolerPool + _poolerOwnPool + _connectionReserve;
+
   /// What [service] turns its memory and its cores into, as engine settings.
   ///
   /// Keyed by service and not by [ServiceCapacity.runtime], because the runtime
@@ -123,11 +140,11 @@ class SizingRules {
         'db_max_worker_processes': '${_clamp(hardware.cores, 8, 64)}',
         'db_max_parallel_workers': '${_clamp(hardware.cores / 2, 2, 16)}',
         'db_max_parallel_workers_per_gather': '${_clamp(hardware.cores / 8, 1, 4)}',
-        // Postgres has to be able to seat the two pools that dial it plus the
-        // administrative connections, whatever the core count would have asked
-        // for on its own.
-        'db_max_connections':
-            '${math.max(_clamp(hardware.cores * 8, 60, 400), _restPoolTotal + _authPool + 60)}',
+        // Postgres has to seat every pool that dials it, whatever the core count
+        // would have asked for on its own. The pooler is counted here rather
+        // than left to the reserve: it opens more connections than rest and
+        // auth together, and it used to be able to exhaust the server alone.
+        'db_max_connections': '${math.max(_clamp(hardware.cores * 8, 60, 400), _connectionFloor)}',
       },
       'rest' => <String, String>{
         'rest_db_pool': '${math.max(4, _restPoolTotal ~/ restReplicas)}',
@@ -138,7 +155,10 @@ class SizingRules {
         'auth_gomaxprocs': '${_parallelism(4)}',
       },
       'redis' => <String, String>{
-        'redis_maxmemory': '${(memory * 0.75).round()}mb',
+        // Half, not three quarters: rewriting the append-only file doubles the
+        // footprint, so a container sized on maxmemory alone is killed during a
+        // rewrite. See `.claude/scribe/ops/docker/global.md`.
+        'redis_maxmemory': '${(memory * 0.50).round()}mb',
         'redis_io_threads': '${_clamp(hardware.cores / 8, 1, 8)}',
         'redis_io_threads_do_reads': hardware.cores > 8 ? 'yes' : 'no',
       },
@@ -154,6 +174,11 @@ class SizingRules {
       // load. See `.claude/scribe/ops/global.md`.
       'api' => <String, String>{
         'api_max_old_space': '${_clamp(memory * _oldSpaceShare - _v8Overhead, 16, 8192)}',
+        // Request bodies live in external buffers, outside the heap the flag
+        // above bounds. The two therefore add up, and the budget was a fixed
+        // 256 MiB against replicas that can be smaller than that. Fifteen
+        // percent leaves the heap its share and still admits real bodies.
+        'api_max_inflight_body': '${_clamp(memory * _inflightBodyShare, 8, 1024)}',
       },
       'worker' => <String, String>{
         'worker_max_old_space': '${_clamp(memory * _oldSpaceShare - _v8Overhead, 16, 8192)}',
@@ -163,7 +188,15 @@ class SizingRules {
         'kong_keepalive_pool': '${_clamp(hardware.cores * 32, 128, 2048)}',
       },
       'nats' => <String, String>{'nats_gomaxprocs': '${_parallelism(6)}'},
-      'supavisor' => <String, String>{'supavisor_schedulers': '${_parallelism(4)}'},
+      'supavisor' => <String, String>{
+        'supavisor_schedulers': '${_parallelism(4)}',
+        'supavisor_pool_size': '$_poolerPool',
+        'supavisor_db_pool': '$_poolerOwnPool',
+        // Client connections cost the pooler a socket, not a server connection,
+        // so this is bounded by what the machine can hold rather than by what
+        // Postgres accepts.
+        'supavisor_max_clients': '${_clamp(hardware.cores * 250, 500, 5000)}',
+      },
       'studio' => <String, String>{'studio_cpu_limit': _cpuCap(0.10, 0.2, 2)},
       'storage' => <String, String>{'storage_uv_threadpool': '${_clamp(hardware.cores / 2, 4, 16)}'},
       'imgproxy' => <String, String>{
