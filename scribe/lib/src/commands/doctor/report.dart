@@ -114,6 +114,16 @@ class DoctorSection {
   /// Whether every line of this section is one that works.
   bool get hasNothingToReport => findings.every((Finding finding) => finding.kind == FindingKind.ok);
 
+  /// This section with [extra] appended, or this one when there is nothing to add.
+  DoctorSection plus(Finding? extra) => extra == null
+      ? this
+      : DoctorSection(
+          title: title,
+          summary: summary,
+          detail: detail,
+          findings: <Finding>[...findings, extra],
+        );
+
   /// The problems `--rescue` can do something about.
   List<Finding> get repairable =>
       findings.where((Finding finding) => finding.isProblem && finding.repair != null).toList();

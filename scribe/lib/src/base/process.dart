@@ -45,6 +45,13 @@ abstract class ProcessRunner {
   /// Standard error is dropped, and the status is not looked at: a command that
   /// failed comes back as an empty string.
   Future<String> capture(List<String> command, {String? workingDirectory});
+
+  /// Starts [command] and forgets it, without waiting for it to end.
+  ///
+  /// The child outlives this process and writes nowhere it could be seen. It is
+  /// how the version check reaches the network without the command the user
+  /// typed ever waiting on it.
+  void detach(List<String> command, {String? workingDirectory});
 }
 
 /// The [ProcessRunner] that starts real processes.
@@ -73,6 +80,16 @@ class LocalProcessRunner extends ProcessRunner {
 
     return '${result.stdout}';
   }
+
+  @override
+  void detach(List<String> command, {String? workingDirectory}) {
+    io.Process.start(
+      command.first,
+      command.skip(1).toList(),
+      workingDirectory: workingDirectory,
+      mode: io.ProcessStartMode.detached,
+    ).ignore();
+  }
 }
 
 /// A [ProcessRunner] that starts nothing and remembers what it was asked to run.
@@ -80,13 +97,20 @@ class LocalProcessRunner extends ProcessRunner {
 /// Every call answers the same [exitCode] and [output]; [commands] is what a
 /// test asserts on.
 class RecordingProcessRunner extends ProcessRunner {
-  RecordingProcessRunner({this.exitCode = 0, this.output = ''});
+  RecordingProcessRunner({this.exitCode = 0, this.output = '', this.outputs = const <String, String>{}});
 
   /// The status every call answers.
   final int exitCode;
 
-  /// The text every [capture] answers.
+  /// The text every [capture] answers, unless [outputs] carries the command.
   final String output;
+
+  /// What [capture] answers, keyed by a word the command carries.
+  ///
+  /// It is how a test drives several git calls at once: `status` answers what
+  /// the working tree looks like, `log` answers a history, and each stays
+  /// readable next to what it is testing.
+  final Map<String, String> outputs;
 
   /// The commands this runner was handed, in the order they arrived.
   final List<List<String>> commands = <List<String>>[];
@@ -100,6 +124,16 @@ class RecordingProcessRunner extends ProcessRunner {
   @override
   Future<String> capture(List<String> command, {String? workingDirectory}) async {
     commands.add(command);
+
+    for (final MapEntry<String, String> answer in outputs.entries) {
+      if (command.contains(answer.key)) return answer.value;
+    }
+
     return output;
+  }
+
+  @override
+  void detach(List<String> command, {String? workingDirectory}) {
+    commands.add(command);
   }
 }

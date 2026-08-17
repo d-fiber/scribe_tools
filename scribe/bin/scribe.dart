@@ -32,8 +32,10 @@ import 'dart:io';
 import 'package:scribe/runner.dart' as runner;
 import 'package:scribe/src/commands/create.dart';
 import 'package:scribe/src/commands/doctor.dart';
+import 'package:scribe/src/commands/downgrade.dart';
 import 'package:scribe/src/commands/gen.dart';
 import 'package:scribe/src/commands/secrets.dart';
+import 'package:scribe/src/commands/upgrade.dart';
 import 'package:scribe/src/runner/scribe_command.dart';
 
 const String kToolVersion = '1.0.0';
@@ -44,8 +46,10 @@ Future<void> main(List<String> args) async {
     () => <ScribeCommand>[
       CreateCommand(),
       DoctorCommand(),
+      DowngradeCommand(),
       GenCommand(),
       SecretsCommand(),
+      UpgradeCommand(),
     ],
     toolVersion: kToolVersion,
   );

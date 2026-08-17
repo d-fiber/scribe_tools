@@ -34,10 +34,12 @@ import 'package:args/command_runner.dart';
 import 'package:meta/meta.dart';
 import 'package:scribe/src/base/common.dart';
 import 'package:scribe/src/base/context.dart';
+import 'package:scribe/src/commands/doctor/checkup.dart';
 import 'package:scribe/src/globals.dart' as globals;
 import 'package:scribe/src/project.dart';
 import 'package:scribe/src/runner/scribe_command_runner.dart';
 import 'package:scribe/src/tools.dart';
+import 'package:scribe/src/updates.dart';
 
 /// How a command ended.
 ///
@@ -99,6 +101,21 @@ abstract class ScribeCommand extends Command<void> {
   /// runs.
   List<ExternalTool> get requiredTools => const <ExternalTool>[];
 
+  /// Whether this command ends by saying that a newer framework is out.
+  ///
+  /// True everywhere but the three commands that are about versions
+  /// themselves: `doctor` carries the same line in its report, and `upgrade`
+  /// and `downgrade` have just moved the checkout, so announcing what they did
+  /// would be one line saying what the line above it already said.
+  bool get checksVersion => true;
+
+  /// Whether the machine is checked before this command does anything.
+  ///
+  /// True everywhere but `doctor`, which is that check and is the one command
+  /// that has to run on a machine missing something. A group never reaches
+  /// this: `package:args` refuses it for the subcommand it is missing first.
+  bool get checksMachine => true;
+
   /// The project this command runs in.
   ///
   /// Throws a [ToolExit] when the current directory is not a project root. A
@@ -136,20 +153,33 @@ abstract class ScribeCommand extends Command<void> {
     );
   }
 
-  /// Runs [validateCommand], then [runCommand].
+  /// Runs [validateCommand], then [runCommand], then the version notice.
   ///
-  /// Override it to wrap the pair — nothing else sits between the checks and
+  /// Override it to wrap the three — nothing else sits between the checks and
   /// the work.
+  ///
+  /// The notice comes last because it is the least of what is on screen: a
+  /// command that ran is read from its own output, and this is a line under it.
   @protected
   Future<ScribeCommandResult> verifyThenRunCommand() async {
     await validateCommand();
-    return runCommand();
+    final ScribeCommandResult result = await runCommand();
+
+    if (checksVersion) await announceUpdate();
+
+    return result;
   }
 
   /// Refuses the run when something this command needs is missing.
   ///
-  /// Three gates, in this order: the tools of [requiredTools], the project root
-  /// when [requiresProject], and the manifest when [requiresCompleteManifest].
+  /// Four gates, in this order: the tools every command needs when
+  /// [checksMachine], the tools of [requiredTools], the project root when
+  /// [requiresProject], and the manifest when [requiresCompleteManifest].
+  ///
+  /// The first one is `doctor` run under its breath. It says nothing on a
+  /// machine that has everything, and prints the whole report on one that does
+  /// not — a missing `deno` is going to stop the run anyway, and it stops it
+  /// here before anything has been written.
   ///
   /// Being at the root is not enough on its own: a directory can hold a
   /// `config.yaml` and nothing else, and the entries a project needs are
@@ -158,6 +188,10 @@ abstract class ScribeCommand extends Command<void> {
   /// Throws a [ToolExit] naming what is missing.
   @protected
   Future<void> validateCommand() async {
+    if (checksMachine) {
+      await ensureToolsAreInstalled(invocationName, assumeYes: ScribeCommandRunner.assumesYes(globalResults));
+    }
+
     await globals.tools.ensure(
       requiredTools,
       install: globalResults?[ScribeGlobalOptions.install] as bool? ?? true,

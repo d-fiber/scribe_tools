@@ -46,6 +46,20 @@ late BufferLogger logger;
 /// The directory `create` is run from, one below the framework.
 const String workDirectory = '/framework/work';
 
+/// Where the executables this fake machine carries are written.
+const String binDirectory = '/usr/bin';
+
+/// Puts every tool a command checks for on this machine's `PATH`.
+///
+/// Each command opens by looking for them and refuses with the doctor's report
+/// when one is missing, so a machine carrying nothing would answer every test
+/// below with that report instead of what it is about.
+void writeMachine() {
+  for (final String executable in <String>['git', 'deno', 'npm', 'docker']) {
+    fs.file('$binDirectory/$executable').createSync(recursive: true);
+  }
+}
+
 /// Runs `scribe` with [args] against the memory file system and the buffer.
 ///
 /// Nothing here has a terminal, so no menu can ever open: a test that reaches
@@ -58,7 +72,7 @@ Future<int> runScribe(List<String> args) => runner.run(
     FileSystem: () => fs,
     Logger: () => logger,
     Stdio: FakeStdio.new,
-    Platform: () => const FakePlatform(),
+    Platform: () => const FakePlatform(environment: <String, String>{'PATH': binDirectory}),
   },
 );
 
@@ -107,6 +121,7 @@ void main() {
     fs.directory(workDirectory).createSync(recursive: true);
     fs.currentDirectory = workDirectory;
     logger = BufferLogger();
+    writeMachine();
   });
 
   group('the name it is given', () {

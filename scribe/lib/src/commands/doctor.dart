@@ -27,14 +27,11 @@
 // is a violation of applicable intellectual property laws and will result
 // in legal action.
 
-import 'package:scribe/src/commands/doctor/machine_section.dart';
-import 'package:scribe/src/commands/doctor/project_section.dart';
+import 'package:scribe/src/commands/doctor/checkup.dart';
 import 'package:scribe/src/commands/doctor/report.dart';
-import 'package:scribe/src/commands/doctor/tools_section.dart';
 import 'package:scribe/src/globals.dart' as globals;
 import 'package:scribe/src/runner/scribe_command.dart';
 import 'package:scribe/src/runner/scribe_command_runner.dart';
-import 'package:scribe/src/tools.dart';
 
 /// Reports what this machine and this project are missing.
 ///
@@ -68,26 +65,25 @@ class DoctorCommand extends ScribeCommand {
   @override
   bool get requiresProject => false;
 
+  /// This command is the check every other one opens with.
+  ///
+  /// Letting it run would print the report, refuse, and never reach the flag
+  /// that repairs what the report just named.
+  @override
+  bool get checksMachine => false;
+
+  /// The report carries the version line itself, under the tools.
+  @override
+  bool get checksVersion => false;
+
   @override
   Future<ScribeCommandResult> runCommand() async {
     if (boolArg(rescueOption)) await _rescue();
 
-    return printReport(_look()) ? const ScribeCommandResult.success() : const ScribeCommandResult.warning();
+    return printReport(await _look()) ? const ScribeCommandResult.success() : const ScribeCommandResult.warning();
   }
 
-  /// The three sections, read from the machine as it is right now.
-  ///
-  /// It is a function and not a field because `--rescue` reads them twice, and
-  /// the second reading has to see what the first one repaired.
-  List<DoctorSection> _look() {
-    final PackageManager? manager = PackageManager.detect();
-
-    return <DoctorSection>[
-      machineSection(manager),
-      toolsSection(manager, assumeYes: ScribeCommandRunner.assumesYes(globalResults)),
-      projectSection(),
-    ];
-  }
+  Future<List<DoctorSection>> _look() => diagnose(assumeYes: ScribeCommandRunner.assumesYes(globalResults));
 
   /// Runs every repair the sections offered, then lets the report say what is left.
   ///
@@ -96,7 +92,7 @@ class DoctorCommand extends ScribeCommand {
   /// repaired would be the same lines a few rows higher.
   Future<void> _rescue() async {
     final List<Finding> repairs = <Finding>[
-      for (final DoctorSection section in _look()) ...section.repairable,
+      for (final DoctorSection section in await _look()) ...section.repairable,
     ];
 
     if (repairs.isEmpty) {
