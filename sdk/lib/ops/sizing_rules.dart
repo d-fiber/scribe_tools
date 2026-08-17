@@ -159,7 +159,17 @@ class SizingRules {
     values['redis_io_threads'] = '${_clamp(hardware.cores / 8, 1, 8)}';
     values['redis_io_threads_do_reads'] = hardware.cores > 8 ? 'yes' : 'no';
 
-    values['api_max_old_space'] = '${_clamp(_memoryFor('api') * _oldSpaceShare - _v8Overhead, 64, 8192)}';
+    // The floor used to be 64, applied without looking at what the replica was
+    // actually given: on a machine with more threads than gibibytes the api
+    // replica gets ~53 MiB and V8 was still told it could take 64, so the
+    // process was allowed past its own cgroup before the collector felt any
+    // pressure. 16 matches the floor `_mib` already applies to the limits
+    // themselves, which keeps the flag under the container on every shape.
+    //
+    // This bounds the V8 heap and nothing else. Request bodies live in external
+    // buffers the flag does not govern, so it is not the lever for an OOM under
+    // load — see `.claude/scribe/ops/global.md`.
+    values['api_max_old_space'] = '${_clamp(_memoryFor('api') * _oldSpaceShare - _v8Overhead, 16, 8192)}';
 
     values['opensearch_heap'] = _mib(math.min(_memoryFor('opensearch') * 0.5, 31 * 1024));
     values['opensearch_node_processors'] = '${_clamp(hardware.cores / 2, 1, 16)}';
