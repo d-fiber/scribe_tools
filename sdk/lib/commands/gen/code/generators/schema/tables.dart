@@ -120,7 +120,7 @@ Future<String> _readGeneratedRelations(File file) async {
 }
 
 /// `gen/tables.ts` : une méthode par table kernel, sur une classe qui hérite de
-/// la base écrite à la main (`@scribe/core/clients/database/tables.ts`).
+/// la base écrite à la main (`@scribe/foundation/src/database/tables.ts`).
 List<String> _renderKernelTables(
   String bin,
   List<String> tableNames,
@@ -131,8 +131,8 @@ List<String> _renderKernelTables(
 
   return <String>[
     ..._generatedHeader(bin),
-    'import { from, TablesBase } from "@scribe/core/clients/database/tables.ts";',
-    'import type { TypedQueryBuilder } from "@scribe/core/clients/database/query/builder.ts";',
+    'import { from, TablesBase } from "@scribe/foundation/src/database/tables.ts";',
+    'import type { TypedQueryBuilder } from "@scribe/foundation/src/database/query/builder.ts";',
     if (relations.isNotEmpty) ...<String>[
       'import type {',
       for (final String r in relations) '  $r,',

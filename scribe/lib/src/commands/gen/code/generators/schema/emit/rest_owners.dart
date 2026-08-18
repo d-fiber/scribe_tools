@@ -40,7 +40,7 @@ List<String> renderRestOwners(SqlSchema schema) {
 
   return <String>[
     ...generatedHeader(),
-    'import { registerTableOwners } from "@scribe/core/clients/database/schema.ts";',
+    'import { registerTableOwners } from "@scribe/foundation/src/database/schema.ts";',
     '',
     'const TABLE_OWNERS: Record<string, string> = {',
     for (final String table in owned) '  $table: "${schema.owners[table]}",',

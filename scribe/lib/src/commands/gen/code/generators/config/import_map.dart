@@ -40,6 +40,7 @@ import 'package:scribe/src/globals.dart' as globals;
 /// version is declared in one place only.
 const Set<String> _frameworkPathAliases = <String>{
   '@scribe/core/',
+  '@scribe/foundation/',
   '@scribe/host/',
   '@scribe/protocol/',
   '@scribe/sdk',
@@ -81,6 +82,7 @@ String renderImportMap(
     'imports': <String, String>{
       ...inherited,
       '@scribe/core/': '${frameworkRoot}core/',
+      '@scribe/foundation/': '${frameworkRoot}packages/foundation/',
       '@scribe/host/': frameworkRoot,
       '@scribe/protocol/': '$above/protocol/',
       '@scribe/sdk': '$above/sdk/js/mod.ts',

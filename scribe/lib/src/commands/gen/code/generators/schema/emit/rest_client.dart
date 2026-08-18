@@ -41,7 +41,7 @@ import 'package:scribe/src/commands/gen/code/generators/schema/emit/generated_he
 List<String> renderRestClient() => <String>[
   ...generatedHeader(),
   'import "./_owners.ts";',
-  'import { PostgrestClients } from "@scribe/core/clients/database/client.ts";',
+  'import { PostgrestClients } from "@scribe/foundation/src/database/client.ts";',
   'import { ProjectTables } from "./tables.ts";',
   '',
   'export class ProjectRestClient extends ProjectTables {}',

@@ -51,7 +51,7 @@ List<String> renderRestTables(SqlSchema schema, {required Set<String> tablesWith
     ...generatedHeader(),
     'import "./_owners.ts";',
     'import { Tables } from "@scribe/host/packages/foundation/database/rest/gen/tables.ts";',
-    'import { TypedQueryBuilder } from "@scribe/core/clients/database/query/builder.ts";',
+    'import { TypedQueryBuilder } from "@scribe/foundation/src/database/query/builder.ts";',
     if (extended.isNotEmpty) ...<String>[
       'import type {',
       for (final String table in extended) '  ${table.toPascalCase()}Row,',
