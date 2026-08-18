@@ -166,7 +166,10 @@ void main() {
 
   group('a weight read against what actually starts', () {
     /// What `config.yaml` gets when it names no optional module.
-    const List<String> defaultSelection = <String>['security/auth', 'security/rbac'];
+    ///
+    /// `foundation` is in it because a project cannot leave it out: it owns the
+    /// database, the cache and the queue, which nothing else declares.
+    const List<String> defaultSelection = <String>['foundation', 'security/auth', 'security/rbac'];
 
     double spentBy(Capacity capacity, Set<String> profiles) => capacity.services
         .where((ServiceCapacity service) => service.startsUnder(profiles))
@@ -206,16 +209,16 @@ void main() {
     });
 
     test('grows again when a profile is switched off', () {
-      final Capacity withStudio = frameworkCapacityOf(defaultSelection, profiles: <String>{'ops'});
-      final Capacity without = frameworkCapacityOf(defaultSelection, profiles: <String>{});
+      final Capacity withAdmins = frameworkCapacityOf(<String>[...defaultSelection, 'security/vpn'], profiles: <String>{'ops'});
+      final Capacity without = frameworkCapacityOf(<String>[...defaultSelection, 'security/vpn'], profiles: <String>{});
 
       expect(
         without.shareOf('db'),
-        greaterThan(withStudio.shareOf('db')),
-        reason: 'studio sits behind the ops profile, and takes nothing while it is off',
+        greaterThan(withAdmins.shareOf('db')),
+        reason: 'vpn-admins sits behind the ops profile, and takes nothing while it is off',
       );
       expect(
-        without.shareOf('studio'),
+        without.shareOf('vpn_admins'),
         greaterThan(0),
         reason: 'its limit is still written, because the compose document still declares it',
       );

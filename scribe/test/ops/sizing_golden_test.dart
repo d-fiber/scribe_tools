@@ -55,13 +55,13 @@ void main() {
   });
 
   group('sizing a project that mounts every module', () {
-    // The golden is the whole placeholder table, on six machine shapes. It is
-    // not derived from anything: it is a photograph, kept so that a weight or a
-    // formula edited by accident shows up as a number that moved. Replacing it
-    // is a deliberate act, and it was last replaced by the renormalisation.
     for (final MapEntry<String, Hardware> shape in _shapes.entries) {
       test('resolves ${shape.key} to the values the golden holds', () {
-        expect(SizingRules(shape.value, frameworkCapacity()).resolve(), golden[shape.key]);
+        expect(
+          SizingRules(shape.value, frameworkCapacity()).resolve(),
+          golden[shape.key],
+          reason: 'the golden is a photograph of the whole table, so replacing it has to be deliberate',
+        );
       });
     }
 

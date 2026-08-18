@@ -205,9 +205,9 @@ class Dependencies {
   /// The Compose profiles [mounted] asks for, sorted, without repetition.
   ///
   /// A module declares its profile in the `ops` block of its manifest, and
-  /// several share one: `security/vpn` and `features/observability` are both
-  /// under `ops`, so either of them switches the whole profile on, `studio`
-  /// included. A module that declares none has services that always start.
+  /// several may share one: mounting any of them switches the whole profile on,
+  /// and every service under it starts. A module that declares no profile has
+  /// services that always start.
   static List<String> profilesOf(Iterable<Dependency> mounted) => <String>{
     for (final Dependency dependency in mounted)
       if (dependency.infra.profile case final String profile) profile,

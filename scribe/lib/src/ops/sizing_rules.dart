@@ -105,28 +105,27 @@ class SizingRules {
   int get _restPoolTotal => _clamp(hardware.cores * 2, 8, 64);
   int get _authPool => _clamp(hardware.cores, 4, 32);
 
-  /// The server connections the pooler opens to the tenant database.
-  int get _poolerPool => _clamp(hardware.cores * 2, 8, 40);
-
-  /// The connections the pooler keeps for its own metadata database.
-  int get _poolerOwnPool => 5;
-
   /// What Postgres keeps for everything the calculation does not name.
   ///
-  /// meta, studio, the migration job, the pg_cron workers and the connections
-  /// Postgres reserves for a superuser. Every other consumer is counted, so
-  /// this covers the ones that open a handful and close them again.
+  /// The migration job, the pg_cron workers, the hosts that dial the database
+  /// directly and the connections Postgres reserves for a superuser. Every pool
+  /// is counted below, so this covers the consumers that open a handful of
+  /// connections and close them again.
   static const int _connectionReserve = 30;
 
   /// The connections Postgres has to be able to seat before anything else.
-  int get _connectionFloor => _restPoolTotal + _authPool + _poolerPool + _poolerOwnPool + _connectionReserve;
+  ///
+  /// Postgres has to seat every pool that dials it, whatever the core count
+  /// would have asked for on its own. `db_max_connections` is therefore the
+  /// larger of the two, and never the core count alone.
+  int get _connectionFloor => _restPoolTotal + _authPool + _connectionReserve;
 
   /// What [service] turns its memory and its cores into, as engine settings.
   ///
   /// Keyed by service and not by [ServiceCapacity.runtime], because the runtime
   /// says which knobs exist and not which of them this service uses: `api` and
-  /// `functions` are both `deno` and only one bounds its heap, `storage`, `meta`
-  /// and `studio` are all `node` and only one sizes a thread pool.
+  /// `functions` are both `deno` and only one bounds its heap, `auth` and `nats`
+  /// are both `go` and only one takes a database pool.
   Map<String, String> _tunables(ServiceCapacity service) {
     final double memory = _memoryFor(service.key);
 
@@ -140,10 +139,6 @@ class SizingRules {
         'db_max_worker_processes': '${_clamp(hardware.cores, 8, 64)}',
         'db_max_parallel_workers': '${_clamp(hardware.cores / 2, 2, 16)}',
         'db_max_parallel_workers_per_gather': '${_clamp(hardware.cores / 8, 1, 4)}',
-        // Postgres has to seat every pool that dials it, whatever the core count
-        // would have asked for on its own. The pooler is counted here rather
-        // than left to the reserve: it opens more connections than rest and
-        // auth together, and it used to be able to exhaust the server alone.
         'db_max_connections': '${math.max(_clamp(hardware.cores * 8, 60, 400), _connectionFloor)}',
       },
       'rest' => <String, String>{
@@ -188,16 +183,6 @@ class SizingRules {
         'kong_keepalive_pool': '${_clamp(hardware.cores * 32, 128, 2048)}',
       },
       'nats' => <String, String>{'nats_gomaxprocs': '${_parallelism(6)}'},
-      'supavisor' => <String, String>{
-        'supavisor_schedulers': '${_parallelism(4)}',
-        'supavisor_pool_size': '$_poolerPool',
-        'supavisor_db_pool': '$_poolerOwnPool',
-        // Client connections cost the pooler a socket, not a server connection,
-        // so this is bounded by what the machine can hold rather than by what
-        // Postgres accepts.
-        'supavisor_max_clients': '${_clamp(hardware.cores * 250, 500, 5000)}',
-      },
-      'studio' => <String, String>{'studio_cpu_limit': _cpuCap(0.10, 0.2, 2)},
       'storage' => <String, String>{'storage_uv_threadpool': '${_clamp(hardware.cores / 2, 4, 16)}'},
       'imgproxy' => <String, String>{
         'imgproxy_gomaxprocs': '${_parallelism(4)}',
@@ -208,10 +193,6 @@ class SizingRules {
         'realtime_max_connections': '${_clamp(hardware.threads * 2000, 2000, 64000)}',
         'realtime_num_acceptors': '${_clamp(hardware.cores * 10, 20, 200)}',
         'realtime_rlimit_nofile': '65535',
-      },
-      'analytics' => <String, String>{
-        'analytics_schedulers': '${_parallelism(4)}',
-        'analytics_cpu_limit': _cpuCap(0.15, 0.25, 4),
       },
       'opensearch' => <String, String>{
         'opensearch_heap': _mib(math.min(memory * 0.5, 31 * 1024)),
