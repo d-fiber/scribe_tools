@@ -95,7 +95,7 @@ void main() {
 
     test('the rest query carries no owner field', () {
       final File rest = File(
-        p.join(_repositoryRoot.path, 'scribe', 'host', 'dependencies', 'database', 'rest', 'protocol', 'rest.proto'),
+        p.join(_repositoryRoot.path, 'scribe', 'host', 'packages', 'foundation', 'database', 'rest', 'protocol', 'rest.proto'),
       );
 
       expect(rest.existsSync(), isTrue);

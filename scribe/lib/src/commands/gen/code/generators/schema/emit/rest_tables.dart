@@ -50,12 +50,12 @@ List<String> renderRestTables(SqlSchema schema, {required Set<String> tablesWith
   return <String>[
     ...generatedHeader(),
     'import "./_owners.ts";',
-    'import { Tables } from "@scribe/host/dependencies/database/rest/gen/tables.ts";',
+    'import { Tables } from "@scribe/host/packages/foundation/database/rest/gen/tables.ts";',
     'import { TypedQueryBuilder } from "@scribe/core/clients/database/query/builder.ts";',
     if (extended.isNotEmpty) ...<String>[
       'import type {',
       for (final String table in extended) '  ${table.toPascalCase()}Row,',
-      '} from "@scribe/host/dependencies/database/rest/gen/rows.ts";',
+      '} from "@scribe/host/packages/foundation/database/rest/gen/rows.ts";',
     ],
     'import type {',
     for (final String table in owned) '  ${table.toPascalCase()}Row,',

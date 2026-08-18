@@ -8,12 +8,20 @@ const String _root = '../..';
 
 const String _modules = '$_root/scribe/host/dependencies';
 
+/// The mandatory packages, in the submodule that carries them.
+const String _packages = '$_root/scribe/host/packages';
+
 Directory get _modulesDir => Directory(_modules);
 
-List<File> get _manifests => _modulesDir
-    .listSync(recursive: true, followLinks: false)
-    .whereType<File>()
-    .where((File file) => p.basename(file.path) == 'scribe.yaml')
+List<File> get _manifests => <String>[_modules, _packages]
+    .map(Directory.new)
+    .where((Directory root) => root.existsSync())
+    .expand(
+      (Directory root) => root
+          .listSync(recursive: true, followLinks: false)
+          .whereType<File>()
+          .where((File file) => p.basename(file.path) == 'scribe.yaml'),
+    )
     .toList()
   ..sort((File a, File b) => a.path.compareTo(b.path));
 
@@ -131,12 +139,16 @@ void main() {
       expect(missing, isEmpty);
     });
 
-    test('every declared export is declared by the module package', () {
+    test('every declared export is declared by the package that holds the module', () {
+      // A module in the packages submodule belongs to another package, whose
+      // deno.json is not this one. Only what the framework still owns is
+      // checked against the framework's manifest.
       final String deno = File('$_modules/deno.json').readAsStringSync();
       final List<String> unknown = <String>[
         for (final File manifest in _manifests)
-          if (_read(manifest)['export'] case final String export)
-            if (!deno.contains('"$export"')) '${p.relative(manifest.path, from: _modules)} → $export',
+          if (p.isWithin(_modules, manifest.path))
+            if (_read(manifest)['export'] case final String export)
+              if (!deno.contains('"$export"')) '${p.relative(manifest.path, from: _modules)} → $export',
       ];
 
       expect(unknown, isEmpty);
