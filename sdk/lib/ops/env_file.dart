@@ -206,9 +206,7 @@ ANON_KEY=${Secrets.generateJwt('anon', jwtSecret, issuer: jwtIssuer)}
 SERVICE_KEY=${Secrets.generateJwt('service_role', jwtSecret, issuer: jwtIssuer)}$optKeys
 
 # ── Crypto / Sessions ─────────────────────────────────────────────────────────
-PG_META_CRYPTO_KEY=${Secrets.randBase64(32)}
 SECRET_KEY_BASE=${Secrets.randBase64(64)}
-VAULT_ENC_KEY=${Secrets.randAlnum(32)}
 DB_ENC_KEY=${Secrets.randAlnum(16)}
 
 # ── VPN ───────────────────────────────────────────────────────────────────────
@@ -221,10 +219,6 @@ HOOK_SEND_SMS_SECRETS=${Secrets.hookSecret()}
 HOOK_PASSWORD_SECRETS=${Secrets.hookSecret()}
 HOOK_MFA_SECRETS=${Secrets.hookSecret()}
 HOOK_CUSTOM_ACCESS_TOKEN_SECRETS=${Secrets.hookSecret()}
-
-# ── Logflare ──────────────────────────────────────────────────────────────────
-LOGFLARE_PUBLIC_ACCESS_TOKEN=${Secrets.randBase64(48)}
-LOGFLARE_PRIVATE_ACCESS_TOKEN=${Secrets.randBase64(48)}
 
 # ── Secrets applicatifs ───────────────────────────────────────────────────────
 INTERNAL_SECRET=${Secrets.randBase64(32)}

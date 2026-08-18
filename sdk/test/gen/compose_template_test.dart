@@ -44,7 +44,12 @@ Map<String, String> get _values => <String, String>{
   'alchemy_dir': '.example',
 };
 
-final Dependencies _dependencies = Dependencies.load(root: Directory('../../scribe/host/dependencies'));
+final Dependencies _dependencies = Dependencies.load(
+  roots: <Directory>[
+    Directory('../../scribe/host/dependencies'),
+    Directory('../../scribe/host/packages'),
+  ],
+);
 
 List<YamlFragment> _fragments(String name) => _dependencies.fragmentsFor(name, _dependencies.all);
 
@@ -96,17 +101,21 @@ void main() {
       ];
     }
 
-    test('every mounted source exists, except the generated ones', () {
+    test('every mounted source of the SDK exists, except the ones it creates', () {
       final List<String> missing = <String>[
         for (final String path in hostPaths())
-          if (!path.startsWith('$_generated/') &&
+          if (path.startsWith('$_sdkRoot/') &&
               !_runtimeDataDirs.contains(path) &&
               !File('../../$path').existsSync() &&
               !Directory('../../$path').existsSync())
             path,
       ];
 
-      expect(missing, isEmpty);
+      expect(
+        missing,
+        isEmpty,
+        reason: 'a mount under the SDK root resolves in this checkout, so a stale path shows up here',
+      );
     });
 
     test('every mount belongs either to the SDK or to the project, never in between', () {
@@ -205,35 +214,44 @@ void main() {
       final List<String> missing = <String>[
         for (final Dependency dependency in _dependencies.all)
           for (final String service in dependency.infra.services)
-            if (!defined.contains(service)) '${dependency.path} → $service',
+            if (!defined.contains(service)) '${dependency.path} declares $service',
       ];
 
       expect(missing, isEmpty);
     });
 
-    test('an overlay patches a service of the socle, never one of a module', () {
-      final Set<String> socle = _serviceNames('docker-compose.yaml', <YamlFragment>[]);
+    test('an overlay patches a service nothing can leave out, or one of its own', () {
+      final Set<String> always = <String>{
+        ..._serviceNames('docker-compose.yaml', <YamlFragment>[]),
+        for (final Dependency dependency in _dependencies.all)
+          if (!dependency.optional) ...dependency.infra.services,
+      };
       final List<String> strays = <String>[];
       int patched = 0;
 
       for (final Dependency dependency in _dependencies.all) {
-        final YamlFragment? overlay = dependency.fragmentFor(overlayTemplate);
-        if (overlay == null) continue;
+        final Set<String> reachable = <String>{...always, ...dependency.infra.services};
 
-        final String rendered = renderTemplate(
-          overlayFileName(dependency.path),
-          mergeYamlDocuments(overlayBase, <YamlFragment>[overlay]),
-          _values,
-        );
-        for (final String service
-            in ((loadYaml(rendered) as YamlMap)['services'] as YamlMap).keys.cast<String>()) {
-          patched++;
-          if (!socle.contains(service)) strays.add('${dependency.path} → $service');
+        for (final YamlFragment overlay in dependency.fragmentsFor(overlayTemplate)) {
+          final String rendered = renderTemplate(
+            overlayFileName(overlay.label),
+            mergeYamlDocuments(overlayBase, <YamlFragment>[overlay]),
+            _values,
+          );
+          for (final String service
+              in ((loadYaml(rendered) as YamlMap)['services'] as YamlMap).keys.cast<String>()) {
+            patched++;
+            if (!reachable.contains(service)) strays.add('${overlay.label} patches $service');
+          }
         }
       }
 
-      expect(patched, isNonZero, reason: 'sinon ce test ne prouve rien');
-      expect(strays, isEmpty, reason: 'patcher le service d\'un module absent produirait un service sans image');
+      expect(patched, isNonZero, reason: 'an overlay that patches nothing proves nothing here');
+      expect(
+        strays,
+        isEmpty,
+        reason: 'patching the service of an optional module that is out would leave a service with no image',
+      );
     });
 
     test('the socle never depends on a service an optional module owns', () {
@@ -255,7 +273,7 @@ void main() {
           _ => const <String>[],
         };
         for (final String target in targets) {
-          if (owner.containsKey(target)) dangling.add('${entry.key} → $target (${owner[target]})');
+          if (owner.containsKey(target)) dangling.add('${entry.key} waits on $target, owned by ${owner[target]}');
         }
       }
 
@@ -286,8 +304,8 @@ void main() {
       final List<String> collisions = <String>[
         for (final Dependency dependency in _dependencies.all)
           for (final String service in dependency.infra.services)
-            if (dependency.fragment('docker-compose.yaml').existsSync() && base.contains(service))
-              '${dependency.path} → $service',
+            if (dependency.fragments('docker-compose.yaml').isNotEmpty && base.contains(service))
+              '${dependency.path} defines $service',
       ];
 
       expect(collisions, isEmpty, reason: 'a duplicate key would break the merged YAML');

@@ -116,12 +116,12 @@ class ComposeTemplates {
 
     int position = 1;
     for (final Dependency dependency in active) {
-      final YamlFragment? overlay = dependency.fragmentFor(overlayTemplate);
-      if (overlay == null) continue;
-      rendered.insert(
-        position++,
-        await _write(overlayFileName(dependency.path), overlayBase, resolved, target, <YamlFragment>[overlay]),
-      );
+      for (final YamlFragment overlay in dependency.fragmentsFor(overlayTemplate)) {
+        rendered.insert(
+          position++,
+          await _write(overlayFileName(overlay.label), overlayBase, resolved, target, <YamlFragment>[overlay]),
+        );
+      }
     }
 
     return rendered;

@@ -134,8 +134,6 @@ class Docker {
 
   Directory get directory => _self;
 
-  File get dockerfileStudio => File(p.join(_self.path, 'Dockerfile.studio'));
-
   File get dockerComposeYaml => File(p.join(_self.path, 'docker-compose.yaml'));
 
   File get sizingOverrideYaml => File(p.join(_self.path, 'sizing.override.yaml'));
@@ -169,8 +167,8 @@ class Scribe {
   FoundationStorage get storage => FoundationStorage(_self);
 }
 
-/// Written by hand: `docker/`, `gateway/`, `proxy/`, `logs/` and `pooler/` were
-/// regrouped under `scribe/ops/` after this tree was last generated.
+/// Written by hand: `docker/`, `gateway/` and `proxy/` were regrouped under
+/// `scribe/ops/` after this tree was last generated.
 ///
 /// This node holds only what the stack mounts or builds as it is. Everything
 /// carrying a `{{variable}}` is under [ScribeTemplates] instead.
@@ -184,10 +182,6 @@ class ScribeOps {
   Docker get docker => Docker(_self);
 
   ScribeOpsGateway get gateway => ScribeOpsGateway(_self);
-
-  FoundationLogs get logs => FoundationLogs(_self);
-
-  FoundationPooler get pooler => FoundationPooler(_self);
 
   FoundationProxy get proxy => FoundationProxy(_self);
 }
@@ -315,8 +309,6 @@ class CalebDbProvisioning {
   File get jwtSql => File(p.join(_self.path, 'jwt.sql'));
 
   File get logsSql => File(p.join(_self.path, 'logs.sql'));
-
-  File get poolerSql => File(p.join(_self.path, 'pooler.sql'));
 
   File get realtimeSql => File(p.join(_self.path, 'realtime.sql'));
 
@@ -567,6 +559,16 @@ class FoundationDbMigrations {
   Directory get directory => _self;
 }
 
+/// Written by hand: `host/packages/` is a submodule, so a checkout without
+/// `--recurse-submodules` has nothing here for the scan to have found.
+class HostPackages {
+  HostPackages(Directory parent) : _self = Directory(p.join(parent.path, 'packages'));
+
+  final Directory _self;
+
+  Directory get directory => _self;
+}
+
 class Host {
   Host(Directory parent) : _self = Directory(p.join(parent.path, 'host'));
 
@@ -581,6 +583,8 @@ class Host {
   File get envTs => File(p.join(_self.path, 'env.ts'));
 
   HostCore get core => HostCore(_self);
+
+  HostPackages get packages => HostPackages(_self);
 
   FoundationFunctionsApi get api => FoundationFunctionsApi(_self);
 
@@ -3332,26 +3336,6 @@ class FoundationHostingNodeModules {
   final Directory _self;
 
   Directory get directory => _self;
-}
-
-class FoundationLogs {
-  FoundationLogs(Directory parent) : _self = Directory(p.join(parent.path, 'logs'));
-
-  final Directory _self;
-
-  Directory get directory => _self;
-
-  File get vectorYml => File(p.join(_self.path, 'vector.yml'));
-}
-
-class FoundationPooler {
-  FoundationPooler(Directory parent) : _self = Directory(p.join(parent.path, 'pooler'));
-
-  final Directory _self;
-
-  Directory get directory => _self;
-
-  File get poolerExs => File(p.join(_self.path, 'pooler.exs'));
 }
 
 class FoundationProxy {

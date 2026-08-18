@@ -17,7 +17,12 @@ const List<String> _expectedPlaceholders = <String>[
   'storage_cors_origins',
 ];
 
-final Dependencies _dependencies = Dependencies.load(root: Directory('../../scribe/host/dependencies'));
+final Dependencies _dependencies = Dependencies.load(
+  roots: <Directory>[
+    Directory('../../scribe/host/dependencies'),
+    Directory('../../scribe/host/packages'),
+  ],
+);
 
 String _base() => File('../../scribe/templates/ops/gateway/kong.yml').readAsStringSync();
 

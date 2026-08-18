@@ -47,17 +47,12 @@ const Map<String, double> _memoryShares = <String, double>{
   'realtime': 0.0661,
   'kong': 0.0489,
   'redis': 0.0432,
-  'studio': 0.0395,
   'imgproxy': 0.0280,
-  'supavisor': 0.0280,
-  'analytics': 0.0244,
   'auth': 0.0207,
   'storage': 0.0188,
   'rest': 0.0125,
   'nats': 0.0113,
-  'meta': 0.0112,
   'caddy': 0.0093,
-  'vector': 0.0093,
   'vpn_admins': 0.0037,
   'db_migrate': 0.0037,
   'db_dev_confirm': 0.0019,
@@ -115,17 +110,12 @@ class SizingRules {
 
   int _parallelism(int divisor) => _clamp(hardware.cores / divisor, 1, 16);
 
-  /// The server connections the pooler opens to the tenant database.
-  int get _poolerPool => _clamp(hardware.cores * 2, 8, 40);
-
-  /// The connections the pooler keeps for its own metadata database.
-  int get _poolerOwnPool => 5;
-
   /// What Postgres keeps for everything the calculation does not name.
   ///
-  /// meta, studio, the migration job, the pg_cron workers and the connections
-  /// Postgres reserves for a superuser. Every other consumer is counted, so
-  /// this covers the ones that open a handful and close them again.
+  /// The migration job, the pg_cron workers, the hosts that dial the database
+  /// directly and the connections Postgres reserves for a superuser. Every pool
+  /// is counted below, so this covers the consumers that open a handful of
+  /// connections and close them again.
   static const int _connectionReserve = 30;
 
   String get profiles {
@@ -168,12 +158,7 @@ class SizingRules {
     final int authPool = _clamp(hardware.cores, 4, 32);
     values['rest_db_pool'] = '${math.max(4, restPoolTotal ~/ restReplicas)}';
     values['auth_db_pool'] = '$authPool';
-    // Postgres has to seat every pool that dials it, whatever the core count
-    // would have asked for on its own. The pooler is counted here rather than
-    // left to the reserve: it opens more connections than rest and auth
-    // together, and it used to be able to exhaust the server alone.
-    final int connectionFloor =
-        restPoolTotal + authPool + _poolerPool + _poolerOwnPool + _connectionReserve;
+    final int connectionFloor = restPoolTotal + authPool + _connectionReserve;
     values['db_max_connections'] = '${math.max(_clamp(hardware.cores * 8, 60, 400), connectionFloor)}';
 
     // Half, not three quarters: rewriting the append-only file doubles the
@@ -214,24 +199,13 @@ class SizingRules {
     values['nats_gomaxprocs'] = '${_parallelism(6)}';
     values['storage_uv_threadpool'] = '${_clamp(hardware.cores / 2, 4, 16)}';
 
-    final String schedulers = '${_parallelism(4)}';
-    values['realtime_schedulers'] = schedulers;
-    values['supavisor_schedulers'] = schedulers;
-    values['supavisor_pool_size'] = '$_poolerPool';
-    values['supavisor_db_pool'] = '$_poolerOwnPool';
-    // Client connections cost the pooler a socket, not a server connection, so
-    // this is bounded by what the machine can hold rather than by what Postgres
-    // accepts.
-    values['supavisor_max_clients'] = '${_clamp(hardware.cores * 250, 500, 5000)}';
-    values['analytics_schedulers'] = schedulers;
+    values['realtime_schedulers'] = '${_parallelism(4)}';
     values['realtime_max_connections'] = '${_clamp(hardware.threads * 2000, 2000, 64000)}';
     values['realtime_num_acceptors'] = '${_clamp(hardware.cores * 10, 20, 200)}';
     values['realtime_rlimit_nofile'] = '65535';
 
     values['opensearch_cpu_limit'] = _cpuCap(0.35, 0.5, 12);
     values['gorse_cpu_limit'] = _cpuCap(0.20, 0.25, 6);
-    values['analytics_cpu_limit'] = _cpuCap(0.15, 0.25, 4);
-    values['studio_cpu_limit'] = _cpuCap(0.10, 0.2, 2);
 
     values['compose_profiles'] = profiles;
 
