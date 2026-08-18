@@ -71,8 +71,12 @@ class ProtoSources {
     return ProtoSources(repositoryRoot, p.join(scribe.path, 'sdk'), files);
   }
 
+  // A package groups its contracts by subject, so a .proto sits under
+  // `protocol/<subject>/` rather than directly in `protocol/`. Matching any
+  // segment keeps both layouts discoverable.
   static bool _isProtocolSource(String path) =>
-      p.extension(path) == _protoExtension && p.basename(p.dirname(path)) == _protocolDirectory;
+      p.extension(path) == _protoExtension &&
+      p.split(p.dirname(path)).contains(_protocolDirectory);
 }
 
 Future<void> validateProtoSources(ProtoSources sources) async {

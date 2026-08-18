@@ -57,9 +57,9 @@ List<String> _discoverProtoSources() => Directory(p.join(_repositoryRoot.path, '
 
 void main() {
   group('the protocol contract', () {
-    test('every .proto lives in a protocol/ directory', () {
+    test('every .proto lives under a protocol/ directory', () {
       final Iterable<String> misplaced = _discoverProtoSources()
-          .where((String path) => p.basename(p.dirname(path)) != 'protocol');
+          .where((String path) => !p.split(p.dirname(path)).contains('protocol'));
 
       expect(
         misplaced,
@@ -93,14 +93,14 @@ void main() {
       expect(result.exitCode, 0, reason: result.stderr.toString());
     });
 
-    test('the rest query carries no owner field', () {
-      final File rest = File(
-        p.join(_repositoryRoot.path, 'scribe', 'host', 'packages', 'foundation', 'database', 'rest', 'protocol', 'rest.proto'),
+    test('the database query carries no owner field', () {
+      final File database = File(
+        p.join(_repositoryRoot.path, 'scribe', 'host', 'packages', 'foundation', 'protocol', 'database', 'database.proto'),
       );
 
-      expect(rest.existsSync(), isTrue);
+      expect(database.existsSync(), isTrue);
       expect(
-        rest.readAsStringSync(),
+        database.readAsStringSync(),
         isNot(contains('owner')),
         reason: 'the owner filter is injected host-side, a worker must not be able to express it',
       );
