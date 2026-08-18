@@ -65,6 +65,23 @@ String _render(String name) => _renderWith(name, _fragments(name));
 Set<String> _serviceNames(String name, List<YamlFragment> fragments) =>
     ((loadYaml(_renderWith(name, fragments)) as YamlMap)['services'] as YamlMap).keys.cast<String>().toSet();
 
+/// The services [dependency] declares in its own compose fragments.
+///
+/// Merged into the overlay base rather than into the socle's compose, so what
+/// comes out is the module's own list instead of the socle's plus its own.
+Set<String> _servicesOf(Dependency dependency) {
+  final List<YamlFragment> fragments = dependency.fragmentsFor('docker-compose.yaml');
+  if (fragments.isEmpty) return const <String>{};
+
+  final String rendered = renderTemplate(
+    'docker-compose.yaml',
+    mergeYamlDocuments(overlayBase, fragments),
+    _values,
+  );
+
+  return ((loadYaml(rendered) as YamlMap)['services'] as YamlMap).keys.cast<String>().toSet();
+}
+
 void main() {
   group('the docker templates of the repo', () {
     for (final String name in _templateNames) {
@@ -209,11 +226,11 @@ void main() {
       }
     });
 
-    test('every service a manifest declares is defined once assembled', () {
+    test('every service a module declares is defined once assembled', () {
       final Set<String> defined = _serviceNames('docker-compose.yaml', _fragments('docker-compose.yaml'));
       final List<String> missing = <String>[
         for (final Dependency dependency in _dependencies.all)
-          for (final String service in dependency.infra.services)
+          for (final String service in _servicesOf(dependency))
             if (!defined.contains(service)) '${dependency.path} declares $service',
       ];
 
@@ -224,13 +241,13 @@ void main() {
       final Set<String> always = <String>{
         ..._serviceNames('docker-compose.yaml', <YamlFragment>[]),
         for (final Dependency dependency in _dependencies.all)
-          if (!dependency.optional) ...dependency.infra.services,
+          if (dependency.path == foundationPath) ..._servicesOf(dependency),
       };
       final List<String> strays = <String>[];
       int patched = 0;
 
       for (final Dependency dependency in _dependencies.all) {
-        final Set<String> reachable = <String>{...always, ...dependency.infra.services};
+        final Set<String> reachable = <String>{...always, ..._servicesOf(dependency)};
 
         for (final YamlFragment overlay in dependency.fragmentsFor(overlayTemplate)) {
           final String rendered = renderTemplate(
@@ -257,8 +274,8 @@ void main() {
     test('the socle never depends on a service an optional module owns', () {
       final Map<String, String> owner = <String, String>{
         for (final Dependency dependency in _dependencies.all)
-          if (dependency.optional)
-            for (final String service in dependency.infra.services) service: dependency.path,
+          if (dependency.path != foundationPath)
+            for (final String service in _servicesOf(dependency)) service: dependency.path,
       };
 
       final YamlMap services =
@@ -303,9 +320,8 @@ void main() {
       final Set<String> base = _serviceNames('docker-compose.yaml', <YamlFragment>[]);
       final List<String> collisions = <String>[
         for (final Dependency dependency in _dependencies.all)
-          for (final String service in dependency.infra.services)
-            if (dependency.fragments('docker-compose.yaml').isNotEmpty && base.contains(service))
-              '${dependency.path} defines $service',
+          for (final String service in _servicesOf(dependency))
+            if (base.contains(service)) '${dependency.path} defines $service',
       ];
 
       expect(collisions, isEmpty, reason: 'a duplicate key would break the merged YAML');

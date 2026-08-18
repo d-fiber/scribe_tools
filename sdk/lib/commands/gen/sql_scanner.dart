@@ -29,7 +29,6 @@
 
 import 'dart:io';
 
-import 'package:path/path.dart' as p;
 
 import '../../core/paths/infra_files.dart';
 import '../../ops/dependencies.dart';
@@ -43,7 +42,7 @@ List<Directory> kernelSqlRoots() => <Directory>[
 List<Directory> _moduleSqlRoots() {
   final List<Directory> roots = <Directory>[
     for (final Dependency dependency in Dependencies.load().active)
-      if (dependency.sql case final String sql) Directory(p.join(dependency.directory.path, sql)),
+      if (dependency.sql case final Directory sql) sql,
   ];
   roots.sort((Directory a, Directory b) => a.path.compareTo(b.path));
   return roots;
