@@ -110,30 +110,33 @@ void main() {
       expect(wrong, isEmpty, reason: 'a job that exits straight away disputes nothing with anyone');
     });
 
-    test('agree with the ops block of the manifest next to them', () {
+    test('give a weight to every service the compose next to them declares', () {
       final List<String> mismatched = <String>[];
 
-      for (final MapEntry<String, Directory> module in frameworkModules().entries) {
-        final YamlMap manifest =
-            loadYaml(module.value.childFile('scribe.yaml').readAsStringSync()) as YamlMap;
-        final Object? ops = manifest['ops'];
-        final Set<String> announced = <String>{
-          if (ops is YamlMap && ops['services'] is YamlList)
-            for (final Object? name in ops['services'] as YamlList) name! as String,
+      for (final MapEntry<String, CapacitySource> source in capacitySources().entries) {
+        if (!source.value.compose.existsSync()) continue;
+
+        final Object? document = loadYaml(source.value.compose.readAsStringSync());
+        final Object? services = document is YamlMap ? document['services'] : null;
+        final Set<String> declared = <String>{
+          if (services is YamlMap)
+            for (final Object? name in services.keys) name! as String,
         };
 
         final Set<String> weighted = <String>{
-          for (final Directory ops in opsDirectories(module.value))
-            if (ops.childFile(capacityFileName).existsSync())
-              ...Capacity.read(ops, const <File>[]).services.map((ServiceCapacity service) => service.name),
+          if (source.value.weights.childFile(capacityFileName).existsSync())
+            ...Capacity.read(
+              source.value.weights,
+              const <File>[],
+            ).services.map((ServiceCapacity service) => service.name),
         };
 
-        if (announced.difference(weighted).isNotEmpty || weighted.difference(announced).isNotEmpty) {
-          mismatched.add('${module.key}: manifest $announced, capacity $weighted');
+        if (declared.difference(weighted).isNotEmpty || weighted.difference(declared).isNotEmpty) {
+          mismatched.add('${source.key}: compose $declared, capacity $weighted');
         }
       }
 
-      expect(mismatched, isEmpty, reason: 'a service added to the manifest has to be given a weight');
+      expect(mismatched, isEmpty, reason: 'a service that ships without a weight takes no share of the machine');
     });
 
     test('name the profile the compose fragment starts the service under', () {

@@ -31,93 +31,83 @@
 import 'package:file/file.dart';
 
 import 'package:path/path.dart' as p;
-import 'package:yaml/yaml.dart';
 
 import 'package:scribe/src/base/common.dart';
 import 'package:scribe/src/globals.dart' as globals;
 import 'package:scribe/src/ops/fragments.dart';
 
-/// The file whose presence makes a directory a mountable module.
-const String manifestName = 'scribe.yaml';
-
 /// The directory, inside a module, holding its slices of the ops templates.
 const String fragmentDirectory = 'ops';
 
-/// What a module asks of the stack around it, from the `ops` block of its manifest.
-class DependencyInfra {
-  const DependencyInfra({
-    required this.services,
-    required this.profile,
-    required this.gateway,
-    required this.env,
-  });
+/// The directory, inside a module, holding its SQL.
+const String sqlDirectory = 'db';
 
-  /// The compose services this module needs running.
-  final List<String> services;
+/// The subdirectory of [sqlDirectory] played when the stack is built.
+///
+/// A module's `db/` also holds `migrations/` and `provisioning/`, which are
+/// played by other hands and at another moment.
+const String sqlInitDirectory = 'init';
 
-  /// The compose profile its services are started under, null when they always are.
-  final String? profile;
+/// The directory, inside a module, holding its contract.
+const String protocolDirectory = 'protocol';
 
-  /// The gateway fragments its routes need in front of them.
-  final List<String> gateway;
+/// The file a module writes to hand the framework what it provides.
+const String registrationFile = 'register.ts';
 
-  /// The environment variables it reads.
-  final List<String> env;
-}
+/// The file a package declares its name and its exports in.
+const String packageFile = 'deno.json';
 
-/// One mountable module, read from its `scribe.yaml`.
+/// The template a module declares its services in, and the profiles they sit behind.
+const String composeTemplate = 'docker-compose.yaml';
+
+/// What a directory has to carry to be a module.
+///
+/// These are the five things the tools read from a module, and a directory that
+/// carries none of them holds nothing a project could mount. Nothing is
+/// declared anywhere: a module is recognised by what it is made of, so there is
+/// no second place where the list of modules could disagree with the tree.
+const Set<String> moduleArtefacts = <String>{
+  fragmentDirectory,
+  sqlDirectory,
+  protocolDirectory,
+  registrationFile,
+  packageFile,
+};
+
+/// The one module a project gets whether or not it names it.
+///
+/// It is not a preference: the framework does not compile without it. Every
+/// other module is mounted when `config.yaml` asks for it by name, and never
+/// otherwise.
+const String foundationPath = 'foundation';
+
+/// One mountable module, recognised by the artefacts its directory carries.
 class Dependency {
-  const Dependency({
-    required this.path,
-    required this.name,
-    required this.title,
-    required this.optional,
-    required this.requires,
-    required this.infra,
-    required this.sql,
-    required this.protocol,
-    required this.export,
-    required this.routes,
-    required this.directory,
-  });
+  const Dependency({required this.path, required this.directory});
 
   /// The module's address, relative to the dependencies root: `security/auth`.
   ///
-  /// This is what `config.yaml` names a module by, and what [requires] points at.
+  /// This is what `config.yaml` names a module by.
   final String path;
 
-  /// The module's identifier, its directory name when the manifest declares none.
-  final String name;
-
-  /// The one line describing it to a human.
-  final String title;
-
-  /// Whether a project has to ask for this module to get it.
-  ///
-  /// True unless the manifest says otherwise, so a module has to declare itself
-  /// mandatory to be mounted without being named.
-  final bool optional;
-
-  /// The modules this one is useless without, by [path].
-  final List<String> requires;
-
-  /// What it asks of the stack around it.
-  final DependencyInfra infra;
-
-  /// Its SQL directory, relative to [directory], null when it has none.
-  final String? sql;
-
-  /// Its `.proto` directory, relative to [directory], null when it has none.
-  final String? protocol;
-
-  /// The file the host imports it through, null when it exports nothing.
-  final String? export;
-
-  /// The route directories it mounts.
-  final List<String> routes;
-
-  /// The directory holding the manifest.
+  /// The directory the module lives in.
   final Directory directory;
+
+  /// The SQL this module adds to the database, null when it ships none.
+  Directory? get sql {
+    final Directory found = directory.childDirectory(sqlDirectory).childDirectory(sqlInitDirectory);
+    return found.existsSync() ? found : null;
+  }
+
+  /// The Compose profiles this module's services sit behind.
+  ///
+  /// Read from the fragments rather than declared next to them: the `profiles:`
+  /// key of a service is what Compose obeys, so a second copy would be the one
+  /// that drifts, and it would drift towards giving a share of the machine to a
+  /// container nothing ever starts.
+  Set<String> get profiles => <String>{
+    for (final File fragment in fragments(composeTemplate)) ..._profilesIn(fragment.readAsStringSync()),
+  };
 
   /// The files this module's slices of [template] would be read from.
   ///
@@ -167,32 +157,50 @@ class Dependencies {
   /// repositories: `host/dependencies/` holds what the framework owns, and
   /// `host/packages/` is the submodule where the mountable packages live. A
   /// module's address stays relative to the root that carries it, so moving one
-  /// between the two leaves `security/auth` spelled `security/auth` — which is
+  /// between the two leaves `security/auth` spelled `security/auth`, which is
   /// what a project wrote in its `config.yaml`, and what must not break.
   ///
-  /// The search is recursive and keyed on [manifestName], so a family holds as
-  /// many levels as it needs. A root that does not exist yields nothing rather
-  /// than failing: a project can be read before its framework is vendored in,
-  /// and a clone without `--recurse-submodules` has no `host/packages/` at all.
+  /// A root that does not exist yields nothing rather than failing: a project
+  /// can be read before its framework is vendored in, and a clone without
+  /// `--recurse-submodules` has no `host/packages/` at all.
   static Dependencies load({List<Directory>? roots}) {
     final List<Directory> searched = roots ?? _defaultRoots();
     final List<Dependency> found = <Dependency>[];
 
     for (final Directory modules in searched) {
       if (!modules.existsSync()) continue;
-
-      found.addAll(
-        modules
-            .listSync(recursive: true, followLinks: false)
-            .whereType<File>()
-            .where((File file) => p.basename(file.path) == manifestName)
-            .map((File file) => _read(file, modules)),
-      );
+      _collect(modules, modules, found);
     }
 
     found.sort((Dependency a, Dependency b) => a.path.compareTo(b.path));
     return Dependencies(found);
   }
+
+  /// Adds the modules under [directory] to [found], addressed against [root].
+  ///
+  /// The walk descends until it recognises a module and never enters one, since
+  /// a module's own subdirectories carry the same names it does:
+  /// `foundation/ops/database/` holds a compose fragment, and it is a subject of
+  /// `foundation` rather than a module of its own. That is also what lets a
+  /// family hold as many levels as it needs, `geospatial` sitting one level
+  /// under its root and `security/auth` two.
+  static void _collect(Directory directory, Directory root, List<Dependency> found) {
+    for (final Directory child in directory.listSync(followLinks: false).whereType<Directory>()) {
+      if (_isModule(child)) {
+        found.add(Dependency(path: p.relative(child.path, from: root.path), directory: child));
+        continue;
+      }
+
+      _collect(child, root, found);
+    }
+  }
+
+  /// Whether [directory] carries any of [moduleArtefacts].
+  static bool _isModule(Directory directory) => moduleArtefacts.any(
+    (String artefact) =>
+        directory.fileSystem.typeSync(p.join(directory.path, artefact), followLinks: false) !=
+        FileSystemEntityType.notFound,
+  );
 
   static List<Directory> _defaultRoots() => <Directory>[
     globals.fs.directory(globals.project.sdk.hostDependencies.path),
@@ -204,13 +212,11 @@ class Dependencies {
 
   /// The Compose profiles [mounted] asks for, sorted, without repetition.
   ///
-  /// A module declares its profile in the `ops` block of its manifest, and
-  /// several may share one: mounting any of them switches the whole profile on,
-  /// and every service under it starts. A module that declares no profile has
-  /// services that always start.
+  /// Several modules may share one: mounting any of them switches the whole
+  /// profile on, and every service under it starts. A module whose services
+  /// name no profile has services that always start.
   static List<String> profilesOf(Iterable<Dependency> mounted) => <String>{
-    for (final Dependency dependency in mounted)
-      if (dependency.infra.profile case final String profile) profile,
+    for (final Dependency dependency in mounted) ...dependency.profiles,
   }.toList()..sort();
 
   /// The module at [path], or null when there is none.
@@ -221,22 +227,17 @@ class Dependencies {
     return null;
   }
 
-  /// The modules [wanted] asks for, the mandatory ones, and everything they require.
+  /// The modules [wanted] asks for, plus the one at [foundationPath].
   ///
-  /// [Dependency.requires] is followed until nothing more is added, so naming a
-  /// module is enough to get what it needs underneath. An empty [wanted] means
-  /// a project that declared no list, and takes everything.
+  /// A module is mounted because a project named it, and for no other reason.
+  /// Nothing is pulled in behind the back of whoever wrote the list, which is
+  /// what lets a package be mounted alone: what it needs from a neighbour it
+  /// asks for at the endpoint that needs it, where the project can be told
+  /// what is missing rather than silently given it.
   ///
   /// Throws a [ToolExit] naming the known modules when [wanted] holds a path
   /// that is not one.
   List<Dependency> selected(List<String> wanted) {
-    if (wanted.isEmpty) return all;
-
-    final Set<String> keep = <String>{
-      for (final Dependency dependency in all)
-        if (!dependency.optional) dependency.path,
-    };
-
     for (final String path in wanted) {
       if (byPath(path) == null) {
         throwToolExit(
@@ -244,17 +245,9 @@ class Dependencies {
           'known ones are ${all.map((Dependency d) => d.path).join(', ')}.',
         );
       }
-      keep.add(path);
     }
 
-    int size = 0;
-    while (size != keep.length) {
-      size = keep.length;
-      for (final String path in keep.toList()) {
-        keep.addAll(byPath(path)!.requires);
-      }
-    }
-
+    final Set<String> keep = <String>{foundationPath, ...wanted};
     return all.where((Dependency dependency) => keep.contains(dependency.path)).toList();
   }
 
@@ -268,43 +261,42 @@ class Dependencies {
   ];
 }
 
+/// A `profiles:` key, whatever depth it sits at, with whatever follows it.
+final RegExp _profilesKey = RegExp(r'^\s*profiles:(.*)$');
 
-Dependency _read(File manifest, Directory modules) {
-  final dynamic document = loadYaml(manifest.readAsStringSync());
-  if (document is! YamlMap) {
-    throwToolExit('${manifest.path}: manifest is not a YAML mapping');
+/// An item of a YAML block sequence.
+final RegExp _listItem = RegExp(r'^\s*-\s*(.+)$');
+
+/// Every quote, comma and bracket a flow sequence spells its names with.
+final RegExp _flowPunctuation = RegExp(r"""[\[\],"']""");
+
+/// The profile names [source] carries, in either the flow or the block form.
+///
+/// This reads lines rather than a parsed document, the way [mergeYamlDocuments]
+/// does and for the same reason: a fragment holds `{{placeholders}}` that are
+/// not valid YAML values until they are rendered.
+Set<String> _profilesIn(String source) {
+  final List<String> lines = source.split('\n');
+  final Set<String> found = <String>{};
+
+  for (int index = 0; index < lines.length; index++) {
+    final RegExpMatch? key = _profilesKey.firstMatch(lines[index]);
+    if (key == null) continue;
+
+    found.addAll(_namesIn(key.group(1)!));
+    for (int next = index + 1; next < lines.length; next++) {
+      final RegExpMatch? item = _listItem.firstMatch(lines[next]);
+      if (item == null) break;
+      found.addAll(_namesIn(item.group(1)!));
+    }
   }
 
-  final dynamic infra = document['ops'];
-  final YamlMap infraMap = infra is YamlMap ? infra : YamlMap();
-
-  return Dependency(
-    path: p.relative(manifest.parent.path, from: modules.path),
-    name: _string(document, 'name') ?? p.basename(manifest.parent.path),
-    title: _string(document, 'title') ?? '',
-    optional: document['optional'] is bool ? document['optional'] as bool : true,
-    requires: _strings(document, 'requires'),
-    infra: DependencyInfra(
-      services: _strings(infraMap, 'services'),
-      profile: _string(infraMap, 'profile'),
-      gateway: _strings(infraMap, 'gateway'),
-      env: _strings(infraMap, 'env'),
-    ),
-    sql: _string(document, 'sql'),
-    protocol: _string(document, 'protocol'),
-    export: _string(document, 'export'),
-    routes: _strings(document, 'routes'),
-    directory: manifest.parent,
-  );
+  return found;
 }
 
-String? _string(YamlMap map, String key) {
-  final Object? value = map[key];
-  return value is String ? value : null;
-}
-
-List<String> _strings(YamlMap map, String key) {
-  final Object? value = map[key];
-  if (value is! YamlList) return const <String>[];
-  return value.map((dynamic entry) => entry.toString()).toList();
-}
+/// The names [value] holds, stripped of the punctuation a flow sequence adds.
+Iterable<String> _namesIn(String value) => value
+    .replaceAll(_flowPunctuation, ' ')
+    .split(' ')
+    .map((String name) => name.trim())
+    .where((String name) => name.isNotEmpty);

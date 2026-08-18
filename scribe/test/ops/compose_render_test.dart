@@ -79,7 +79,8 @@ void _vendorFramework(FileSystem fs, String root) {
       if (entity is! io.File) continue;
 
       final String relative = p.relative(entity.path, from: modules.path);
-      final bool wanted = p.basename(relative) == 'scribe.yaml' || p.split(relative).contains('ops');
+      final List<String> segments = p.split(relative);
+      final bool wanted = segments.contains('ops') || segments.contains('protocol');
       if (!wanted) continue;
 
       _copy(fs, entity.path, p.join(root, source, relative));
@@ -210,12 +211,35 @@ void main() {
       expect((await render()).profiles, <String>['ops']);
     });
 
+    test('a project that names no module gets the socle and foundation alone', () async {
+      project(const <String>[]);
+
+      final List<File> written = await renderFiles();
+      final File compose = written.firstWhere((File file) => p.basename(file.path) == 'docker-compose.yaml');
+      final YamlMap services = (loadYaml(compose.readAsStringSync()) as YamlMap)['services'] as YamlMap;
+
+      expect(services.keys, containsAll(<String>['db', 'redis', 'rest']), reason: 'foundation is not declinable');
+      expect(services.keys, isNot(contains('auth')), reason: 'security/auth is a module like any other');
+      expect(services.keys, isNot(contains('opensearch')));
+    });
+
     // Every module's fragments are merged at once, so every setting the
     // templates ask for has to come out of the capacity that was loaded. A
     // service whose settings nobody produces fails here as an unresolved
     // placeholder, which is the failure mode the per-service table introduced.
-    test('a project that names no module mounts them all and still resolves', () async {
-      project(const <String>[]);
+    test('a project that names every module still resolves', () async {
+      project(const <String>[
+        'features/devops',
+        'features/messagings',
+        'features/recommendation',
+        'features/searcher',
+        'geospatial',
+        'realtime',
+        'security/auth',
+        'security/rbac',
+        'security/vpn',
+        'storage',
+      ]);
 
       final List<File> written = await renderFiles();
       final File compose = written.firstWhere((File file) => p.basename(file.path) == 'docker-compose.yaml');

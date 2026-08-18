@@ -45,7 +45,7 @@ import 'package:scribe/src/project.dart';
 /// The order matters: each later document overrides the earlier ones, so the
 /// base compose comes first and the sizing documents patch it.
 const List<String> composeTemplates = <String>[
-  'docker-compose.yaml',
+  composeTemplate,
   'resources.yaml',
   'replicas.yaml',
   'tuning.yaml',

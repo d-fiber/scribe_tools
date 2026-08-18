@@ -165,7 +165,7 @@ class Project {
   /// The business logic: the tables, the routes, the extensions.
   Directory get sources => lib.childDirectory('src');
 
-  /// The modules this project mounts, each one holding a `scribe.yaml`.
+  /// The modules this project mounts.
   Directory get dependencies => lib.childDirectory('dependencies');
 
   /// The public pages this project serves.
@@ -361,7 +361,7 @@ class ScribeSdk {
   /// The endpoints the framework serves on its own.
   Directory get hostApi => host.childDirectory('api');
 
-  /// The modules the framework owns, each one holding a `scribe.yaml`.
+  /// The modules the framework owns, one root of the walk that finds them.
   Directory get hostDependencies => host.childDirectory('dependencies');
 
   /// The mountable packages, in the submodule that carries them.

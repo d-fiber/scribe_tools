@@ -45,8 +45,17 @@ Future<T> _run<T>(T Function() body) => AppContext.current.run<T>(
 void _module(String root, String path, {bool registers = true}) {
   final Directory directory = fs.directory('/work/notes/scribe/host/$root/$path')
     ..createSync(recursive: true);
-  directory.childFile('scribe.yaml').writeAsStringSync('name: ${path.split('/').last}\n');
+  directory.childDirectory('protocol').createSync();
   if (registers) directory.childFile('register.ts').writeAsStringSync('');
+}
+
+/// Writes the project's `config.yaml`, mounting [wanted].
+void _project(List<String> wanted) {
+  fs.file('/work/notes/config.yaml').writeAsStringSync(
+    'name: "notes"\n'
+    'dependencies:\n'
+    '${wanted.map((String path) => '  - $path\n').join()}',
+  );
 }
 
 String _generated() =>
@@ -56,12 +65,13 @@ void main() {
   setUp(() {
     fs = MemoryFileSystem.test();
     fs.directory('/work/notes').createSync(recursive: true);
-    fs.file('/work/notes/config.yaml').writeAsStringSync('name: "notes"\n');
     fs.currentDirectory = '/work/notes';
+    _project(const <String>[]);
   });
 
   test('a mounted module with a register.ts is imported for its effect', () async {
     _module('dependencies', 'security/rbac');
+    _project(const <String>['security/rbac']);
 
     await _run(generateRegistrations);
 
@@ -70,6 +80,7 @@ void main() {
 
   test('a module in the packages submodule renders under its own root', () async {
     _module('packages', 'security/auth');
+    _project(const <String>['security/auth']);
 
     await _run(generateRegistrations);
 
@@ -78,6 +89,7 @@ void main() {
 
   test('a module without a register.ts contributes no import', () async {
     _module('dependencies', 'features/searcher', registers: false);
+    _project(const <String>['features/searcher']);
 
     await _run(generateRegistrations);
 
@@ -93,6 +105,7 @@ void main() {
   test('the imports are sorted, so the file does not churn between runs', () async {
     _module('packages', 'security/auth');
     _module('dependencies', 'database/storage');
+    _project(const <String>['security/auth', 'database/storage']);
 
     await _run(generateRegistrations);
 

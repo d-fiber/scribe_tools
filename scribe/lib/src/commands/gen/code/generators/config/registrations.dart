@@ -32,9 +32,6 @@ import 'package:scribe/src/base/common.dart';
 import 'package:scribe/src/dependencies.dart';
 import 'package:scribe/src/globals.dart' as globals;
 
-/// The file a module writes to hand the framework what it provides.
-const String registrationFile = 'register.ts';
-
 /// Writes the imports that wire every mounted module into the host's ports.
 ///
 /// A module carries a [registrationFile] only when it has something to hand

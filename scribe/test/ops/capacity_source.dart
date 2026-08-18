@@ -30,6 +30,7 @@
 import 'package:file/file.dart';
 import 'package:file/local.dart';
 import 'package:path/path.dart' as p;
+import 'package:scribe/src/dependencies.dart';
 import 'package:scribe/src/ops/capacity.dart';
 
 /// The framework repository, two levels above this package.
@@ -102,13 +103,14 @@ List<Directory> opsDirectories(Directory module) {
 String _sourceKey(String module, Directory root, Directory subject) =>
     subject.path == root.childDirectory('ops').path ? module : '$module/${p.basename(subject.path)}';
 
-/// Every module directory holding a manifest, by module path.
+/// Every module of the framework, by module path.
+///
+/// Read through the CLI's own walk rather than by a rule copied here, so a
+/// module that stops being found is a failing test instead of two rules that
+/// disagree.
 Map<String, Directory> frameworkModules() => <String, Directory>{
-  for (final Directory root in modulesRoots)
-    if (root.existsSync())
-      for (final FileSystemEntity entity in root.listSync(recursive: true))
-        if (entity is File && p.basename(entity.path) == 'scribe.yaml')
-          p.relative(entity.parent.path, from: root.path): entity.parent,
+  for (final Dependency dependency in Dependencies.load(roots: modulesRoots).all)
+    dependency.path: dependency.directory,
 };
 
 /// Every profile the framework's modules declare between them.

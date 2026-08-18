@@ -30,8 +30,6 @@
 
 import 'package:file/file.dart';
 
-import 'package:path/path.dart' as p;
-
 import 'package:scribe/src/dependencies.dart';
 import 'package:scribe/src/globals.dart' as globals;
 
@@ -44,7 +42,7 @@ List<Directory> kernelSqlRoots() => <Directory>[
 List<Directory> _moduleSqlRoots() {
   final List<Directory> roots = <Directory>[
     for (final Dependency dependency in Dependencies.load().active)
-      if (dependency.sql case final String sql) globals.fs.directory(p.join(dependency.directory.path, sql)),
+      if (dependency.sql case final Directory sql) sql,
   ];
   roots.sort((Directory a, Directory b) => a.path.compareTo(b.path));
   return roots;
