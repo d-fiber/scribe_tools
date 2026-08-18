@@ -29,6 +29,7 @@
 
 import 'generators/config/country_firewall.dart';
 import 'generators/config/dependencies.dart';
+import 'generators/config/registrations.dart';
 import 'generators/config/scribe_config.dart';
 import 'generators/schema/enums.dart';
 import 'generators/schema/tables.dart';
@@ -54,6 +55,7 @@ class GenCodeCommand extends ScribeCommand {
     await generateScribeConfig();
     await generateCountryFirewall();
     await generateDependencies();
+    await generateRegistrations();
     await generateTables(await generateEnums());
     await generateRelations();
 

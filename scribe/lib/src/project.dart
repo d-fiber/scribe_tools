@@ -271,6 +271,13 @@ class GeneratedSdk {
   /// The modules the project mounts, as the host reads them.
   File get dependencies => directory.childFile('dependencies.ts');
 
+  /// The `register.ts` of every mounted module, imported for its effect.
+  ///
+  /// This is what hands the framework's ports their implementations. The host
+  /// imports this one file and names no module itself, so mounting a new one
+  /// never edits the framework.
+  File get registrations => directory.childFile('registrations.ts');
+
   /// The route table the scanner found under `lib/`.
   File get routes => directory.childFile('routes.ts');
 
