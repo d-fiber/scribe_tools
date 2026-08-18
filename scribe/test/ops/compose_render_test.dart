@@ -162,7 +162,7 @@ void main() {
 
       expect(services.keys, contains('auth'), reason: 'security/auth is in the selection');
       expect(services.keys, isNot(contains('opensearch')), reason: 'features/searcher is not');
-      expect(services.keys, isNot(contains('realtime')), reason: 'database/realtime is not either');
+      expect(services.keys, isNot(contains('realtime')), reason: 'realtime is not either');
     });
 
     test('gives a service the share the mounted ones leave it', () async {
@@ -172,10 +172,11 @@ void main() {
       final YamlMap limits =
           ((services['db'] as YamlMap)['deploy'] as YamlMap)['resources'] as YamlMap;
 
-      // 2122 against the 5989 this selection starts, not against the 9966 the
-      // repository declares. The fixed scale gave 5.45g here. Neither studio nor
-      // the worker counts: this selection switches on no profile at all.
-      expect((limits['limits'] as YamlMap)['memory'], '9.07g');
+      expect(
+        (limits['limits'] as YamlMap)['memory'],
+        '9.71g',
+        reason: 'db weighs 2122 against the 5597 this selection starts, not against the 9503 declared',
+      );
     });
 
     // The threshold this replaces switched `search` on from 8 GiB of RAM and
@@ -185,7 +186,7 @@ void main() {
     test('switches on the profiles the mounted modules declare, and no others', () async {
       expect((await render()).profiles, isEmpty, reason: 'neither auth nor rbac declares a profile');
 
-      project(const <String>['features/searcher', 'database/realtime']);
+      project(const <String>['features/searcher', 'realtime']);
 
       expect((await render()).profiles, <String>['realtime', 'search']);
     });
@@ -203,8 +204,8 @@ void main() {
       expect((await render()).profiles, contains('worker'));
     });
 
-    test('names a shared profile once, whichever module brought it', () async {
-      project(const <String>['security/vpn', 'features/observability']);
+    test('names a profile once, whatever number of services sit behind it', () async {
+      project(const <String>['security/vpn']);
 
       expect((await render()).profiles, <String>['ops']);
     });
@@ -220,7 +221,7 @@ void main() {
       final File compose = written.firstWhere((File file) => p.basename(file.path) == 'docker-compose.yaml');
       final YamlMap services = (loadYaml(compose.readAsStringSync()) as YamlMap)['services'] as YamlMap;
 
-      expect(services.keys, containsAll(<String>['opensearch', 'realtime', 'gorse', 'analytics']));
+      expect(services.keys, containsAll(<String>['opensearch', 'realtime', 'gorse', 'storage']));
       for (final File file in written) {
         expect(file.readAsStringSync(), isNot(matches(_placeholder)), reason: p.basename(file.path));
       }
