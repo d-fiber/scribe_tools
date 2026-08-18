@@ -138,7 +138,7 @@ class Capacity {
 
     return read(
       target.sdk.ops.childDirectory('docker'),
-      found.map((Dependency d) => d.fragment(capacityFileName)),
+      found.expand((Dependency d) => d.fragments(capacityFileName)),
       profiles: profiles,
     );
   }

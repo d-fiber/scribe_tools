@@ -119,18 +119,38 @@ class Dependency {
   /// The directory holding the manifest.
   final Directory directory;
 
-  /// The file this module's slice of [template] would be read from.
+  /// The files this module's slices of [template] would be read from.
   ///
-  /// The file is not required to exist: a module contributes to the templates
-  /// it has something to say about and to no others.
-  File fragment(String template) => directory.childDirectory(fragmentDirectory).childFile(template);
+  /// A package groups its ops by subject, so `ops/valkery/docker-compose.yaml`
+  /// counts as much as `ops/docker-compose.yaml`. None of them is required to
+  /// exist: a module contributes to the templates it has something to say
+  /// about and to no others.
+  List<File> fragments(String template) {
+    final Directory ops = directory.childDirectory(fragmentDirectory);
+    if (!ops.existsSync()) return const <File>[];
 
-  /// This module's slice of [template], or null when it declares none.
-  YamlFragment? fragmentFor(String template) {
-    final File file = fragment(template);
-    if (!file.existsSync()) return null;
+    final List<File> found = <File>[ops.childFile(template)];
+    for (final Directory subject in ops.listSync().whereType<Directory>()) {
+      found.add(subject.childFile(template));
+    }
 
-    return YamlFragment(path, file.readAsStringSync());
+    return found.where((File file) => file.existsSync()).toList()
+      ..sort((File a, File b) => a.path.compareTo(b.path));
+  }
+
+  /// This module's slices of [template], one per subject that declares one.
+  List<YamlFragment> fragmentsFor(String template) => <YamlFragment>[
+    for (final File file in fragments(template)) YamlFragment(_labelOf(file), file.readAsStringSync()),
+  ];
+
+  /// The name written into the merged document above a fragment's block.
+  ///
+  /// A fragment that sits in a subject directory names the subject too, so a
+  /// reader of the generated compose can tell `foundation/valkery` from
+  /// `foundation/queue`.
+  String _labelOf(File file) {
+    final String subject = p.basename(file.parent.path);
+    return subject == fragmentDirectory ? path : '$path/$subject';
   }
 }
 
@@ -244,8 +264,7 @@ class Dependencies {
   /// block, so the merged document only names the modules that had something
   /// to add to it.
   List<YamlFragment> fragmentsFor(String template, List<Dependency> active) => <YamlFragment>[
-    for (final Dependency dependency in active)
-      if (dependency.fragmentFor(template) case final YamlFragment fragment) fragment,
+    for (final Dependency dependency in active) ...dependency.fragmentsFor(template),
   ];
 }
 

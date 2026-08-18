@@ -130,15 +130,17 @@ class ComposeRender {
         await _renderTemplate(name, values, target, dependencies.fragmentsFor(name, active)),
     ];
 
+    // One file per overlay, never one per module: two overlays that patch the
+    // same socle service would produce two identical keys in one document, and
+    // it is `docker compose` that knows how to combine them.
     int position = 1;
     for (final Dependency dependency in active) {
-      final YamlFragment? overlay = dependency.fragmentFor(overlayTemplate);
-      if (overlay == null) continue;
-
-      rendered.insert(
-        position++,
-        await _write(overlayFileName(dependency.path), overlayBase, values, target, <YamlFragment>[overlay]),
-      );
+      for (final YamlFragment overlay in dependency.fragmentsFor(overlayTemplate)) {
+        rendered.insert(
+          position++,
+          await _write(overlayFileName(overlay.label), overlayBase, values, target, <YamlFragment>[overlay]),
+        );
+      }
     }
 
     return ComposeDocuments(files: rendered, profiles: profiles);

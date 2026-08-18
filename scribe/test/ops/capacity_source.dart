@@ -37,8 +37,14 @@ const String repository = '../../scribe';
 
 const FileSystem _fs = LocalFileSystem();
 
-/// Where the modules of the framework live.
-Directory get modulesRoot => _fs.directory(p.join(repository, 'host/dependencies'));
+/// Where the modules of the framework live, both roots.
+///
+/// `host/dependencies/` holds what the framework owns, `host/packages/` the
+/// mounted packages. A render reads both, so a check on what ships has to.
+List<Directory> get modulesRoots => <Directory>[
+  _fs.directory(p.join(repository, 'host/dependencies')),
+  _fs.directory(p.join(repository, 'host/packages')),
+];
 
 /// The socle's own ops directory, which holds the `capacity.yaml` every project reads.
 Directory get socleOps => _fs.directory(p.join(repository, 'ops/docker'));
@@ -71,17 +77,38 @@ Map<String, CapacitySource> capacitySources() => <String, CapacitySource>{
     compose: socleComposeTemplates.childFile('docker-compose.yaml'),
   ),
   for (final MapEntry<String, Directory> module in frameworkModules().entries)
-    module.key: CapacitySource(
-      weights: module.value.childDirectory('ops'),
-      compose: module.value.childDirectory('ops').childFile('docker-compose.yaml'),
-    ),
+    for (final Directory subject in opsDirectories(module.value))
+      _sourceKey(module.key, module.value, subject): CapacitySource(
+        weights: subject,
+        compose: subject.childFile('docker-compose.yaml'),
+      ),
 };
+
+/// The directories of [module] that may hold a `capacity.yaml`.
+///
+/// A package groups its ops by subject, so the weights of the cache sit in
+/// `ops/valkery/` while a module that ships one container keeps them in `ops/`.
+List<Directory> opsDirectories(Directory module) {
+  final Directory ops = module.childDirectory('ops');
+  if (!ops.existsSync()) return const <Directory>[];
+
+  return <Directory>[
+    if (ops.childFile(capacityFileName).existsSync()) ops,
+    ...ops.listSync().whereType<Directory>(),
+  ];
+}
+
+/// How a mismatch names the file to open.
+String _sourceKey(String module, Directory root, Directory subject) =>
+    subject.path == root.childDirectory('ops').path ? module : '$module/${p.basename(subject.path)}';
 
 /// Every module directory holding a manifest, by module path.
 Map<String, Directory> frameworkModules() => <String, Directory>{
-  for (final FileSystemEntity entity in modulesRoot.listSync(recursive: true))
-    if (entity is File && p.basename(entity.path) == 'scribe.yaml')
-      p.relative(entity.parent.path, from: modulesRoot.path): entity.parent,
+  for (final Directory root in modulesRoots)
+    if (root.existsSync())
+      for (final FileSystemEntity entity in root.listSync(recursive: true))
+        if (entity is File && p.basename(entity.path) == 'scribe.yaml')
+          p.relative(entity.parent.path, from: root.path): entity.parent,
 };
 
 /// Every profile the framework's modules declare between them.
@@ -107,7 +134,7 @@ Capacity frameworkCapacityOf(Iterable<String> paths, {Set<String> profiles = mod
 
   return Capacity.read(
     _fs.directory(p.join(repository, 'ops/docker')),
-    paths.map((String path) => modules[path]!.childDirectory('ops').childFile(capacityFileName)),
+    paths.expand((String path) => opsDirectories(modules[path]!).map((Directory d) => d.childFile(capacityFileName))),
     profiles: profiles,
   );
 }

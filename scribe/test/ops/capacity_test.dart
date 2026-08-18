@@ -122,13 +122,11 @@ void main() {
             for (final Object? name in ops['services'] as YamlList) name! as String,
         };
 
-        final File file = module.value.childDirectory('ops').childFile(capacityFileName);
-        final Set<String> weighted = file.existsSync()
-            ? Capacity.read(module.value.childDirectory('ops'), const <File>[])
-                  .services
-                  .map((ServiceCapacity service) => service.name)
-                  .toSet()
-            : <String>{};
+        final Set<String> weighted = <String>{
+          for (final Directory ops in opsDirectories(module.value))
+            if (ops.childFile(capacityFileName).existsSync())
+              ...Capacity.read(ops, const <File>[]).services.map((ServiceCapacity service) => service.name),
+        };
 
         if (announced.difference(weighted).isNotEmpty || weighted.difference(announced).isNotEmpty) {
           mismatched.add('${module.key}: manifest $announced, capacity $weighted');

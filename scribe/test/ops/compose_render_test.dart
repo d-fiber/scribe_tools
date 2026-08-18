@@ -67,15 +67,23 @@ void _vendorFramework(FileSystem fs, String root) {
     p.join(root, 'ops/docker', capacityFileName),
   );
 
-  final io.Directory modules = io.Directory(p.join(_repository, 'host/dependencies'));
-  for (final io.FileSystemEntity entity in modules.listSync(recursive: true)) {
-    if (entity is! io.File) continue;
+  // Both roots, because a render reads both: `host/dependencies/` holds what
+  // the framework owns and `host/packages/` the mounted packages, and the
+  // mandatory one carries the containers of the cache, the queue and the
+  // PostgREST engine.
+  for (final String source in <String>['host/dependencies', 'host/packages']) {
+    final io.Directory modules = io.Directory(p.join(_repository, source));
+    if (!modules.existsSync()) continue;
 
-    final String relative = p.relative(entity.path, from: modules.path);
-    final bool wanted = p.basename(relative) == 'scribe.yaml' || p.split(relative).contains('ops');
-    if (!wanted) continue;
+    for (final io.FileSystemEntity entity in modules.listSync(recursive: true)) {
+      if (entity is! io.File) continue;
 
-    _copy(fs, entity.path, p.join(root, 'host/dependencies', relative));
+      final String relative = p.relative(entity.path, from: modules.path);
+      final bool wanted = p.basename(relative) == 'scribe.yaml' || p.split(relative).contains('ops');
+      if (!wanted) continue;
+
+      _copy(fs, entity.path, p.join(root, source, relative));
+    }
   }
 }
 
