@@ -190,7 +190,7 @@ class SizingRules {
       },
       'realtime' => <String, String>{
         'realtime_schedulers': '${_parallelism(4)}',
-        'realtime_max_connections': '${_clamp(hardware.threads * 2000, 2000, 64000)}',
+        'realtime_max_connections': '${_realtimeConnections(memory)}',
         'realtime_num_acceptors': '${_clamp(hardware.cores * 10, 20, 200)}',
         'realtime_rlimit_nofile': '65535',
       },
@@ -205,6 +205,35 @@ class SizingRules {
       },
       _ => const <String, String>{},
     };
+  }
+
+  /// What an idle realtime container holds, in mebibytes.
+  ///
+  /// Measured on `supabase/realtime:v2.76.5` with no listener connected. The
+  /// BEAM does not hand memory back when a connection closes, so this is a
+  /// floor the container never drops under and not an average it hovers around.
+  static const int _realtimeIdleMib = 265;
+
+  /// What one websocket connection holds, in kibibytes.
+  ///
+  /// Measured flat between 50 and 300 listeners. Below fifty the idle footprint
+  /// weighs more than the connections and the figure reads far too high.
+  static const double _realtimeConnectionKib = 190;
+
+  /// How many websocket connections [memory] mebibytes seat.
+  ///
+  /// The core count alone used to decide this, without looking at the limit the
+  /// same calculation had just written: on eight gibibytes the container
+  /// announced sixteen thousand connections and could hold nine hundred, so the
+  /// OOM killer arrived long before `MAX_CONNECTIONS` ever did. Both bounds are
+  /// therefore applied, and the smaller one wins.
+  ///
+  /// The floor of a hundred is what a container under the declared minimum gets.
+  /// It cannot serve at that size, and a number it can survive says so more
+  /// usefully than one it cannot.
+  int _realtimeConnections(double memory) {
+    final double seated = (memory - _realtimeIdleMib) * 1024 / _realtimeConnectionKib;
+    return _clamp(math.min(hardware.threads * 2000, seated), 100, 64000);
   }
 
   String _cpuCap(double share, double low, double high) {
