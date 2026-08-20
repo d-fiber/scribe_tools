@@ -47,12 +47,6 @@ jobs:
           dart pub get
           dart compile exe bin/scribe.dart -o "$GITHUB_WORKSPACE/out/${{ matrix.target }}/scribe${{ matrix.ext }}"
 
-      - name: Build sdk for ${{ matrix.target }}
-        working-directory: sdk
-        run: |
-          dart pub get
-          dart compile exe bin/sdk.dart -o "$GITHUB_WORKSPACE/out/${{ matrix.target }}/sdk${{ matrix.ext }}"
-
       - name: Build docs for ${{ matrix.target }}
         working-directory: docs
         run: |
@@ -92,9 +86,6 @@ jobs:
               cp "incoming/tools-$target/$tool$extension" "assets/$tool-$target$extension"
             done
           done
-          echo "sdk is deliberately left out: it is the framework's own CLI and"
-          echo "has no use in a project. Its binaries stay on this run's artifacts,"
-          echo "which only people with access to this private repository can reach."
           ls -lh assets
 
       - name: Publish them on the scribe release

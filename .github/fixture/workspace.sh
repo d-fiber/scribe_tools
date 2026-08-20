@@ -39,7 +39,6 @@ mkdir -p "$WORKSPACE/scribe/tools"
 mkdir -p "$WORKSPACE/tools"
 
 cp -R "$TOOLS/docs" "$WORKSPACE/scribe/tools/docs"
-cp -R "$TOOLS/sdk" "$WORKSPACE/tools/sdk"
 cp -R "$TOOLS/scribe" "$WORKSPACE/tools/scribe"
 
 echo "Creating the example project the tests expect"

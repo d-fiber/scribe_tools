@@ -68,52 +68,6 @@ jobs:
       - name: Check license headers
         run: bash .github/headers/check.sh
 
-  sdk:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Check out scribe
-        uses: actions/checkout@v4
-        with:
-          repository: d-fiber/scribe
-          ref: dev
-          path: _fixture/scribe
-          ssh-key: ${{ secrets.SCRIBE_DEPLOY_KEY }}
-
-      - name: Check out the packages submodule
-        working-directory: _fixture/scribe
-        env:
-          PACKAGES_READ_KEY: ${{ secrets.PACKAGES_READ_KEY }}
-        run: |
-          set -eu
-          mkdir -p ~/.ssh
-          printf '%s\n' "$PACKAGES_READ_KEY" > ~/.ssh/packages
-          chmod 600 ~/.ssh/packages
-          ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
-          GIT_SSH_COMMAND="ssh -i ~/.ssh/packages -o IdentitiesOnly=yes" \
-            git submodule update --init --recursive
-
-      - uses: dart-lang/setup-dart@v1
-        with:
-          sdk: 3.12.2
-
-      - name: Install protoc
-        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
-
-      - name: Set up the test workspace
-        run: sh .github/fixture/workspace.sh "$GITHUB_WORKSPACE/_fixture" "$GITHUB_WORKSPACE"
-
-      - name: Analyze
-        working-directory: _fixture/tools/sdk
-        run: |
-          dart pub get
-          dart analyze
-
-      - name: Run tests
-        working-directory: _fixture/tools/sdk
-        run: dart test
-
   docs:
     runs-on: ubuntu-latest
     steps:
@@ -175,7 +129,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   publish:
-    needs: [headers, scribe, sdk, docs]
+    needs: [headers, scribe, docs]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'd-fiber/scribe_tools'
     uses: ./.github/workflows/publish.yml
     secrets: inherit
