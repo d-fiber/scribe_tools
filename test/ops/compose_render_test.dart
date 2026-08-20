@@ -74,10 +74,6 @@ void _vendorFramework(FileSystem fs, String root) {
     p.join(root, 'ops/docker', capacityFileName),
   );
 
-  // Both roots, because a render reads both: `host/dependencies/` holds what
-  // the framework owns and `host/packages/` the mounted packages, and the
-  // mandatory one carries the containers of the cache, the queue and the
-  // PostgREST engine.
   for (final String source in <String>['host/dependencies', 'host/packages']) {
     final io.Directory modules = io.Directory(p.join(_repository, source));
     if (!modules.existsSync()) continue;
@@ -187,10 +183,6 @@ void main() {
       );
     });
 
-    // The threshold this replaces switched `search` on from 8 GiB of RAM and
-    // nothing else, so a project that asked for `features/searcher` on a small
-    // machine got an opensearch container Compose never started, and a project
-    // that did not ask for it got one it never wanted.
     test('switches on the profiles the mounted modules declare, and no others', () async {
       expect((await render()).profiles, isEmpty, reason: 'neither auth nor rbac declares a profile');
 
@@ -199,9 +191,6 @@ void main() {
       expect((await render()).profiles, <String>['realtime', 'search']);
     });
 
-    // No module declares the worker profile: the host loads the project in its
-    // own process unless the project says otherwise, and a worker container
-    // nobody talks to would be a second Deno taking a tenth of the machine.
     test('starts the worker only when config.yaml asks for it', () async {
       expect((await render()).profiles, isNot(contains('worker')));
 
@@ -230,10 +219,6 @@ void main() {
       expect(services.keys, isNot(contains('opensearch')));
     });
 
-    // Every module's fragments are merged at once, so every setting the
-    // templates ask for has to come out of the capacity that was loaded. A
-    // service whose settings nobody produces fails here as an unresolved
-    // placeholder, which is the failure mode the per-service table introduced.
     test('a project that names every module still resolves', () async {
       project(const <String>[
         'features/devops',
