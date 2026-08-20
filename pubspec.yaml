@@ -1,5 +1,5 @@
 name: scribe_tools
-description: The CLI a project built on scribe uses, from init to code generation.
+description: Tools for building Scribe Backend
 version: 1.0.0
 
 environment:
