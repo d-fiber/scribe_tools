@@ -3,8 +3,6 @@ name: ci
 on:
   push:
   pull_request:
-  schedule:
-    - cron: "20 23 * * *"
 
 permissions:
   contents: read
@@ -68,68 +66,8 @@ jobs:
       - name: Check license headers
         run: bash .github/headers/check.sh
 
-  docs:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Check out scribe
-        uses: actions/checkout@v4
-        with:
-          repository: d-fiber/scribe
-          ref: dev
-          path: _fixture/scribe
-          ssh-key: ${{ secrets.SCRIBE_DEPLOY_KEY }}
-
-      - name: Check out the packages submodule
-        working-directory: _fixture/scribe
-        env:
-          PACKAGES_READ_KEY: ${{ secrets.PACKAGES_READ_KEY }}
-        run: |
-          set -eu
-          mkdir -p ~/.ssh
-          printf '%s\n' "$PACKAGES_READ_KEY" > ~/.ssh/packages
-          chmod 600 ~/.ssh/packages
-          ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
-          GIT_SSH_COMMAND="ssh -i ~/.ssh/packages -o IdentitiesOnly=yes" \
-            git submodule update --init --recursive
-
-      - uses: denoland/setup-deno@v2
-        with:
-          deno-version: v2.x
-
-      - name: Set up the test workspace
-        run: sh .github/fixture/workspace.sh "$GITHUB_WORKSPACE/_fixture" "$GITHUB_WORKSPACE"
-
-      - name: Run tests
-        working-directory: _fixture/scribe/tools/docs
-        run: deno test --allow-read tests/
-
-  dependencies:
-    if: github.event_name == 'schedule'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: denoland/setup-deno@v2
-        with:
-          deno-version: v2.x
-
-      - name: Report the Deno dependencies that moved
-        run: |
-          set -eu
-          {
-            echo "## Deno dependencies"
-            echo ""
-            echo "Dependabot does not read Deno, so this is the only place docs/ shows up."
-            echo ""
-            echo '```'
-            (cd docs && deno outdated 2>&1) || echo "could not read docs"
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-
   publish:
-    needs: [headers, scribe, docs]
+    needs: [headers, scribe]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'd-fiber/scribe_tools'
     uses: ./.github/workflows/publish.yml
     secrets: inherit

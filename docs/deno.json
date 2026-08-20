@@ -1,8 +1,0 @@
-{
-  "imports": {
-    "ts-morph": "npm:ts-morph@23"
-  },
-  "tasks": {
-    "test": "deno test --allow-read tests/"
-  }
-}

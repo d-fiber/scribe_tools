@@ -35,10 +35,8 @@ TOOLS="$2"
 
 echo "Building the test workspace in $WORKSPACE"
 
-mkdir -p "$WORKSPACE/scribe/tools"
 mkdir -p "$WORKSPACE/tools"
 
-cp -R "$TOOLS/docs" "$WORKSPACE/scribe/tools/docs"
 cp -R "$TOOLS/scribe" "$WORKSPACE/tools/scribe"
 
 echo "Creating the example project the tests expect"
