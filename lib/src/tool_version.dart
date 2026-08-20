@@ -34,31 +34,12 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
-import 'dart:io';
-
-import 'package:scribe_tools/runner.dart' as runner;
-import 'package:scribe_tools/src/commands/create.dart';
-import 'package:scribe_tools/src/commands/doctor.dart';
-import 'package:scribe_tools/src/commands/downgrade.dart';
-import 'package:scribe_tools/src/commands/gen.dart';
-import 'package:scribe_tools/src/commands/secrets.dart';
-import 'package:scribe_tools/src/commands/upgrade.dart';
-import 'package:scribe_tools/src/runner/scribe_command.dart';
-import 'package:scribe_tools/src/tool_version.dart';
-
-Future<void> main(List<String> args) async {
-  final int code = await runner.run(
-    args,
-    () => <ScribeCommand>[
-      CreateCommand(),
-      DoctorCommand(),
-      DowngradeCommand(),
-      GenCommand(),
-      SecretsCommand(),
-      UpgradeCommand(),
-    ],
-    toolVersion: kToolVersion,
-  );
-
-  if (code != 0) exit(code);
-}
+/// The version this build of the tool answers to.
+///
+/// It is not written here. `pubspec.yaml` is the one place that holds it, and
+/// `tool/build.sh` reads it from there and hands it to the compiler, so the two
+/// cannot drift apart and nothing has to be generated or checked.
+///
+/// A build made without it says `0.0.0`, which is what a run through the Dart VM
+/// or a compile by hand reports. No release carries that number.
+const String kToolVersion = String.fromEnvironment('SCRIBE_VERSION', defaultValue: '0.0.0');

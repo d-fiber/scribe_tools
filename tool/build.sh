@@ -59,10 +59,12 @@ dart pub get
 
 mkdir -p "$destination"
 
-dart compile exe bin/scribe.dart -o "$binary"
+version=$(awk '/^version:/ { print $2; exit }' pubspec.yaml)
+
+dart compile exe bin/scribe.dart -o "$binary" --define=SCRIBE_VERSION="$version"
 
 echo ""
-echo "Built $binary ($(du -h "$binary" | cut -f1))"
+echo "Built $binary $version ($(du -h "$binary" | cut -f1))"
 echo ""
 echo "out/ is ignored by git, so this binary never reaches a commit."
 
