@@ -9,7 +9,7 @@
       "bypass_mode": "always"
     },
     {
-      "actor_id": 160376754,
+      "actor_id": null,
       "actor_type": "DeployKey",
       "bypass_mode": "always"
     }
