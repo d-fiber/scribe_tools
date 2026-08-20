@@ -57,8 +57,7 @@ void _compose(Directory module, String services) {
 
 Directory _root(String name) => fs.directory(p.join('/tree', name))..createSync(recursive: true);
 
-List<String> _pathsOf(Iterable<Dependency> found) =>
-    found.map((Dependency dependency) => dependency.path).toList();
+List<String> _pathsOf(Iterable<Dependency> found) => found.map((Dependency dependency) => dependency.path).toList();
 
 void main() {
   setUp(() => fs = MemoryFileSystem.test());
@@ -70,10 +69,10 @@ void main() {
       _module(owned, 'database/rest');
       _module(packages, 'security/auth');
 
-      expect(
-        _pathsOf(Dependencies.load(roots: <Directory>[owned, packages]).all),
-        <String>['database/rest', 'security/auth'],
-      );
+      expect(_pathsOf(Dependencies.load(roots: <Directory>[owned, packages]).all), <String>[
+        'database/rest',
+        'security/auth',
+      ]);
     });
 
     test('a module keeps its address when it moves from one root to the other', () {
@@ -99,20 +98,20 @@ void main() {
       _module(packages, 'features/searcher');
       _module(packages, 'database/storage');
 
-      expect(
-        _pathsOf(Dependencies.load(roots: <Directory>[owned, packages]).all),
-        <String>['database/rest', 'database/storage', 'features/searcher'],
-      );
+      expect(_pathsOf(Dependencies.load(roots: <Directory>[owned, packages]).all), <String>[
+        'database/rest',
+        'database/storage',
+        'features/searcher',
+      ]);
     });
 
     test('a root that does not exist yields nothing rather than failing', () {
       final Directory owned = _root('dependencies');
       _module(owned, 'database/rest');
 
-      expect(
-        _pathsOf(Dependencies.load(roots: <Directory>[owned, fs.directory('/tree/packages')]).all),
-        <String>['database/rest'],
-      );
+      expect(_pathsOf(Dependencies.load(roots: <Directory>[owned, fs.directory('/tree/packages')]).all), <String>[
+        'database/rest',
+      ]);
     });
 
     test('byPath finds a module whichever root carries it', () {
@@ -154,11 +153,7 @@ void main() {
           module.childDirectory(artefact).createSync();
         }
 
-        expect(
-          _pathsOf(Dependencies.load(roots: <Directory>[root]).all),
-          <String>['security/one'],
-          reason: artefact,
-        );
+        expect(_pathsOf(Dependencies.load(roots: <Directory>[root]).all), <String>['security/one'], reason: artefact);
       }
     });
   });
@@ -182,10 +177,7 @@ void main() {
     });
 
     test('a project gets foundation on top of what it named', () {
-      expect(
-        _pathsOf(found.selected(const <String>['security/auth'])),
-        <String>['foundation', 'security/auth'],
-      );
+      expect(_pathsOf(found.selected(const <String>['security/auth'])), <String>['foundation', 'security/auth']);
     });
 
     test('naming a module never drags a neighbour in with it', () {

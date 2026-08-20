@@ -90,11 +90,7 @@ void writeCheckout({String version = '0.1.5', bool cloned = true}) {
 
 /// Runs [body] with [processes] answering every git call.
 Future<T> withProcesses<T>(ProcessRunner processes, Future<T> Function() body) => AppContext.current.run<T>(
-  overrides: <Type, Generator>{
-    FileSystem: () => fs,
-    Logger: () => logger,
-    ProcessRunner: () => processes,
-  },
+  overrides: <Type, Generator>{FileSystem: () => fs, Logger: () => logger, ProcessRunner: () => processes},
   body: body,
 );
 

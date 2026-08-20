@@ -51,6 +51,7 @@ import 'package:scribe_tools/src/sdk_target.dart';
 /// No repository is initialised and no generator is run: what this writes is
 /// what the templates hold.
 class CreateCommand extends ScribeCommand {
+  /// Declares `--sdk`, whose help lists the SDKs the framework on disk carries.
   CreateCommand() {
     argParser.addOption(
       sdkOption,
@@ -152,9 +153,10 @@ class CreateCommand extends ScribeCommand {
     );
     await _write(scaffold, projectName: projectName, target: target);
 
-    _report.wrote(scaffold.files);
-    _report.caveats(target, templates);
-    _report.nextStep(projectName, target);
+    _report
+      ..wrote(scaffold.files)
+      ..caveats(target, templates)
+      ..nextStep(projectName, target);
 
     return const ScribeCommandResult.success();
   }
@@ -185,9 +187,7 @@ class CreateCommand extends ScribeCommand {
   /// Throws a [ToolExit] when there is none. A project without the framework
   /// would not run anyway, so this refuses rather than writing half of one.
   ProjectTemplates _templates() {
-    final ProjectTemplates? found = ProjectTemplates.find(
-      SdkCatalog.findFrameworkRoot(globals.fs.currentDirectory),
-    );
+    final ProjectTemplates? found = ProjectTemplates.find(SdkCatalog.findFrameworkRoot(globals.fs.currentDirectory));
     if (found != null) return found;
 
     throwToolExit(

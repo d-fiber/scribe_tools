@@ -34,16 +34,18 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
-import 'generators/config/country_firewall.dart';
-import 'generators/config/dependencies.dart';
-import 'generators/config/registrations.dart';
-import 'generators/config/scribe_config.dart';
-import 'generators/schema/enums.dart';
-import 'generators/schema/tables.dart';
-import 'relations/relations.dart';
+import 'package:scribe_tools/src/commands/gen/code/generators/config/country_firewall.dart';
+import 'package:scribe_tools/src/commands/gen/code/generators/config/dependencies.dart';
+import 'package:scribe_tools/src/commands/gen/code/generators/config/registrations.dart';
+import 'package:scribe_tools/src/commands/gen/code/generators/config/scribe_config.dart';
+import 'package:scribe_tools/src/commands/gen/code/generators/schema/enums.dart';
+import 'package:scribe_tools/src/commands/gen/code/generators/schema/tables.dart';
+import 'package:scribe_tools/src/commands/gen/code/relations/relations.dart';
 import 'package:scribe_tools/src/runner/scribe_command.dart';
 
+/// Rewrites the generated TypeScript a project imports, from `config.yaml` and the SQL.
 class GenCodeCommand extends ScribeCommand {
+  /// Takes no option: everything it writes comes from `config.yaml` and the SQL.
   GenCodeCommand();
 
   @override

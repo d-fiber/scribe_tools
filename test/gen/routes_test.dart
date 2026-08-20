@@ -36,13 +36,13 @@
 
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
+import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/commands/gen/routes/discovered_route.dart';
 import 'package:scribe_tools/src/commands/gen/routes/discovered_sink.dart';
 import 'package:scribe_tools/src/commands/gen/routes/discovered_source.dart';
 import 'package:scribe_tools/src/commands/gen/routes/emitter.dart';
 import 'package:scribe_tools/src/commands/gen/routes/scanner.dart';
-import 'package:scribe_tools/src/base/common.dart';
-import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 Directory _tree(Map<String, String> files) {
@@ -59,17 +59,13 @@ Directory _tree(Map<String, String> files) {
   return root;
 }
 
-DiscoveredSource _source(Map<String, String> files) =>
-    _sourceWith(files, root: const <String, String>{});
+DiscoveredSource _source(Map<String, String> files) => _sourceWith(files, root: const <String, String>{});
 
 /// Scans a tree of [files] under `lib/src/`, plus [root] files under `lib/`.
 ///
 /// The root `_log.ts` is the only thing a project declares outside `lib/src/`,
 /// so it is the only reason this takes two maps rather than one.
-DiscoveredSource _sourceWith(
-  Map<String, String> files, {
-  required Map<String, String> root,
-}) {
+DiscoveredSource _sourceWith(Map<String, String> files, {required Map<String, String> root}) {
   final Directory tree = _tree(files);
 
   root.forEach((String path, String content) {
@@ -99,17 +95,13 @@ void main() {
     });
 
     test('a bracketed segment becomes a path parameter', () {
-      final List<DiscoveredRoute> routes = _scan(<String, String>{
-        'app/brand/[brandId]/status.ts': '',
-      });
+      final List<DiscoveredRoute> routes = _scan(<String, String>{'app/brand/[brandId]/status.ts': ''});
 
       expect(routes.single.path, '/brand/:brandId/status');
     });
 
     test('nesting folders nests the path', () {
-      final List<DiscoveredRoute> routes = _scan(<String, String>{
-        'app/store/search/nearby.ts': '',
-      });
+      final List<DiscoveredRoute> routes = _scan(<String, String>{'app/store/search/nearby.ts': ''});
 
       expect(routes.single.path, '/store/search/nearby');
     });
@@ -134,9 +126,7 @@ void main() {
       final DiscoveredRoute update = routes.firstWhere(
         (DiscoveredRoute route) => route.path == '/brand/:brandId/update',
       );
-      final DiscoveredRoute store = routes.firstWhere(
-        (DiscoveredRoute route) => route.path == '/store',
-      );
+      final DiscoveredRoute store = routes.firstWhere((DiscoveredRoute route) => route.path == '/store');
 
       expect(update.branches, hasLength(1));
       expect(update.branches.single, endsWith('brand/_middleware.ts'));
@@ -144,17 +134,11 @@ void main() {
     });
 
     test('a file and a folder claiming the same path is refused', () {
-      expect(
-        () => _scan(<String, String>{'app/brand.ts': '', 'app/brand/index.ts': ''}),
-        throwsA(isA<ToolExit>()),
-      );
+      expect(() => _scan(<String, String>{'app/brand.ts': '', 'app/brand/index.ts': ''}), throwsA(isA<ToolExit>()));
     });
 
     test('a leftover _node.ts is refused instead of silently ignored', () {
-      expect(
-        () => _scan(<String, String>{'app/_node.ts': '', 'app/brand.ts': ''}),
-        throwsA(isA<ToolExit>()),
-      );
+      expect(() => _scan(<String, String>{'app/_node.ts': '', 'app/brand.ts': ''}), throwsA(isA<ToolExit>()));
     });
 
     test('a node folder starting with an underscore is not a node', () {
@@ -168,10 +152,7 @@ void main() {
       final Directory root = _tree(<String, String>{'app/brand.ts': ''});
       Directory(p.join(root.path, 'lib', 'src', 'admin')).createSync();
 
-      final DiscoveredSource source = RouteScanner.scan(
-        Directory(p.join(root.path, 'lib', 'src')),
-        root.path,
-      );
+      final DiscoveredSource source = RouteScanner.scan(Directory(p.join(root.path, 'lib', 'src')), root.path);
 
       expect(source.nodes, <String>['admin', 'app']);
       expect(source.routes, hasLength(1));
@@ -194,15 +175,9 @@ void main() {
     });
 
     test('a _log.ts at the root of a node answers for that node', () {
-      final DiscoveredSource source = _source(<String, String>{
-        'app/_log.ts': '',
-        'admin/_log.ts': '',
-      });
+      final DiscoveredSource source = _source(<String, String>{'app/_log.ts': '', 'admin/_log.ts': ''});
 
-      expect(
-        source.sinks.map((DiscoveredSink sink) => sink.node),
-        <String>['admin', 'app'],
-      );
+      expect(source.sinks.map((DiscoveredSink sink) => sink.node), <String>['admin', 'app']);
       expect(source.sinks.first.file, 'lib/src/admin/_log.ts');
     });
 
@@ -212,17 +187,11 @@ void main() {
         root: <String, String>{'_log.ts': ''},
       );
 
-      expect(
-        source.sinks.map((DiscoveredSink sink) => sink.node),
-        <String?>[null, 'admin', 'app'],
-      );
+      expect(source.sinks.map((DiscoveredSink sink) => sink.node), <String?>[null, 'admin', 'app']);
     });
 
     test('a node without a _log.ts produces no entry at all', () {
-      final DiscoveredSource source = _source(<String, String>{
-        'app/_log.ts': '',
-        'admin/brand.ts': '',
-      });
+      final DiscoveredSource source = _source(<String, String>{'app/_log.ts': '', 'admin/brand.ts': ''});
 
       expect(source.sinks.map((DiscoveredSink sink) => sink.node), <String>['app']);
     });
@@ -249,10 +218,7 @@ void main() {
       expect(rendered, contains('import * as _l0 from "@app/_log.ts";'));
       expect(rendered, contains('import * as _l1 from "@app/src/app/_log.ts";'));
       expect(rendered, contains('{ node: null, file: "lib/_log.ts", module: _l0 },'));
-      expect(
-        rendered,
-        contains('{ node: "app", file: "lib/src/app/_log.ts", module: _l1 },'),
-      );
+      expect(rendered, contains('{ node: "app", file: "lib/src/app/_log.ts", module: _l1 },'));
     });
 
     test('a project with no sink still exports the table the server reads', () {

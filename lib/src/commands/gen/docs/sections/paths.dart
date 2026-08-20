@@ -51,8 +51,7 @@ import 'package:scribe_tools/src/commands/gen/docs/walker/generated_path.dart';
 String renderPathsSection(List<GeneratedPathEntry> entries) {
   final List<GeneratedPathEntry> sorted = List<GeneratedPathEntry>.of(entries)..sort(_byPathThenMethod);
 
-  final Indented out = Indented.empty();
-  out.add(0, 'paths:');
+  final Indented out = Indented.empty()..add(0, 'paths:');
 
   String? currentPath;
   for (final GeneratedPathEntry entry in sorted) {
@@ -72,15 +71,17 @@ int _byPathThenMethod(GeneratedPathEntry a, GeneratedPathEntry b) {
 }
 
 void _renderOperation(Indented out, GeneratedPathEntry entry) {
-  out.add(2, '${entry.method}:');
-  out.add(3, 'tags: [${entry.tag}]');
-  out.add(3, 'summary: ${yamlScalar(entry.summary)}');
+  out
+    ..add(2, '${entry.method}:')
+    ..add(3, 'tags: [${entry.tag}]')
+    ..add(3, 'summary: ${yamlScalar(entry.summary)}');
 
   _renderPathParameters(out, entry.path);
 
   if (entry.requiresAuth) {
-    out.add(3, 'security:');
-    out.add(4, '- bearerAuth: []');
+    out
+      ..add(3, 'security:')
+      ..add(4, '- bearerAuth: []');
   }
 
   if (entry.requiredPermission case final String permission) {
@@ -104,10 +105,11 @@ void _renderPathParameters(Indented out, String path) {
 
   out.add(3, 'parameters:');
   for (final String name in names) {
-    out.add(4, '- name: $name');
-    out.add(5, 'in: path');
-    out.add(5, 'required: true');
-    out.add(5, 'schema:');
-    out.add(6, 'type: string');
+    out
+      ..add(4, '- name: $name')
+      ..add(5, 'in: path')
+      ..add(5, 'required: true')
+      ..add(5, 'schema:')
+      ..add(6, 'type: string');
   }
 }

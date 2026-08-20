@@ -93,9 +93,9 @@ Future<int> runScribe(List<String> args, {List<String> installed = const <String
       Logger: () => logger,
       Stdio: FakeStdio.new,
       ProcessRunner: () => processes,
-      Platform: () => FakePlatform(
+      Platform: () => const FakePlatform(
         operatingSystem: 'macos',
-        environment: const <String, String>{'PATH': binDirectory, 'SHELL': '/bin/zsh', 'HOME': '/home'},
+        environment: <String, String>{'PATH': binDirectory, 'SHELL': '/bin/zsh', 'HOME': '/home'},
       ),
     },
   );
@@ -237,10 +237,7 @@ void main() {
         await runScribe(<String>['doctor', '--rescue', '--yes'], installed: <String>['git', 'deno', 'npm', 'brew']),
         0,
       );
-      expect(
-        processes.commands.map((List<String> command) => command.join(' ')),
-        contains('brew install docker'),
-      );
+      expect(processes.commands.map((List<String> command) => command.join(' ')), contains('brew install docker'));
     });
 
     test('says so when there is nothing it can do, and reports all the same', () async {

@@ -39,11 +39,14 @@ import 'dart:io';
 
 import 'package:fiber_shell/fiber_shell.dart';
 import 'package:path/path.dart' as p;
-
-import 'generated_path.dart';
-import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/base/common.dart';
+import 'package:scribe_tools/src/commands/gen/docs/walker/generated_path.dart';
+import 'package:scribe_tools/src/globals.dart' as globals;
 
+/// The routes of [surface], read by running the Deno walker that ships with the framework at [root].
+///
+/// Throws a [ToolExit] when the walker leaves with a failure, since a partial
+/// read would be written out as a document missing routes.
 Future<GeneratedPathsDocument> runWalker(Directory root, String surface) async {
   final Directory walkerDir = Directory(p.join(root.path, 'scribe/tools/docs'));
 
@@ -66,6 +69,10 @@ Future<GeneratedPathsDocument> runWalker(Directory root, String surface) async {
   return GeneratedPathsDocument.fromJson(jsonDecode(result.stdout) as Map<String, dynamic>);
 }
 
+/// Refuses [doc] when one of its routes is filed under a tag outside [knownTags].
+///
+/// Throws a [ToolExit] naming the route and the tag. A tag nobody declared
+/// produces a section no reader can reach, and OpenAPI does not complain.
 void validateTags(GeneratedPathsDocument doc, Set<String> knownTags) {
   for (final GeneratedPathEntry entry in doc.paths) {
     if (!knownTags.contains(entry.tag)) {

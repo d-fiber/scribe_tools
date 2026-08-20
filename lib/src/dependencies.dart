@@ -34,7 +34,6 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
-
 import 'package:file/file.dart';
 
 import 'package:path/path.dart' as p;
@@ -90,6 +89,7 @@ const String foundationPath = 'foundation';
 
 /// One mountable module, recognised by the artefacts its directory carries.
 class Dependency {
+  /// Holds the module addressed by [path], living in [directory].
   const Dependency({required this.path, required this.directory});
 
   /// The module's address, relative to the dependencies root: `security/auth`.
@@ -131,8 +131,7 @@ class Dependency {
       found.add(subject.childFile(template));
     }
 
-    return found.where((File file) => file.existsSync()).toList()
-      ..sort((File a, File b) => a.path.compareTo(b.path));
+    return found.where((File file) => file.existsSync()).toList()..sort((File a, File b) => a.path.compareTo(b.path));
   }
 
   /// This module's slices of [template], one per subject that declares one.
@@ -153,6 +152,7 @@ class Dependency {
 
 /// Every module found under the dependency roots.
 class Dependencies {
+  /// Holds [all] the modules one walk found.
   const Dependencies(this.all);
 
   /// Every module found, sorted by [Dependency.path].
@@ -194,7 +194,12 @@ class Dependencies {
   static void _collect(Directory directory, Directory root, List<Dependency> found) {
     for (final Directory child in directory.listSync(followLinks: false).whereType<Directory>()) {
       if (_isModule(child)) {
-        found.add(Dependency(path: p.relative(child.path, from: root.path), directory: child));
+        found.add(
+          Dependency(
+            path: p.relative(child.path, from: root.path),
+            directory: child,
+          ),
+        );
         continue;
       }
 
@@ -222,9 +227,8 @@ class Dependencies {
   /// Several modules may share one: mounting any of them switches the whole
   /// profile on, and every service under it starts. A module whose services
   /// name no profile has services that always start.
-  static List<String> profilesOf(Iterable<Dependency> mounted) => <String>{
-    for (final Dependency dependency in mounted) ...dependency.profiles,
-  }.toList()..sort();
+  static List<String> profilesOf(Iterable<Dependency> mounted) =>
+      <String>{for (final Dependency dependency in mounted) ...dependency.profiles}.toList()..sort();
 
   /// The module at [path], or null when there is none.
   Dependency? byPath(String path) {

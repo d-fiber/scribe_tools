@@ -41,7 +41,28 @@ import 'package:scribe_tools/src/base/io.dart';
 import 'package:scribe_tools/src/base/platform.dart';
 
 /// A colour a message can be written in.
-enum TerminalColor { red, green, blue, cyan, yellow, magenta, grey }
+enum TerminalColor {
+  /// Red, which the logger reserves for what went wrong.
+  red,
+
+  /// Green, which the logger reserves for what worked.
+  green,
+
+  /// Blue.
+  blue,
+
+  /// Cyan.
+  cyan,
+
+  /// Yellow, which the logger reserves for a warning.
+  yellow,
+
+  /// Magenta.
+  magenta,
+
+  /// Grey, which the logger uses for what the reader may skip.
+  grey,
+}
 
 /// What the user asked the output to look like.
 ///
@@ -49,6 +70,7 @@ enum TerminalColor { red, green, blue, cyan, yellow, magenta, grey }
 /// [Terminal.supportsColor] says whether the escape codes would be understood
 /// at all. A logger needs both to agree before it paints anything.
 class OutputPreferences {
+  /// Reads what it is not told from [stdio], wrapping only when there is a terminal to wrap to.
   OutputPreferences({bool? wrapText, int? wrapColumn, bool? showColor, Stdio? stdio})
     : _stdio = stdio,
       wrapText = wrapText ?? stdio != null,
@@ -78,6 +100,7 @@ class OutputPreferences {
 
 /// What the terminal can do, and the escape codes that do it.
 abstract class Terminal {
+  /// Holds nothing, so every terminal can be a constant.
   const Terminal();
 
   /// Whether ANSI colour is rendered rather than shown as escape codes.
@@ -143,6 +166,7 @@ abstract class Terminal {
 
 /// The [Terminal] of a real terminal that speaks ANSI.
 class AnsiTerminal extends Terminal {
+  /// Writes escape codes to standard output, reading the platform for what it supports.
   AnsiTerminal({required this._stdio, required this._platform, this._animationEnabled});
 
   /// Opens bold text.
@@ -282,6 +306,7 @@ class AnsiTerminal extends Terminal {
 /// [promptForCharInput] always throws: a test that reaches a prompt has found a
 /// path that would have waited for a human forever.
 class TestTerminal extends Terminal {
+  /// Answers what it is handed, and refuses every prompt.
   TestTerminal({this.supportsColor = false, this.supportsEmoji = false, this.stdinHasTerminal = false});
 
   @override

@@ -49,11 +49,12 @@ void renderRequestBody(Indented out, int depth, List<RequestBodyField> fields) {
       if (field.required) field.name,
   ];
 
-  out.add(depth, 'requestBody:');
-  out.add(depth + 1, 'content:');
-  out.add(depth + 2, 'application/json:');
-  out.add(depth + 3, 'schema:');
-  out.add(depth + 4, 'type: object');
+  out
+    ..add(depth, 'requestBody:')
+    ..add(depth + 1, 'content:')
+    ..add(depth + 2, 'application/json:')
+    ..add(depth + 3, 'schema:')
+    ..add(depth + 4, 'type: object');
 
   if (required.isNotEmpty) out.add(depth + 4, 'required: [${required.join(', ')}]');
   if (fields.isEmpty) return;
@@ -112,8 +113,9 @@ void _renderField(Indented out, int depth, RequestBodyField field) {
       }
 
     case 'file':
-      out.add(depth + 1, 'type: string');
-      out.add(depth + 1, 'format: binary');
+      out
+        ..add(depth + 1, 'type: string')
+        ..add(depth + 1, 'format: binary');
 
     default:
       out.add(depth + 1, 'type: ${openApiType(field.type)}');

@@ -34,20 +34,20 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
-
-import 'discovered_source.dart';
-import 'emitter.dart';
-import 'scanner.dart';
+import 'package:scribe_tools/src/base/common.dart';
+import 'package:scribe_tools/src/commands/gen/routes/discovered_source.dart';
+import 'package:scribe_tools/src/commands/gen/routes/emitter.dart';
+import 'package:scribe_tools/src/commands/gen/routes/scanner.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/runner/scribe_command.dart';
-import 'package:scribe_tools/src/base/common.dart';
 
-
+/// Scans `lib/src/` and writes the route table the worker reads at startup.
 Future<void> generateRoutes() async {
   final DiscoveredSource source = await RouteScanner.discover();
-  final String bin = kToolName;
+  const String bin = kToolName;
 
-  final String header = '// This file is auto-generated do not edit manually.\n'
+  const String header =
+      '// This file is auto-generated do not edit manually.\n'
       '// Run: $bin gen routes\n';
 
   await globals.project.generated.sdk.create();
@@ -59,7 +59,9 @@ Future<void> generateRoutes() async {
   );
 }
 
+/// Rewrites the route table the worker reads at startup, from the tree of `lib/src/`.
 class GenRoutesCommand extends ScribeCommand {
+  /// Takes no option: the table is read off the tree of `lib/src/`.
   GenRoutesCommand();
 
   @override

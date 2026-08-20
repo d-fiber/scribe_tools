@@ -69,8 +69,9 @@ Future<T> withEnvironment<T>(Map<String, String> environment, T Function() body)
 );
 
 ScribeManifest manifestOf(String yaml) {
-  final File file = fs.file('/notes/config.yaml')..createSync(recursive: true);
-  file.writeAsStringSync(yaml);
+  final File file = fs.file('/notes/config.yaml')
+    ..createSync(recursive: true)
+    ..writeAsStringSync(yaml);
   return ScribeManifest.load(file);
 }
 
@@ -148,9 +149,7 @@ integrations:
 
       expect(
         () => manifest.resolve('env(TWILIO_AUTH_TOKEN)', field: 'integrations.twilio.auth_token'),
-        throwsA(
-          isA<ToolExit>().having((ToolExit exit) => exit.message, 'message', contains('TWILIO_AUTH_TOKEN')),
-        ),
+        throwsA(isA<ToolExit>().having((ToolExit exit) => exit.message, 'message', contains('TWILIO_AUTH_TOKEN'))),
       );
     });
   });

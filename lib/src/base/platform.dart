@@ -38,6 +38,7 @@ import 'dart:io' as io;
 
 /// The host system, behind something a test can replace.
 abstract class Platform {
+  /// Holds nothing, so every implementation can be a constant.
   const Platform();
 
   /// The system this runs on, named as `dart:io` names it: `macos`, `linux`, `windows`.
@@ -55,15 +56,19 @@ abstract class Platform {
   /// The Dart version string, which also names the architecture at its end.
   String get version;
 
+  /// Whether this platform is Windows.
   bool get isWindows => operatingSystem == 'windows';
 
+  /// Whether this platform is macOS.
   bool get isMacOS => operatingSystem == 'macos';
 
+  /// Whether this platform is Linux.
   bool get isLinux => operatingSystem == 'linux';
 }
 
 /// The [Platform] that answers from `dart:io`.
 class LocalPlatform extends Platform {
+  /// Answers from the process this code runs in.
   const LocalPlatform();
 
   @override
@@ -84,6 +89,7 @@ class LocalPlatform extends Platform {
 
 /// A [Platform] whose answers are fixed by its constructor.
 class FakePlatform extends Platform {
+  /// Answers whatever it is handed, and reads nothing of the real system.
   const FakePlatform({
     this.operatingSystem = 'macos',
     this.environment = const <String, String>{},

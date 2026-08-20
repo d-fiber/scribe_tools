@@ -56,7 +56,7 @@ final RegExp _exposedTable = RegExp(r'''\bnew\s+TypedQueryBuilder<[^>]+>\(\s*thi
 /// there is then no way to tell the generated section from hand-written code.
 Future<void> generateRelations() async {
   final File tables = globals.project.generated.sdk.rest.tables;
-  if (!await tables.exists()) return;
+  if (!tables.existsSync()) return;
 
   final RelationGraph graph = await scanRelationGraph();
   final String source = await tables.readAsString();

@@ -40,6 +40,7 @@ import 'package:scribe_tools/src/globals.dart' as globals;
 
 /// A program this tool needs but does not ship.
 class ExternalTool {
+  /// Declares a tool by [name], found on `PATH` as [executable].
   const ExternalTool({
     required this.name,
     required this.executable,
@@ -78,6 +79,7 @@ class ExternalTool {
 
 /// A system package manager this tool knows how to call.
 class PackageManager {
+  /// Declares a manager found as [executable], installing with [install].
   const PackageManager({
     required this.name,
     required this.executable,
@@ -91,14 +93,29 @@ class PackageManager {
   /// the first present wins, and nothing looks further.
   static const List<PackageManager> known = <PackageManager>[
     PackageManager(name: 'homebrew', executable: 'brew', install: <String>['brew', 'install']),
-    PackageManager(name: 'winget', executable: 'winget', install: <String>['winget', 'install', '--silent', '-e', '--id']),
+    PackageManager(
+      name: 'winget',
+      executable: 'winget',
+      install: <String>['winget', 'install', '--silent', '-e', '--id'],
+    ),
     PackageManager(name: 'scoop', executable: 'scoop', install: <String>['scoop', 'install']),
-    PackageManager(name: 'apt', executable: 'apt-get', install: <String>['apt-get', 'install', '-y'], needsPrivilege: true),
+    PackageManager(
+      name: 'apt',
+      executable: 'apt-get',
+      install: <String>['apt-get', 'install', '-y'],
+      needsPrivilege: true,
+    ),
     PackageManager(name: 'dnf', executable: 'dnf', install: <String>['dnf', 'install', '-y'], needsPrivilege: true),
-    PackageManager(name: 'pacman', executable: 'pacman', install: <String>['pacman', '-S', '--noconfirm'], needsPrivilege: true),
+    PackageManager(
+      name: 'pacman',
+      executable: 'pacman',
+      install: <String>['pacman', '-S', '--noconfirm'],
+      needsPrivilege: true,
+    ),
     PackageManager(name: 'apk', executable: 'apk', install: <String>['apk', 'add'], needsPrivilege: true),
   ];
 
+  /// The first of [known] that this machine carries, null when it carries none.
   static PackageManager? detect() {
     for (final PackageManager manager in known) {
       if (globals.os.has(manager.executable)) return manager;
@@ -106,11 +123,19 @@ class PackageManager {
     return null;
   }
 
+  /// The name this manager goes by, and the key [ExternalTool.packages] uses.
   final String name;
+
+  /// The file looked for on `PATH` to know this manager is here.
   final String executable;
+
+  /// The words that install a package, up to but not including its name.
   final List<String> install;
+
+  /// Whether installing through this manager has to go through `sudo`.
   final bool needsPrivilege;
 
+  /// The full command line that installs [tool] through this manager.
   List<String> commandFor(ExternalTool tool) => <String>[
     if (needsPrivilege) 'sudo',
     ...install,
@@ -121,9 +146,11 @@ class PackageManager {
   String toString() => name;
 }
 
+/// The programs the CLI knows how to look for and offer to install.
 class ToolCatalog {
   const ToolCatalog._();
 
+  /// The runtime the host and the worker are run by.
   static const ExternalTool deno = ExternalTool(
     name: 'deno',
     executable: 'deno',
@@ -132,6 +159,7 @@ class ToolCatalog {
     packages: <String, String>{'winget': 'DenoLand.Deno'},
   );
 
+  /// The runtime the documentation portal is built with.
   static const ExternalTool npm = ExternalTool(
     name: 'node',
     executable: 'npm',
@@ -161,6 +189,7 @@ class ToolCatalog {
 
 /// What looks for the tools a command declared, and offers to install them.
 class ToolProvisioner {
+  /// Holds nothing: every run is told what it is looking for.
   const ToolProvisioner();
 
   /// Makes sure every one of [tools] is on `PATH`, installing what is missing.

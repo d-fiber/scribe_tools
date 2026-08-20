@@ -42,6 +42,7 @@ const String kToolName = 'scribe';
 /// The runner catches it, prints [message] and leaves with [exitCode], so no
 /// code below it has to decide how the process ends.
 final class ToolExit implements Exception {
+  /// Fails with [message], leaving with [exitCode].
   const ToolExit(this.message, {this.exitCode = 1});
 
   /// What went wrong, or null to leave without a word.
@@ -64,6 +65,7 @@ Never throwToolExit(String? message, {int exitCode = 1}) {
 /// The runner prints [message] and leaves with the status reserved for a usage
 /// mistake, which is not the one a [ToolExit] uses.
 final class UsageError implements Exception {
+  /// Refuses the call with [message], naming [command] when one was reached.
   const UsageError(this.message, {this.command});
 
   /// What the user got wrong, and what to write instead.

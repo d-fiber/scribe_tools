@@ -40,6 +40,7 @@
 /// writes three whole numbers, so a line that does not parse is a file someone
 /// edited by hand, and reading it as a version would be a guess.
 class Version implements Comparable<Version> {
+  /// Holds the version [major].[minor].[patch].
   const Version(this.major, this.minor, this.patch);
 
   /// [raw] read as a version, or null when it is not one.

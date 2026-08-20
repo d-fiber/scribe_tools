@@ -36,26 +36,34 @@
 
 import 'package:path/path.dart' as p;
 
-import 'discovered_route.dart';
-import 'discovered_sink.dart';
-import 'discovered_source.dart';
+import 'package:scribe_tools/src/commands/gen/routes/discovered_route.dart';
+import 'package:scribe_tools/src/commands/gen/routes/discovered_sink.dart';
+import 'package:scribe_tools/src/commands/gen/routes/discovered_source.dart';
 
 const String _projectAlias = '@app/';
 const String _projectDirectory = 'lib';
 
+/// [file] as the generated table imports it, through the project's own alias.
 String specifierOf(String file) {
   final String relative = p.relative(file, from: _projectDirectory);
   return '$_projectAlias${p.split(relative).join('/')}';
 }
 
+/// Writes the TypeScript table the host reads its routes from.
 class RoutesEmitter {
+  /// Writes out [source], which is what one scan found.
   RoutesEmitter(this.source);
 
+  /// The scan being written out.
   final DiscoveredSource source;
 
   final Map<String, String> _bindings = <String, String>{};
   final StringBuffer _imports = StringBuffer();
 
+  /// The whole generated module, [header] first.
+  ///
+  /// A file imported twice is bound once: a route and its middleware often name
+  /// the same module, and a second import of it would not compile.
   String render(String header) {
     final StringBuffer entries = StringBuffer();
 
@@ -63,13 +71,14 @@ class RoutesEmitter {
       final String module = _bind(route.file, 'r');
       final String branches = route.branches.map((String file) => _bind(file, 'b')).join(', ');
 
-      entries.writeln('  {');
-      entries.writeln('    node: ${_quote(route.node)},');
-      entries.writeln('    path: ${_quote(route.path)},');
-      entries.writeln('    file: ${_quote(route.file)},');
-      entries.writeln('    module: $module,');
-      entries.writeln('    branches: [$branches],');
-      entries.writeln('  },');
+      entries
+        ..writeln('  {')
+        ..writeln('    node: ${_quote(route.node)},')
+        ..writeln('    path: ${_quote(route.path)},')
+        ..writeln('    file: ${_quote(route.file)},')
+        ..writeln('    module: $module,')
+        ..writeln('    branches: [$branches],')
+        ..writeln('  },');
     }
 
     final StringBuffer sinks = StringBuffer();

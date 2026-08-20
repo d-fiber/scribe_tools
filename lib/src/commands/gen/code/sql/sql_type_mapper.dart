@@ -34,16 +34,21 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
-
-import 'package:file/file.dart';
-
 import 'package:change_case/change_case.dart';
-
-import '../../sql_scanner.dart';
+import 'package:file/file.dart';
+import 'package:scribe_tools/src/commands/gen/sql_scanner.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 
+/// The TypeScript body of every `create type ... as (...)` the SQL declares.
+///
+/// Filled by [loadComposites] and read by [mapPublicType]. It is empty until
+/// that run, so a mapping asked for too early answers `unknown` rather than
+/// failing, which is why nothing calls it before the scan.
 final Map<String, String> composites = <String, String>{};
 
+/// The TypeScript type to write for a Postgres enum, where the generated one is wrong.
+///
+/// Empty, and the mapping falls back on the enum's own generated name.
 const Map<String, String> enumOverrides = <String, String>{};
 
 final RegExp _compositeRe = RegExp(r'create\s+type\s+public\.(\w+)\s+as\s+\(([\s\S]*?)\);', caseSensitive: false);
@@ -65,6 +70,10 @@ List<String> _parseCompositeFields(String body) {
   return fields;
 }
 
+/// Reads every composite type of the socle and of the project into [composites].
+///
+/// It runs once before any table is mapped, since a column of a composite type
+/// has no TypeScript to be written as until its fields are known.
 Future<void> loadComposites() async {
   final Map<String, String> bodies = <String, String>{};
 
@@ -86,19 +95,26 @@ Future<void> loadComposites() async {
   }
 }
 
+/// A SQL type as TypeScript writes it.
 class MappedType {
+  /// Maps to [ts], naming [enumName] when the SQL type was an enum.
   MappedType(this.ts, [this.enumName]);
 
+  /// The TypeScript type, without the `| null` a nullable column adds.
   final String ts;
+
+  /// The Postgres enum this came from, null when it came from anything else.
   final String? enumName;
 }
 
+/// The TypeScript for `public.<name>`, which is a composite or an enum.
 MappedType mapPublicType(String name) {
   if (composites.containsKey(name)) return MappedType(composites[name]!);
   final String ts = enumOverrides[name] ?? name.toPascalCase();
   return MappedType(ts, ts);
 }
 
+/// The TypeScript for the SQL type [raw], however it is spelled.
 MappedType mapSqlType(String raw) {
   final String t = raw.toLowerCase().trim();
 

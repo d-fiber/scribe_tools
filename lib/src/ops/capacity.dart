@@ -49,6 +49,7 @@ final RegExp _size = RegExp(r'^(\d+)(Mi|Gi)$');
 
 /// One service, as the module that owns it declares it.
 class ServiceCapacity {
+  /// Holds one service as its module declared it.
   const ServiceCapacity({
     required this.name,
     required this.weight,
@@ -108,14 +109,13 @@ class ServiceCapacity {
 
 /// Every service the framework and its modules declare a cost for.
 class Capacity {
+  /// Gathers [services], budgeting only those that start under [profiles].
   Capacity(List<ServiceCapacity> services, {Set<String> profiles = const <String>{}})
     : services = List<ServiceCapacity>.unmodifiable(services),
       total = services
           .where((ServiceCapacity service) => service.startsUnder(profiles))
           .fold<int>(0, (int sum, ServiceCapacity service) => sum + service.weight),
-      _byKey = <String, ServiceCapacity>{
-        for (final ServiceCapacity service in services) service.key: service,
-      };
+      _byKey = <String, ServiceCapacity>{for (final ServiceCapacity service in services) service.key: service};
 
   /// Every declared service, in the order the files were read.
   ///
@@ -196,9 +196,7 @@ class Capacity {
       throwToolExit('${file.path}: the file must be a list under "services".');
     }
 
-    return <ServiceCapacity>[
-      for (final Object? entry in document['services'] as YamlList) _readService(entry, file),
-    ];
+    return <ServiceCapacity>[for (final Object? entry in document['services'] as YamlList) _readService(entry, file)];
   }
 
   static ServiceCapacity _readService(Object? entry, File file) {

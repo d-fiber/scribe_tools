@@ -54,10 +54,8 @@ const Hardware _machine = Hardware(cores: 8, threads: 16, memoryGb: 32);
 
 final RegExp _placeholder = RegExp(r'\{\{\w+\}\}');
 
-Future<T> _withContext<T>(FileSystem fs, Future<T> Function() body) => AppContext.current.run<T>(
-  overrides: <Type, Generator>{FileSystem: () => fs, Logger: () => BufferLogger()},
-  body: body,
-);
+Future<T> _withContext<T>(FileSystem fs, Future<T> Function() body) =>
+    AppContext.current.run<T>(overrides: <Type, Generator>{FileSystem: () => fs, Logger: BufferLogger.new}, body: body);
 
 /// Copies the parts of the real framework a render reads into [fs].
 ///
@@ -68,11 +66,7 @@ void _vendorFramework(FileSystem fs, String root) {
   for (final String name in composeTemplates) {
     _copy(fs, p.join(_repository, 'templates/ops/docker', name), p.join(root, 'templates/ops/docker', name));
   }
-  _copy(
-    fs,
-    p.join(_repository, 'ops/docker', capacityFileName),
-    p.join(root, 'ops/docker', capacityFileName),
-  );
+  _copy(fs, p.join(_repository, 'ops/docker', capacityFileName), p.join(root, 'ops/docker', capacityFileName));
 
   for (final String source in <String>['host/dependencies', 'host/packages']) {
     final io.Directory modules = io.Directory(p.join(_repository, source));
@@ -102,13 +96,15 @@ void main() {
 
   /// A project asking for [wanted], an empty list meaning every module.
   void project(List<String> wanted) {
-    fs.file('/work/koko/config.yaml').writeAsStringSync(
-      'name: "koko"\n'
-      'url: "https://koko.example.com"\n'
-      'email: "dev@koko.example.com"\n'
-      'dependencies:\n'
-      '${wanted.map((String path) => '  - $path\n').join()}',
-    );
+    fs
+        .file('/work/koko/config.yaml')
+        .writeAsStringSync(
+          'name: "koko"\n'
+          'url: "https://koko.example.com"\n'
+          'email: "dev@koko.example.com"\n'
+          'dependencies:\n'
+          '${wanted.map((String path) => '  - $path\n').join()}',
+        );
   }
 
   setUp(() {
@@ -173,8 +169,7 @@ void main() {
       final List<File> written = await renderFiles();
       final File resources = written.firstWhere((File file) => p.basename(file.path) == 'resources.yaml');
       final YamlMap services = (loadYaml(resources.readAsStringSync()) as YamlMap)['services'] as YamlMap;
-      final YamlMap limits =
-          ((services['db'] as YamlMap)['deploy'] as YamlMap)['resources'] as YamlMap;
+      final YamlMap limits = ((services['db'] as YamlMap)['deploy'] as YamlMap)['resources'] as YamlMap;
 
       expect(
         (limits['limits'] as YamlMap)['memory'],
@@ -194,9 +189,9 @@ void main() {
     test('starts the worker only when config.yaml asks for it', () async {
       expect((await render()).profiles, isNot(contains('worker')));
 
-      fs.file('/work/koko/config.yaml').writeAsStringSync(
-        '${fs.file('/work/koko/config.yaml').readAsStringSync()}worker: true\n',
-      );
+      fs
+          .file('/work/koko/config.yaml')
+          .writeAsStringSync('${fs.file('/work/koko/config.yaml').readAsStringSync()}worker: true\n');
 
       expect((await render()).profiles, contains('worker'));
     });

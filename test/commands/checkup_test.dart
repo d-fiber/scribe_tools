@@ -99,11 +99,7 @@ class FakeGroup extends ScribeCommandGroup {
 ///
 /// [processes] answers the git calls the version check makes; the default one
 /// answers nothing, which is a checkout nobody has fetched.
-Future<int> runScribe(
-  List<String> args, {
-  List<String> installed = everyExecutable,
-  ProcessRunner? processes,
-}) {
+Future<int> runScribe(List<String> args, {List<String> installed = everyExecutable, ProcessRunner? processes}) {
   for (final String executable in installed) {
     fs.file('$binDirectory/$executable').createSync(recursive: true);
   }
@@ -117,10 +113,7 @@ Future<int> runScribe(
       Logger: () => logger,
       Stdio: FakeStdio.new,
       ProcessRunner: () => processes ?? RecordingProcessRunner(),
-      Platform: () => const FakePlatform(
-        operatingSystem: 'macos',
-        environment: <String, String>{'PATH': binDirectory},
-      ),
+      Platform: () => const FakePlatform(operatingSystem: 'macos', environment: <String, String>{'PATH': binDirectory}),
     },
   );
 }
@@ -217,7 +210,9 @@ void main() {
     test('doctor carries the line under its tools instead of the notice', () async {
       writeCheckout();
 
-      await runScribe(<String>['doctor'], processes: RecordingProcessRunner(outputs: <String, String>{'show': '0.2.0'}));
+      await runScribe(<String>[
+        'doctor',
+      ], processes: RecordingProcessRunner(outputs: <String, String>{'show': '0.2.0'}));
 
       expect(logger.statusText, contains('scribe 0.1.5, 0.2.0 is available'));
       expect(logger.statusText, contains('Run `scribe upgrade` to get it.'));
@@ -227,7 +222,9 @@ void main() {
     test('doctor lists the framework version it found even when it is current', () async {
       writeCheckout();
 
-      await runScribe(<String>['doctor'], processes: RecordingProcessRunner(outputs: <String, String>{'show': '0.1.5'}));
+      await runScribe(<String>[
+        'doctor',
+      ], processes: RecordingProcessRunner(outputs: <String, String>{'show': '0.1.5'}));
 
       expect(logger.statusText, contains('✓ scribe 0.1.5'));
     });

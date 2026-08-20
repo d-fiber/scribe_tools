@@ -38,6 +38,10 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+/// The names of the directories directly under [roots], sorted and deduplicated.
+///
+/// A root that is not there contributes nothing, since the framework and the
+/// project each carry only the half of the surface they wrote.
 List<String> moduleNames(List<Directory> roots) {
   final Set<String> names = <String>{};
   for (final Directory root in roots) {

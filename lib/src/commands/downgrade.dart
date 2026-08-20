@@ -47,6 +47,7 @@ import 'package:scribe_tools/src/version.dart';
 /// the history of `VERSION`. Picking one leaves the checkout on a detached
 /// head, and `scribe upgrade` is the way back.
 class DowngradeCommand extends ScribeCommand {
+  /// Takes no option: the version is picked from the list it prints.
   DowngradeCommand();
 
   @override
@@ -86,9 +87,7 @@ class DowngradeCommand extends ScribeCommand {
     }
 
     globals.logger.printStatus('');
-    globals.logger.printStatus(
-      '${globals.terminal.successMark} scribe is now at ${wanted.version}, down from $here.',
-    );
+    globals.logger.printStatus('${globals.terminal.successMark} scribe is now at ${wanted.version}, down from $here.');
     globals.logger.printStatus(
       'The checkout is on ${wanted.shortCommit}, off any branch. Run `scribe upgrade` to come back to the newest.',
     );

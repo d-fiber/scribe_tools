@@ -235,6 +235,7 @@ class Project {
 
 /// The `.<name>/` directory, holding everything the tool writes.
 class GeneratedDirectory {
+  /// Reads the generated tree at [directory].
   const GeneratedDirectory(this.directory);
 
   /// The directory itself.
@@ -255,6 +256,7 @@ class GeneratedDirectory {
 
 /// The generated client, under `.<name>/sdk/js/`.
 class GeneratedSdk {
+  /// Reads the generated client at [directory].
   const GeneratedSdk(this.directory);
 
   /// The directory itself.
@@ -297,6 +299,7 @@ class GeneratedSdk {
 
 /// The typed PostgREST client, under `.<name>/sdk/js/rest/`.
 class GeneratedRest {
+  /// Reads the generated PostgREST client at [directory].
   const GeneratedRest(this.directory);
 
   /// The directory itself.
@@ -326,6 +329,7 @@ class GeneratedRest {
 
 /// The OpenAPI documents, under `.<name>/docs/`.
 class GeneratedDocs {
+  /// Reads the generated OpenAPI documents at [directory].
   const GeneratedDocs(this.directory);
 
   /// The directory itself.
@@ -348,6 +352,7 @@ class GeneratedDocs {
 ///
 /// This is a copy of the `scribe` repository, so the layout below mirrors it.
 class ScribeSdk {
+  /// Reads the vendored framework at [directory].
   const ScribeSdk(this.directory);
 
   /// The directory itself.

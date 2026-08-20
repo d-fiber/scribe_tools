@@ -34,34 +34,57 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
+/// The naming rules a route file has to follow to be found.
+///
+/// Nothing here reads the disk. These are the rules the scanner and the emitter
+/// both apply, kept in one place so a name cannot mean one thing on the way in
+/// and another on the way out.
 class Conventions {
   const Conventions._();
 
+  /// The extension a route file carries.
   static const String sourceExtension = '.ts';
+
+  /// The name a file takes to answer on the directory itself.
   static const String indexName = 'index';
+
+  /// The name of the file that wraps every route under its directory.
   static const String middlewareName = '_middleware';
+
+  /// The name the node declaration used to go by, kept to recognise it and refuse it.
   static const String nodeName = '_node';
+
+  /// The name of the file that declares where a directory's logs go.
   static const String logName = '_log';
+
+  /// What a name starts with when it is not to be served.
   static const String privatePrefix = '_';
 
+  /// Whether [basename] is a file the scanner reads at all.
   static bool isSource(String basename) => basename.endsWith(sourceExtension);
 
-  static bool isMiddleware(String basename) =>
-      basename == '$middlewareName$sourceExtension';
+  /// Whether [basename] is a `_middleware.ts`, which wraps the routes below it.
+  static bool isMiddleware(String basename) => basename == '$middlewareName$sourceExtension';
 
-  static bool isObsoleteNode(String basename) =>
-      basename == '$nodeName$sourceExtension';
+  /// Whether [basename] is a `_node.ts`, which no longer declares anything.
+  static bool isObsoleteNode(String basename) => basename == '$nodeName$sourceExtension';
 
   /// Whether [basename] is a `_log.ts`, the sink a node or the project declares.
   static bool isLog(String basename) => basename == '$logName$sourceExtension';
 
+  /// Whether [basename] is kept out of the served surface by its leading underscore.
   static bool isPrivate(String basename) => basename.startsWith(privatePrefix);
 
+  /// Whether [basename] becomes a route of its own.
   static bool isRoutable(String basename) => isSource(basename) && !isPrivate(basename);
 
-  static String withoutExtension(String basename) =>
-      basename.substring(0, basename.length - sourceExtension.length);
+  /// [basename] without the extension every route file carries.
+  static String withoutExtension(String basename) => basename.substring(0, basename.length - sourceExtension.length);
 
+  /// [name] as the router spells it, `[id]` becoming `:id`.
+  ///
+  /// A directory in brackets is how the tree writes a parameter, and a colon is
+  /// how the router reads one. Anything else comes back untouched.
   static String segment(String name) {
     if (name.startsWith('[') && name.endsWith(']')) {
       return ':${name.substring(1, name.length - 1)}';
@@ -69,6 +92,9 @@ class Conventions {
     return name;
   }
 
+  /// The route [name] answers on, under the route [prefix] answers on.
+  ///
+  /// The root is `/`, so joining onto it must not leave `//` behind.
   static String join(String prefix, String name) {
     final String encoded = segment(name);
     return prefix == '/' ? '/$encoded' : '$prefix/$encoded';

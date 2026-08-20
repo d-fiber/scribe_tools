@@ -120,6 +120,7 @@ const Set<String> _dataExtensions = <String>{
 /// declared, so a target becomes offerable the day someone writes in it and
 /// nothing has to be updated by hand.
 class SdkTarget {
+  /// Holds one target of `scribe/sdk/`, with what was counted in it.
   const SdkTarget({
     required this.name,
     required this.sourceExtension,
@@ -192,6 +193,7 @@ class SdkTarget {
 
 /// Everything found under `scribe/sdk/`, read from the framework next to the caller.
 class SdkCatalog {
+  /// Holds the [targets] read under [root].
   const SdkCatalog({required this.root, required this.targets});
 
   /// The catalog of a machine where no framework was found.

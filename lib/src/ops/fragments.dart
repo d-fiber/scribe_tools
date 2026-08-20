@@ -38,6 +38,7 @@ final RegExp _topLevelKey = RegExp(r'^([A-Za-z_][A-Za-z0-9_.-]*):');
 
 /// One module's slice of a compose template, and the module it came from.
 class YamlFragment {
+  /// Holds the [source] contributed by [label].
   const YamlFragment(this.label, this.source);
 
   /// The module's path, written into the merged document as a comment so a

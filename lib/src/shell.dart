@@ -43,7 +43,25 @@ import 'package:scribe_tools/src/base/platform.dart';
 ///
 /// [unknown] is a POSIX shell that is none of the others, and it is treated as
 /// bash: the export line and the profile path are the ones bash uses.
-enum ShellKind { bash, zsh, fish, powershell, cmd, unknown }
+enum ShellKind {
+  /// Bash, whose profile is `.bashrc`.
+  bash,
+
+  /// Zsh, whose profile is `.zshrc` and moves with `ZDOTDIR`.
+  zsh,
+
+  /// Fish, whose export line is written differently from the POSIX ones.
+  fish,
+
+  /// PowerShell, found on Windows by its `PSModulePath`.
+  powershell,
+
+  /// The Windows command interpreter, which has no profile to write into.
+  cmd,
+
+  /// A POSIX shell that is none of the others, read and written as bash.
+  unknown,
+}
 
 /// The shell the user came from, and where its profile lives.
 ///
@@ -52,6 +70,7 @@ enum ShellKind { bash, zsh, fish, powershell, cmd, unknown }
 /// shell has to be installed. See `ProcessRunner`. What is left is telling the
 /// user which line to add to which file when a binary lands outside `PATH`.
 class Shell {
+  /// Holds the shell [kind], started from [executable], configured by [profile].
   const Shell({required this.kind, required this.executable, required this.profile});
 
   /// The shell [platform] says the user came from.

@@ -55,6 +55,7 @@ import 'package:scribe_tools/src/globals.dart' as globals;
 /// tree does. The order the file system hands entries back in would otherwise
 /// end up in the generated file.
 class RouteScanner {
+  /// Scans into a table whose paths are written relative to [projectRoot].
   RouteScanner(this.projectRoot);
 
   /// The directory every path in the result is written relative to.

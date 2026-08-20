@@ -46,8 +46,8 @@ import 'package:scribe_tools/src/base/platform.dart';
 import 'package:scribe_tools/src/base/process.dart';
 import 'package:scribe_tools/src/base/template.dart';
 import 'package:scribe_tools/src/base/terminal.dart';
-import 'package:scribe_tools/src/isolated/scribe_template.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
+import 'package:scribe_tools/src/isolated/scribe_template.dart';
 
 /// Runs [body] in a context where every dependency has its real implementation.
 ///
@@ -67,11 +67,8 @@ Future<T> runInContext<T>(FutureOr<T> Function() body, {Map<Type, Generator>? ov
       FileSystem: () => const LocalFileSystem(),
       OutputPreferences: () => OutputPreferences(stdio: globals.stdio, showColor: globals.terminal.supportsColor),
       Terminal: () => AnsiTerminal(stdio: globals.stdio, platform: globals.platform),
-      Logger: () => StdoutLogger(
-        terminal: globals.terminal,
-        stdio: globals.stdio,
-        outputPreferences: globals.outputPreferences,
-      ),
+      Logger: () =>
+          StdoutLogger(terminal: globals.terminal, stdio: globals.stdio, outputPreferences: globals.outputPreferences),
       ...?overrides,
     },
   );

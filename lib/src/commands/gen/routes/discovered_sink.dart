@@ -40,8 +40,12 @@
 /// A node without a `_log.ts` produces no entry at all, which is what makes
 /// "declare nothing and nothing is delivered" cost neither a branch nor a flag.
 class DiscoveredSink {
+  /// Holds the sink of [node], written in [file].
   const DiscoveredSink({required this.node, required this.file});
 
+  /// The node this sink answers for, null for the one that takes what no node claimed.
   final String? node;
+
+  /// The `_log.ts` this sink is declared in, relative to the project root.
   final String file;
 }

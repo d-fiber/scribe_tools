@@ -46,6 +46,7 @@ import 'package:scribe_tools/src/version.dart';
 /// build it was installed as: its binaries come from a rolling release that
 /// carries no version, so there is nothing to move them to.
 class UpgradeCommand extends ScribeCommand {
+  /// Takes no option: there is one version to move to and it is the newest.
   UpgradeCommand();
 
   @override

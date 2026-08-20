@@ -38,6 +38,7 @@ import 'dart:async';
 
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
+import 'package:scribe_tools/src/base/common.dart' show UsageError;
 import 'package:scribe_tools/src/base/context.dart';
 import 'package:scribe_tools/src/base/logger.dart';
 import 'package:scribe_tools/src/base/terminal.dart';
@@ -49,11 +50,22 @@ import 'package:scribe_tools/src/runner/scribe_command.dart';
 /// They are read from `globalResults`, not from a command's own parser, so a
 /// subcommand nested two levels down sees the same values as the top one.
 class ScribeGlobalOptions {
+  /// Says everything, including the trace of a failure the tool did not expect.
   static const String verbose = 'verbose';
+
+  /// Says nothing but what went wrong.
   static const String quiet = 'quiet';
+
+  /// Forces colour on or off instead of reading the terminal.
   static const String color = 'color';
+
+  /// Answers yes in advance to every question, which is how a script runs.
   static const String yes = 'yes';
+
+  /// Whether a missing external tool may be installed rather than only named.
   static const String install = 'install';
+
+  /// Prints the version of the build and leaves.
   static const String version = 'version';
 }
 
@@ -64,6 +76,7 @@ class ScribeGlobalOptions {
 /// `--color` are honoured by everything underneath without a command ever
 /// asking what they were set to.
 class ScribeCommandRunner extends CommandRunner<void> {
+  /// Builds the runner that answers [toolVersion] to `--version`.
   ScribeCommandRunner({required this.toolVersion})
     : super(
         'scribe',
@@ -85,12 +98,7 @@ class ScribeCommandRunner extends CommandRunner<void> {
         negatable: false,
         help: 'Noisy logging, including every command executed.',
       )
-      ..addFlag(
-        ScribeGlobalOptions.quiet,
-        abbr: 'q',
-        negatable: false,
-        help: 'Only print errors.',
-      )
+      ..addFlag(ScribeGlobalOptions.quiet, abbr: 'q', negatable: false, help: 'Only print errors.')
       ..addFlag(
         ScribeGlobalOptions.color,
         help: 'Colour the output. Off when the terminal does not support it.',
@@ -107,11 +115,7 @@ class ScribeCommandRunner extends CommandRunner<void> {
         help: 'Install the tools a command needs when they are missing.',
         defaultsTo: true,
       )
-      ..addFlag(
-        ScribeGlobalOptions.version,
-        negatable: false,
-        help: 'Print the version of this tool.',
-      );
+      ..addFlag(ScribeGlobalOptions.version, negatable: false, help: 'Print the version of this tool.');
   }
 
   /// The version `--version` prints.
@@ -162,10 +166,8 @@ class ScribeCommandRunner extends CommandRunner<void> {
     return globals.context.run<void>(
       name: 'global',
       overrides: <Type, Generator>{
-        OutputPreferences: () => OutputPreferences(
-          stdio: globals.stdio,
-          showColor: color ?? globals.terminal.supportsColor,
-        ),
+        OutputPreferences: () =>
+            OutputPreferences(stdio: globals.stdio, showColor: color ?? globals.terminal.supportsColor),
         Terminal: () => AnsiTerminal(stdio: globals.stdio, platform: globals.platform),
         Logger: () => _loggerFor(verbose: verbose, quiet: quiet, injected: injected),
       },
@@ -189,15 +191,11 @@ class ScribeCommandRunner extends CommandRunner<void> {
   Logger _loggerFor({required bool verbose, required bool quiet, Logger? injected}) {
     final Logger stdout =
         injected ??
-        StdoutLogger(
-          terminal: globals.terminal,
-          stdio: globals.stdio,
-          outputPreferences: globals.outputPreferences,
-        );
+        StdoutLogger(terminal: globals.terminal, stdio: globals.stdio, outputPreferences: globals.outputPreferences);
 
     if (verbose) {
-      final VerboseLogger logger = VerboseLogger(stdout);
-      logger.printTrace('verbose logging on; the bracket that opens each line is the time since the line above');
+      final VerboseLogger logger = VerboseLogger(stdout)
+        ..printTrace('verbose logging on; the bracket that opens each line is the time since the line above');
       return logger;
     }
 
@@ -212,10 +210,17 @@ class ScribeCommandRunner extends CommandRunner<void> {
 /// end and nothing above has to know it is being quiet. This is what `-q`
 /// builds.
 class QuietLogger extends DelegatingLogger {
+  /// Wraps [delegate], letting through only what went wrong.
   QuietLogger(super.delegate);
 
   @override
-  void printStatus(String message, {bool emphasis = false, TerminalColor? color, int indent = 0, bool newline = true}) {}
+  void printStatus(
+    String message, {
+    bool emphasis = false,
+    TerminalColor? color,
+    int indent = 0,
+    bool newline = true,
+  }) {}
 
   @override
   void printTrace(String message) {}

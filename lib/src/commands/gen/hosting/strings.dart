@@ -34,7 +34,8 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
-// No-op today `gen hosting` has nothing left to generate (mail translations
-// moved to `koko public --generate templates`, see commands/public/templates/).
-// Kept as the command's entry point for whatever hosting/docs asset comes next.
+/// Writes nothing: `gen hosting` has no asset left to generate.
+///
+/// It is the entry point `gen hosting` calls, kept so that the next hosting
+/// asset is one function body away rather than a command to add back.
 Future<void> generateStrings() async {}

@@ -45,6 +45,7 @@ import 'package:scribe_tools/src/secrets.dart';
 /// never printed, only names, because a secret shown on a terminal ends up in a
 /// scrollback buffer and in a screenshot.
 class SecretsReport {
+  /// Holds nothing, since every sentence is built from what it is handed.
   const SecretsReport();
 
   /// Lists [names], or says how to add the first one when there are none.

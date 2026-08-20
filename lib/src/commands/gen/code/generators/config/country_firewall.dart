@@ -34,9 +34,8 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
-
-import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/base/common.dart';
+import 'package:scribe_tools/src/globals.dart' as globals;
 
 /// Writes the list of allowed countries into the generated directory.
 ///
@@ -46,12 +45,9 @@ import 'package:scribe_tools/src/base/common.dart';
 /// back to the empty list, which means no restriction at all, the very default
 /// `config.yaml` documents.
 Future<void> generateCountryFirewall() async {
+  final List<String> countries = <String>[...globals.project.manifest.allowedCountries]..sort();
 
-  final List<String> countries = <String>[
-    ...globals.project.manifest.allowedCountries,
-  ]..sort();
-
-  final String bin = kToolName;
+  const String bin = kToolName;
 
   await globals.project.generated.sdk.create();
   await globals.project.generated.sdk.allowedCountries.writeAsString(

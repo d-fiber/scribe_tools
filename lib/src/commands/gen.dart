@@ -40,7 +40,9 @@ import 'package:scribe_tools/src/commands/gen/hosting/hosting_command.dart';
 import 'package:scribe_tools/src/commands/gen/routes/routes_command.dart';
 import 'package:scribe_tools/src/runner/scribe_command.dart';
 
+/// Everything the tool writes into a project from what the project declares.
 class GenCommand extends ScribeCommandGroup {
+  /// Gathers the four generators under one word.
   GenCommand() {
     addSubcommand(GenCodeCommand());
     addSubcommand(GenRoutesCommand());

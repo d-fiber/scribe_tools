@@ -40,6 +40,7 @@ import 'dart:io' as io;
 
 /// The three standard streams, behind something a test can replace.
 class Stdio {
+  /// Reaches the real streams of the process.
   Stdio();
 
   /// The bytes arriving on standard input.
@@ -91,6 +92,7 @@ class Stdio {
 /// [output] and [errorOutput] hold what a run produced, which is how a test
 /// asserts on what the user would have seen.
 class FakeStdio extends Stdio {
+  /// Answers as a terminal of [terminalColumnsOverride] columns when [hasTerminalOverride].
   FakeStdio({this.hasTerminalOverride = false, this.terminalColumnsOverride = kDefaultTerminalColumns});
 
   /// Whether this fake claims to be attached to a terminal.

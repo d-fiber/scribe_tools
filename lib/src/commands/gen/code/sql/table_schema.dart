@@ -34,28 +34,42 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
-import 'sql_type_mapper.dart';
+import 'package:scribe_tools/src/commands/gen/code/sql/sql_type_mapper.dart';
 
+/// One column of a table, already carrying the TypeScript type it becomes.
 class Col {
+  /// Holds a column under [name], typed [ts], enumerated by [enumName].
   Col(this.name, this.ts, this.enumName);
 
+  /// The column name, as the SQL spells it.
   final String name;
+
+  /// The TypeScript type this column becomes, `| null` included when it is nullable.
   final String ts;
+
+  /// The Postgres enum this column is of, null when its type is not an enum.
   final String? enumName;
 }
 
+/// A table of `public`, with the columns the SQL declares for it.
 class TableSchema {
+  /// Holds a table under [name], carrying [cols].
   TableSchema(this.name, this.cols);
 
+  /// The table name, without its `public.` prefix.
   final String name;
+
+  /// The columns of this table, in the order the SQL declares them.
   final List<Col> cols;
 }
 
+/// Matches a `create table public.<name> (...)`, capturing the name and the body.
 final RegExp createTableRe = RegExp(
   r'create\s+table\s+(?:if\s+not\s+exists\s+)?public\.(\w+)\s*\(([\s\S]*?)\);',
   caseSensitive: false,
 );
 
+/// Matches an `alter table public.<name> ...`, capturing the name and what follows.
 final RegExp alterTableAddColumnRe = RegExp(
   r'alter\s+table\s+(?:if\s+exists\s+)?public\.(\w+)\s+([\s\S]*?);',
   caseSensitive: false,
@@ -82,6 +96,11 @@ Col _colFromMatch(RegExpMatch m) {
 
 int _parenDelta(String line) => '('.allMatches(line).length - ')'.allMatches(line).length;
 
+/// The columns declared in the body of a `create table`.
+///
+/// A table constraint is not a column, and one written over several lines has to
+/// be skipped whole, which is what the parenthesis count is for. A line that
+/// looks like neither is dropped rather than guessed at.
 List<Col> parseColumns(String body) {
   final List<Col> cols = <Col>[];
 
@@ -111,6 +130,7 @@ List<Col> parseColumns(String body) {
   return cols;
 }
 
+/// The columns an `alter table` adds, ignoring everything else it does.
 List<Col> parseAlterAddColumns(String body) {
   final List<Col> cols = <Col>[];
   for (final String raw in body.split('\n')) {

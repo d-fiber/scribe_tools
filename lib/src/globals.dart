@@ -51,10 +51,10 @@ import 'package:scribe_tools/src/base/context.dart';
 import 'package:scribe_tools/src/base/io.dart';
 import 'package:scribe_tools/src/base/logger.dart';
 import 'package:scribe_tools/src/base/os.dart';
-import 'package:scribe_tools/src/base/process.dart';
 import 'package:scribe_tools/src/base/platform.dart';
-import 'package:scribe_tools/src/base/terminal.dart';
+import 'package:scribe_tools/src/base/process.dart';
 import 'package:scribe_tools/src/base/template.dart';
+import 'package:scribe_tools/src/base/terminal.dart';
 import 'package:scribe_tools/src/isolated/scribe_template.dart';
 import 'package:scribe_tools/src/project.dart';
 import 'package:scribe_tools/src/shell.dart';
@@ -82,7 +82,8 @@ OutputPreferences? _outputPreferencesInstance;
 
 /// What the user asked this run's output to look like.
 OutputPreferences get outputPreferences =>
-    context.get<OutputPreferences>() ?? (_outputPreferencesInstance ??= OutputPreferences(stdio: stdio, showColor: true));
+    context.get<OutputPreferences>() ??
+    (_outputPreferencesInstance ??= OutputPreferences(stdio: stdio, showColor: true));
 
 Terminal? _terminalInstance;
 

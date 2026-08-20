@@ -36,6 +36,7 @@
 
 /// A block of text being built line by line, each line carrying its own indentation.
 class Indented {
+  /// Carries on writing into [lines].
   Indented(this.lines);
 
   /// The lines written so far, indentation included.

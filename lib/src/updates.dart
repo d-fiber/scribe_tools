@@ -107,13 +107,5 @@ void scheduleFetch(Framework framework) {
   if (marker.existsSync() && DateTime.now().difference(marker.lastModifiedSync()) < kFetchInterval) return;
 
   marker.writeAsStringSync('');
-  globals.processRunner.detach(<String>[
-    'git',
-    '-C',
-    framework.root.path,
-    'fetch',
-    '--quiet',
-    kOrigin,
-    kReleaseBranch,
-  ]);
+  globals.processRunner.detach(<String>['git', '-C', framework.root.path, 'fetch', '--quiet', kOrigin, kReleaseBranch]);
 }

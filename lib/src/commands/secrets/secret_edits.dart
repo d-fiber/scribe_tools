@@ -43,16 +43,15 @@ import 'package:scribe_tools/src/secrets.dart';
 /// store is opened: a run that is going to fail should fail before it has
 /// decrypted anything.
 class SecretEdits {
+  /// Holds the [additions] and [removals] one run was asked for.
   const SecretEdits({required this.additions, required this.removals});
 
   /// The edits spelled by the `--set` and `--unset` values of one run.
   ///
   /// Throws a [UsageError] when an assignment has no `=`, or when either flag
   /// names something that is not a secret name.
-  factory SecretEdits.parse({required List<String> set, required List<String> unset}) => SecretEdits(
-    additions: set.map(SecretAssignment.parse).toList(),
-    removals: unset.map(_validName).toList(),
-  );
+  factory SecretEdits.parse({required List<String> set, required List<String> unset}) =>
+      SecretEdits(additions: set.map(SecretAssignment.parse).toList(), removals: unset.map(_validName).toList());
 
   /// The secrets to write, in the order they were given.
   final List<SecretAssignment> additions;
@@ -98,6 +97,7 @@ class SecretEdits {
 
 /// What a set of [SecretEdits] actually changed once applied.
 class AppliedEdits {
+  /// Holds what a run changed: [written], [removed], and the [absent] it could not remove.
   const AppliedEdits({required this.written, required this.removed, required this.absent});
 
   /// The names that were set, whether or not they already held a value.

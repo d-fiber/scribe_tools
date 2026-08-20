@@ -52,16 +52,29 @@ import 'package:scribe_tools/src/updates.dart';
 ///
 /// [warning] is a success the user should read: the command did its work and
 /// found something worth saying. Only [fail] turns into a non-zero status.
-enum ExitStatus { success, warning, fail }
+enum ExitStatus {
+  /// The command did what it was asked, with nothing to add.
+  success,
+
+  /// The command did what it was asked, and found something worth saying.
+  warning,
+
+  /// The command could not do what it was asked.
+  fail,
+}
 
 /// What a command answers when it returns.
 class ScribeCommandResult {
+  /// Ends the command on [exitStatus].
   const ScribeCommandResult(this.exitStatus);
 
+  /// Ends the command on [ExitStatus.success].
   const ScribeCommandResult.success() : this(ExitStatus.success);
 
+  /// Ends the command on [ExitStatus.warning].
   const ScribeCommandResult.warning() : this(ExitStatus.warning);
 
+  /// Ends the command on [ExitStatus.fail].
   const ScribeCommandResult.fail() : this(ExitStatus.fail);
 
   /// How the command ended.
@@ -78,6 +91,7 @@ class ScribeCommandResult {
 /// those imply has already been checked and refused by the time [runCommand] is
 /// reached, so a command never opens with a guard of its own.
 abstract class ScribeCommand extends Command<void> {
+  /// Builds the parser this command reads its arguments with.
   ScribeCommand();
 
   /// The command being run, or null outside one.
@@ -277,22 +291,15 @@ abstract class ScribeCommand extends Command<void> {
     final List<String> rest = argResults?.rest ?? const <String>[];
 
     if (rest.isEmpty) {
-      throwUsageError(
-        <String>['$invocationName needs a <$label>.', ?alsoWrong, ?explain].join('\n\n'),
-        command: name,
-      );
+      throwUsageError(<String>['$invocationName needs a <$label>.', ?alsoWrong, ?explain].join('\n\n'), command: name);
     }
 
     if (rest.length > 1) {
       final String extra = rest.skip(1).map((String word) => '"$word"').join(', ');
-      throwUsageError(
-        <String>[
+      final String tooMany =
           '$invocationName takes a single <$label>. It read "${rest.first}" as the <$label>, '
-              'and has nothing to do with $extra.',
-          ?alsoWrong,
-        ].join('\n\n'),
-        command: name,
-      );
+          'and has nothing to do with $extra.';
+      throwUsageError(<String>[tooMany, ?alsoWrong].join('\n\n'), command: name);
     }
 
     return rest.first;
@@ -327,6 +334,7 @@ abstract class ScribeCommand extends Command<void> {
 /// Running it prints its usage. It needs no project, since each subcommand
 /// decides that for itself.
 abstract class ScribeCommandGroup extends ScribeCommand {
+  /// Builds a group, which needs no project of its own.
   ScribeCommandGroup();
 
   @override

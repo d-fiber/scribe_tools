@@ -40,8 +40,12 @@ import 'package:change_case/change_case.dart';
 import 'package:path/path.dart' as p;
 
 import 'package:scribe_tools/src/base/yaml.dart';
-import 'module_names.dart';
+import 'package:scribe_tools/src/commands/gen/docs/sections/module_names.dart';
 
+/// The tags of [surface], which are its modules, in Pascal case.
+///
+/// Both halves of the surface are read: what the framework serves and what the
+/// project adds under `lib/api/`.
 List<String> surfaceTagNames(Directory root, String surface) {
   final List<String> names = moduleNames(<Directory>[
     Directory(p.join(root.path, 'scribe/host/api/public/$surface/src')),
@@ -50,12 +54,14 @@ List<String> surfaceTagNames(Directory root, String surface) {
   return names.map((String name) => name.toPascalCase()).toList();
 }
 
+/// The `tags:` section of an OpenAPI document, one entry per name in [tags].
 String renderTagsSection(List<String> tags) {
   final Indented out = Indented.empty();
   out.lines.add('tags:');
   for (final String tag in tags) {
-    out.add(1, '- name: $tag');
-    out.add(2, 'description:');
+    out
+      ..add(1, '- name: $tag')
+      ..add(2, 'description:');
   }
   return out.render();
 }

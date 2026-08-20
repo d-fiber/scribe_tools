@@ -166,11 +166,7 @@ void main() {
         }
       }
 
-      expect(
-        mismatched,
-        isEmpty,
-        reason: 'a service that takes no memory while its profile is off has to say so here',
-      );
+      expect(mismatched, isEmpty, reason: 'a service that takes no memory while its profile is off has to say so here');
     });
   });
 
@@ -219,7 +215,10 @@ void main() {
     });
 
     test('grows again when a profile is switched off', () {
-      final Capacity withAdmins = frameworkCapacityOf(<String>[...defaultSelection, 'security/vpn'], profiles: <String>{'ops'});
+      final Capacity withAdmins = frameworkCapacityOf(
+        <String>[...defaultSelection, 'security/vpn'],
+        profiles: <String>{'ops'},
+      );
       final Capacity without = frameworkCapacityOf(<String>[...defaultSelection, 'security/vpn'], profiles: <String>{});
 
       expect(

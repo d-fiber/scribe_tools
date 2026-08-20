@@ -42,6 +42,7 @@ import 'dart:io' as io;
 /// nothing is expanded, and no shell has to be installed. There is therefore
 /// nothing to escape and no way to inject a second command through an argument.
 abstract class ProcessRunner {
+  /// Holds nothing, so every runner can be a constant.
   const ProcessRunner();
 
   /// Runs [command], letting it write to this process's streams, and returns its status.
@@ -63,6 +64,7 @@ abstract class ProcessRunner {
 
 /// The [ProcessRunner] that starts real processes.
 class LocalProcessRunner extends ProcessRunner {
+  /// Starts real processes.
   const LocalProcessRunner();
 
   @override
@@ -104,6 +106,7 @@ class LocalProcessRunner extends ProcessRunner {
 /// Every call answers the same [exitCode] and [output]; [commands] is what a
 /// test asserts on.
 class RecordingProcessRunner extends ProcessRunner {
+  /// Answers [exitCode] and [output] to everything, [outputs] taking over per command.
   RecordingProcessRunner({this.exitCode = 0, this.output = '', this.outputs = const <String, String>{}});
 
   /// The status every call answers.

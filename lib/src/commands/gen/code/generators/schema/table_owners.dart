@@ -42,10 +42,7 @@ const Map<String, String> _rootOwners = <String, String>{
   'internal_t__admin_users': 'admin_id',
 };
 
-final RegExp _userOwned = RegExp(
-  r'\buser_id\b[^,]*references\s+public\.internal_t__app_users',
-  caseSensitive: false,
-);
+final RegExp _userOwned = RegExp(r'\buser_id\b[^,]*references\s+public\.internal_t__app_users', caseSensitive: false);
 
 final RegExp _adminOwned = RegExp(
   r'\badmin_id\b[^,]*references\s+public\.internal_t__admin_users',

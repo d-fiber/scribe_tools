@@ -34,9 +34,11 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
+/// [value] as a slug: lowercase, and anything outside a-z0-9 turned into a single dash.
 String slugify(String value) =>
     value.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-').replaceAll(RegExp(r'^-+|-+$'), '');
 
+/// [value] with every `{{key}}` replaced by what [tokens] holds under it.
 String applyTemplate(String value, Map<String, String> tokens) {
   String result = value;
   for (final MapEntry<String, String> token in tokens.entries) {
@@ -47,5 +49,9 @@ String applyTemplate(String value, Map<String, String> tokens) {
 
 final RegExp _paramRe = RegExp(r'\{(\w+)\}');
 
+/// The names of the `{name}` placeholders [value] carries, each once.
+///
+/// These are the runtime parameters, in single braces, not the `{{key}}` that
+/// [applyTemplate] substitutes when the catalogue is read.
 List<String> extractParams(String value) =>
     <String>{for (final RegExpMatch m in _paramRe.allMatches(value)) m.group(1)!}.toList();

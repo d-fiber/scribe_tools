@@ -80,10 +80,7 @@ class CapacitySource {
 /// The socle comes first, then one per module, keyed the way a mismatch has to
 /// be reported for a reader to know which file to open.
 Map<String, CapacitySource> capacitySources() => <String, CapacitySource>{
-  'ops/docker': CapacitySource(
-    weights: socleOps,
-    compose: socleComposeTemplates.childFile('docker-compose.yaml'),
-  ),
+  'ops/docker': CapacitySource(weights: socleOps, compose: socleComposeTemplates.childFile('docker-compose.yaml')),
   for (final MapEntry<String, Directory> module in frameworkModules().entries)
     for (final Directory subject in opsDirectories(module.value))
       _sourceKey(module.key, module.value, subject): CapacitySource(
@@ -100,10 +97,7 @@ List<Directory> opsDirectories(Directory module) {
   final Directory ops = module.childDirectory('ops');
   if (!ops.existsSync()) return const <Directory>[];
 
-  return <Directory>[
-    if (ops.childFile(capacityFileName).existsSync()) ops,
-    ...ops.listSync().whereType<Directory>(),
-  ];
+  return <Directory>[if (ops.childFile(capacityFileName).existsSync()) ops, ...ops.listSync().whereType<Directory>()];
 }
 
 /// How a mismatch names the file to open.
@@ -116,8 +110,7 @@ String _sourceKey(String module, Directory root, Directory subject) =>
 /// module that stops being found is a failing test instead of two rules that
 /// disagree.
 Map<String, Directory> frameworkModules() => <String, Directory>{
-  for (final Dependency dependency in Dependencies.load(roots: modulesRoots).all)
-    dependency.path: dependency.directory,
+  for (final Dependency dependency in Dependencies.load(roots: modulesRoots).all) dependency.path: dependency.directory,
 };
 
 /// Every profile the framework's modules declare between them.

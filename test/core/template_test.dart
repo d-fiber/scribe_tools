@@ -59,17 +59,11 @@ void main() {
     });
 
     test('leaves blank lines of a block unindented', () {
-      expect(
-        renderTemplate('t', '  {{block}}\n', <String, String>{'block': 'a\n\nb'}),
-        '  a\n\n  b\n',
-      );
+      expect(renderTemplate('t', '  {{block}}\n', <String, String>{'block': 'a\n\nb'}), '  a\n\n  b\n');
     });
 
     test('a placeholder sharing its line is substituted without indentation', () {
-      expect(
-        renderTemplate('t', 'key: {{block}}\n', <String, String>{'block': 'a\nb'}),
-        'key: a\nb\n',
-      );
+      expect(renderTemplate('t', 'key: {{block}}\n', <String, String>{'block': 'a\nb'}), 'key: a\nb\n');
     });
 
     test('the same placeholder can appear at several columns', () {
@@ -83,11 +77,7 @@ void main() {
       expect(
         () => renderTemplate('kong.yml', '{{a}}\n{{b}}\n{{a}}', const <String, String>{}),
         throwsA(
-          isA<ToolExit>().having(
-            (ToolExit e) => e.message,
-            'message',
-            'kong.yml: 2 unresolved variable(s): a, b',
-          ),
+          isA<ToolExit>().having((ToolExit e) => e.message, 'message', 'kong.yml: 2 unresolved variable(s): a, b'),
         ),
       );
     });

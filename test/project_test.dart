@@ -34,13 +34,12 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
+import 'package:file/file.dart';
 import 'package:file/memory.dart';
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/base/context.dart';
 import 'package:scribe_tools/src/project.dart';
 import 'package:test/test.dart';
-
-import 'package:file/file.dart';
 
 Future<T> withFileSystem<T>(FileSystem fs, T Function() body) =>
     AppContext.current.run<T>(overrides: <Type, Generator>{FileSystem: () => fs}, body: body);
@@ -70,9 +69,7 @@ void main() {
       expect(Project.findAbove(fs.currentDirectory)?.directory.path, '/work/notes');
       expect(
         () => Project.current,
-        throwsA(
-          isA<ToolExit>().having((ToolExit exit) => exit.message, 'message', contains('/work/notes')),
-        ),
+        throwsA(isA<ToolExit>().having((ToolExit exit) => exit.message, 'message', contains('/work/notes'))),
       );
     });
   });
@@ -91,9 +88,7 @@ void main() {
       expect(Project.currentOrNull, isNull);
       expect(
         () => Project.current,
-        throwsA(
-          isA<ToolExit>().having((ToolExit exit) => exit.message, 'message', contains('scribe create')),
-        ),
+        throwsA(isA<ToolExit>().having((ToolExit exit) => exit.message, 'message', contains('scribe create'))),
       );
     });
   });

@@ -103,14 +103,13 @@ abstract class Logger {
 
 /// The [Logger] that writes to the terminal the user is watching.
 class StdoutLogger extends Logger {
+  /// Writes to [_stdio], decorating through [terminal] and [_outputPreferences].
   StdoutLogger({
     required this.terminal,
-    required Stdio stdio,
-    required OutputPreferences outputPreferences,
-    StopwatchFactory stopwatchFactory = const StopwatchFactory(),
-  }) : _stdio = stdio,
-       _outputPreferences = outputPreferences,
-       _stopwatchFactory = stopwatchFactory;
+    required this._stdio,
+    required this._outputPreferences,
+    this._stopwatchFactory = const StopwatchFactory(),
+  });
 
   @override
   final Terminal terminal;
@@ -212,13 +211,7 @@ class StdoutLogger extends Logger {
 
   void _writeToStdErr(String message) => _stdio.writeError(message);
 
-  String _decorate(
-    String message,
-    {bool emphasis = false,
-    TerminalColor? color,
-    int indent = 0,
-    bool newline = true}
-  ) {
+  String _decorate(String message, {bool emphasis = false, TerminalColor? color, int indent = 0, bool newline = true}) {
     String decorated = message;
     if (emphasis) decorated = terminal.bolden(decorated);
     if (color != null && supportsColor) decorated = terminal.color(decorated, color);
@@ -232,8 +225,8 @@ class StdoutLogger extends Logger {
 /// Messages arrive undecorated: neither colour, emphasis nor indentation is
 /// applied, so a test compares plain text.
 class BufferLogger extends Logger {
-  BufferLogger({Terminal? terminal, this.verbose = false})
-    : terminal = terminal ?? TestTerminal();
+  /// Keeps everything written to it, answering as a [TestTerminal] unless [terminal] says otherwise.
+  BufferLogger({Terminal? terminal, this.verbose = false}) : terminal = terminal ?? TestTerminal();
 
   @override
   final Terminal terminal;
@@ -304,8 +297,7 @@ class BufferLogger extends Logger {
   }
 
   @override
-  Status startSpinner({VoidCallback? onFinish}) =>
-      SilentStatus(stopwatch: Stopwatch(), onFinish: onFinish)..start();
+  Status startSpinner({VoidCallback? onFinish}) => SilentStatus(stopwatch: Stopwatch(), onFinish: onFinish)..start();
 
   /// Empties the four buffers, since there is no line here to erase.
   @override
@@ -322,6 +314,7 @@ class BufferLogger extends Logger {
 /// A subclass overrides only what it changes, which is how `-v` and `-q` are
 /// built without either of them knowing where the output ends up.
 class DelegatingLogger implements Logger {
+  /// Forwards everything to the logger it wraps, until a subclass says otherwise.
   DelegatingLogger(this._delegate);
 
   final Logger _delegate;
@@ -353,8 +346,13 @@ class DelegatingLogger implements Logger {
       _delegate.printWarning(message, emphasis: emphasis, indent: indent);
 
   @override
-  void printStatus(String message, {bool emphasis = false, TerminalColor? color, int indent = 0, bool newline = true}) =>
-      _delegate.printStatus(message, emphasis: emphasis, color: color, indent: indent, newline: newline);
+  void printStatus(
+    String message, {
+    bool emphasis = false,
+    TerminalColor? color,
+    int indent = 0,
+    bool newline = true,
+  }) => _delegate.printStatus(message, emphasis: emphasis, color: color, indent: indent, newline: newline);
 
   @override
   void printTrace(String message) => _delegate.printTrace(message);
@@ -374,6 +372,7 @@ class DelegatingLogger implements Logger {
 /// Each line is prefixed with the time since the previous one, so a slow step
 /// is visible without measuring anything on purpose. This is what `-v` builds.
 class VerboseLogger extends DelegatingLogger {
+  /// Starts timing at once, so the first line is stamped against the moment `-v` was read.
   VerboseLogger(super.delegate, {StopwatchFactory stopwatchFactory = const StopwatchFactory()})
     : _stopwatch = stopwatchFactory.createStopwatch() {
     _stopwatch.start();
@@ -393,8 +392,13 @@ class VerboseLogger extends DelegatingLogger {
       _emit(_LogType.warning, message, indent: indent);
 
   @override
-  void printStatus(String message, {bool emphasis = false, TerminalColor? color, int indent = 0, bool newline = true}) =>
-      _emit(_LogType.status, message, indent: indent);
+  void printStatus(
+    String message, {
+    bool emphasis = false,
+    TerminalColor? color,
+    int indent = 0,
+    bool newline = true,
+  }) => _emit(_LogType.status, message, indent: indent);
 
   @override
   void printTrace(String message) => _emit(_LogType.trace, message);
@@ -409,8 +413,9 @@ class VerboseLogger extends DelegatingLogger {
     if (message.trim().isEmpty) return;
 
     final int millis = _stopwatch.elapsedMilliseconds;
-    _stopwatch.reset();
-    _stopwatch.start();
+    _stopwatch
+      ..reset()
+      ..start();
 
     final String prefix = millis >= 100 ? '[+${millis}ms] ' : '[   ] ';
 
@@ -434,6 +439,7 @@ enum _LogType { error, warning, status, trace }
 /// A test replaces it so the durations printed alongside a [Status] stop
 /// depending on how fast the machine is.
 class StopwatchFactory {
+  /// Hands out real stopwatches.
   const StopwatchFactory();
 
   /// A new stopwatch, not yet started.
@@ -446,10 +452,8 @@ class StopwatchFactory {
 /// visible is the logger's decision, and ranges from an animated spinner down
 /// to nothing at all.
 abstract class Status {
-  Status({required Stopwatch stopwatch, VoidCallback? onFinish, Duration? timeout})
-    : _stopwatch = stopwatch,
-      _onFinish = onFinish,
-      _timeout = timeout;
+  /// Times the work, calling back when it ends.
+  Status({required this._stopwatch, this._onFinish, this._timeout});
 
   final Stopwatch _stopwatch;
   final VoidCallback? _onFinish;
@@ -497,6 +501,7 @@ abstract class Status {
 
 /// A [Status] that shows nothing and only measures.
 class SilentStatus extends Status {
+  /// Measures the work without showing anything of it.
   SilentStatus({required super.stopwatch, super.onFinish});
 }
 
@@ -505,13 +510,8 @@ class SilentStatus extends Status {
 /// This is the shape used when the output is not a terminal, so a log file gets
 /// one readable line per step instead of a stream of redrawn frames.
 class SummaryStatus extends Status {
-  SummaryStatus({
-    required this.message,
-    required super.stopwatch,
-    required this.write,
-    super.onFinish,
-    super.timeout,
-  });
+  /// Announces [message] once, then writes the elapsed time through [write].
+  SummaryStatus({required this.message, required super.stopwatch, required this.write, super.onFinish, super.timeout});
 
   /// The text naming the work being done.
   final String message;
@@ -553,6 +553,7 @@ class SummaryStatus extends Status {
 /// The braille frames are replaced by ASCII ones when the terminal cannot be
 /// trusted with anything outside it.
 class AnonymousSpinnerStatus extends Status {
+  /// Spins where the cursor stands, writing its frames through [write].
   AnonymousSpinnerStatus({
     required super.stopwatch,
     required this.terminal,
@@ -639,6 +640,7 @@ class AnonymousSpinnerStatus extends Status {
 
 /// An [AnonymousSpinnerStatus] preceded by a message and closed by a success mark.
 class SpinnerStatus extends AnonymousSpinnerStatus {
+  /// Spins after [message], and closes the line with a success mark.
   SpinnerStatus({
     required this.message,
     required super.stopwatch,

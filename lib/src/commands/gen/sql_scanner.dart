@@ -34,12 +34,15 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
-
 import 'package:file/file.dart';
 
 import 'package:scribe_tools/src/dependencies.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 
+/// Every directory of socle SQL, in the order it has to be applied.
+///
+/// The socle comes first, the mounted modules next, sorted so the order does
+/// not depend on the file system, and the migrations last.
 List<Directory> kernelSqlRoots() => <Directory>[
   globals.project.sdk.hostDbInit,
   ..._moduleSqlRoots(),
@@ -50,11 +53,14 @@ List<Directory> _moduleSqlRoots() {
   final List<Directory> roots = <Directory>[
     for (final Dependency dependency in Dependencies.load().active)
       if (dependency.sql case final Directory sql) sql,
-  ];
-  roots.sort((Directory a, Directory b) => a.path.compareTo(b.path));
+  ]..sort((Directory a, Directory b) => a.path.compareTo(b.path));
   return roots;
 }
 
+/// Calls [visit] on every `.sql` under [dir], however deep.
+///
+/// A directory that is not there is walked as an empty one, since a module may
+/// ship no SQL at all.
 Future<void> walkSqlFiles(Directory dir, Future<void> Function(File file) visit) async {
   if (!dir.existsSync()) return;
   for (final FileSystemEntity entity in dir.listSync(followLinks: false)) {

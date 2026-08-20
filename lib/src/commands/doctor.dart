@@ -45,6 +45,7 @@ import 'package:scribe_tools/src/runner/scribe_command_runner.dart';
 /// It fixes nothing unless [rescueOption] is passed, and then only what a
 /// machine can fix on its own.
 class DoctorCommand extends ScribeCommand {
+  /// Declares `--rescue`, which is what turns a report into a repair.
   DoctorCommand() {
     argParser.addFlag(
       rescueOption,
@@ -98,9 +99,7 @@ class DoctorCommand extends ScribeCommand {
   /// names every problem still standing, so a list of what could not be
   /// repaired would be the same lines a few rows higher.
   Future<void> _rescue() async {
-    final List<Finding> repairs = <Finding>[
-      for (final DoctorSection section in await _look()) ...section.repairable,
-    ];
+    final List<Finding> repairs = <Finding>[for (final DoctorSection section in await _look()) ...section.repairable];
 
     if (repairs.isEmpty) {
       globals.logger.printStatus('There is nothing --rescue can do from here.', emphasis: true);

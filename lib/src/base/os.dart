@@ -41,11 +41,22 @@ import 'package:scribe_tools/src/base/platform.dart';
 
 /// A system and processor pair the tool can be running on.
 enum HostPlatform {
+  /// An Apple machine on Apple silicon.
   darwinArm64('macOS', 'arm64'),
+
+  /// An Apple machine on an Intel processor.
   darwinX64('macOS', 'x86_64'),
+
+  /// A Linux machine on a 64-bit ARM processor.
   linuxArm64('Linux', 'arm64'),
+
+  /// A Linux machine on an x86 processor.
   linuxX64('Linux', 'x86_64'),
+
+  /// A Windows machine on a 64-bit ARM processor.
   windowsArm64('Windows', 'arm64'),
+
+  /// A Windows machine on an x86 processor.
   windowsX64('Windows', 'x86_64');
 
   const HostPlatform(this.systemName, this.architecture);
@@ -62,6 +73,7 @@ enum HostPlatform {
 
 /// What the tool needs from the host system beyond files and processes.
 abstract class OperatingSystemUtils {
+  /// Holds nothing, so every implementation can be a constant.
   const OperatingSystemUtils();
 
   /// Creates the implementation that matches [platform].
@@ -121,6 +133,7 @@ abstract class OperatingSystemUtils {
 
 /// The [OperatingSystemUtils] of a system with a POSIX `PATH`.
 class PosixUtils extends OperatingSystemUtils {
+  /// Reads [platform] and [fileSystem] rather than the process it runs in.
   const PosixUtils({required this.platform, required this.fileSystem});
 
   @override
@@ -141,15 +154,16 @@ class PosixUtils extends OperatingSystemUtils {
 
 /// The [OperatingSystemUtils] of macOS.
 class MacOsUtils extends PosixUtils {
+  /// Reads [platform] and [fileSystem] rather than the process it runs in.
   const MacOsUtils({required super.platform, required super.fileSystem});
 
   @override
-  HostPlatform get hostPlatform =>
-      _isArm(platform) ? HostPlatform.darwinArm64 : HostPlatform.darwinX64;
+  HostPlatform get hostPlatform => _isArm(platform) ? HostPlatform.darwinArm64 : HostPlatform.darwinX64;
 }
 
 /// The [OperatingSystemUtils] of Linux.
 class LinuxUtils extends PosixUtils {
+  /// Reads [platform] and [fileSystem] rather than the process it runs in.
   const LinuxUtils({required super.platform, required super.fileSystem});
 
   @override
@@ -158,6 +172,7 @@ class LinuxUtils extends PosixUtils {
 
 /// The [OperatingSystemUtils] of Windows, where `PATH` alone does not name a file.
 class WindowsUtils extends OperatingSystemUtils {
+  /// Reads [platform] and [fileSystem] rather than the process it runs in.
   const WindowsUtils({required this.platform, required this.fileSystem});
 
   @override

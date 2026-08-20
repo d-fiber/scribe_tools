@@ -51,10 +51,13 @@ enum FindingKind {
 
 /// One line of a section, and what the user can do about it.
 class Finding {
+  /// Reports [message] as something that works.
   const Finding.ok(this.message) : kind = FindingKind.ok, hint = null, repair = null;
 
+  /// Reports [message] as worth reading without being a problem, [hint] saying more.
   const Finding.note(this.message, {this.hint}) : kind = FindingKind.note, repair = null;
 
+  /// Reports [message] as broken, [hint] saying more and [repair] able to fix it.
   const Finding.problem(this.message, {this.hint, this.repair}) : kind = FindingKind.problem;
 
   /// What was found, in one sentence.
@@ -96,12 +99,8 @@ enum SectionDetail {
 
 /// One block of the report, `flutter doctor` style.
 class DoctorSection {
-  const DoctorSection({
-    required this.title,
-    required this.findings,
-    this.summary,
-    this.detail = SectionDetail.summary,
-  });
+  /// Gathers [findings] under [title], showing as much of them as [detail] asks for.
+  const DoctorSection({required this.title, required this.findings, this.summary, this.detail = SectionDetail.summary});
 
   /// The name of the block, on the bracketed line.
   final String title;
@@ -124,12 +123,7 @@ class DoctorSection {
   /// This section with [extra] appended, or this one when there is nothing to add.
   DoctorSection plus(Finding? extra) => extra == null
       ? this
-      : DoctorSection(
-          title: title,
-          summary: summary,
-          detail: detail,
-          findings: <Finding>[...findings, extra],
-        );
+      : DoctorSection(title: title, summary: summary, detail: detail, findings: <Finding>[...findings, extra]);
 
   /// The problems `--rescue` can do something about.
   List<Finding> get repairable =>

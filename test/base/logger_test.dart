@@ -56,15 +56,10 @@ void main() {
 
     test('a summary status prints the message once, then the elapsed time', () {
       final StringBuffer written = StringBuffer();
-      final Status status = SummaryStatus(
-        message: 'Rendering templates',
-        stopwatch: Stopwatch(),
-        write: written.write,
-      );
-
-      status.start();
-      status.start();
-      status.stop();
+      SummaryStatus(message: 'Rendering templates', stopwatch: Stopwatch(), write: written.write)
+        ..start()
+        ..start()
+        ..stop();
 
       expect(written.toString(), startsWith('Rendering templates'));
       expect('Rendering templates'.allMatches(written.toString()).length, 1);
@@ -94,9 +89,7 @@ void main() {
 
     test('errors go to stderr and are remembered', () {
       final FakeStdio stdio = FakeStdio();
-      final StdoutLogger logger = loggerOn(stdio);
-
-      logger.printError('the database is unreachable');
+      final StdoutLogger logger = loggerOn(stdio)..printError('the database is unreachable');
 
       expect(stdio.errorOutput.toString(), contains('the database is unreachable'));
       expect(stdio.output.toString(), isEmpty);
@@ -122,10 +115,9 @@ void main() {
 
     test('starting a second progress stops the first', () {
       final FakeStdio stdio = FakeStdio();
-      final StdoutLogger logger = loggerOn(stdio);
-
-      logger.startProgress('First');
-      logger.startProgress('Second');
+      loggerOn(stdio)
+        ..startProgress('First')
+        ..startProgress('Second');
 
       expect(stdio.output.toString(), contains('First'));
       expect(stdio.output.toString(), contains('Second'));
@@ -134,12 +126,11 @@ void main() {
 
   group('BufferLogger', () {
     test('it keeps each channel apart', () {
-      final BufferLogger logger = BufferLogger();
-
-      logger.printStatus('status');
-      logger.printError('error');
-      logger.printWarning('warning');
-      logger.printTrace('trace');
+      final BufferLogger logger = BufferLogger()
+        ..printStatus('status')
+        ..printError('error')
+        ..printWarning('warning')
+        ..printTrace('trace');
 
       expect(logger.statusText, 'status\n');
       expect(logger.errorText, 'error\n');
@@ -151,9 +142,7 @@ void main() {
   group('VerboseLogger', () {
     test('it stamps every line and promotes traces to the delegate', () {
       final BufferLogger buffer = BufferLogger();
-      final VerboseLogger logger = VerboseLogger(buffer);
-
-      logger.printTrace('resolving dependencies');
+      final VerboseLogger logger = VerboseLogger(buffer)..printTrace('resolving dependencies');
 
       expect(logger.isVerbose, isTrue);
       expect(buffer.statusText, contains('resolving dependencies'));
@@ -197,8 +186,9 @@ void main() {
           },
         },
         body: () {
-          AppContext.current.get<Logger>();
-          AppContext.current.get<Logger>();
+          AppContext.current
+            ..get<Logger>()
+            ..get<Logger>();
         },
       );
 

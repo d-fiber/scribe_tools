@@ -70,6 +70,7 @@ final RegExp secretName = RegExp(r'^[A-Z][A-Z0-9_]*$');
 /// file second, and every identity found is tried. That is what lets a machine
 /// hold the key of more than one project at once.
 class SecretsStore {
+  /// Opens [file] with the identities [keyFile] holds.
   const SecretsStore({required this.file, required this.keyFile});
 
   /// The name of the encrypted file, at the root of a project.
@@ -122,8 +123,7 @@ class SecretsStore {
     return <String>[
       for (final String block in blocks)
         for (final String line in block.split('\n'))
-          if (line.trim().toUpperCase().startsWith(kIdentityPrefix))
-            line.trim().toUpperCase(),
+          if (line.trim().toUpperCase().startsWith(kIdentityPrefix)) line.trim().toUpperCase(),
     ];
   }
 
@@ -138,10 +138,7 @@ class SecretsStore {
   /// every project it works on, and overwriting would lock the others out.
   Future<AgeKeyPair> createKey() async {
     final SimpleKeyPair pair = await X25519().newKeyPair();
-    final AgeIdentity identity = AgeIdentity(
-      kIdentityPrefix,
-      Uint8List.fromList(await pair.extractPrivateKeyBytes()),
-    );
+    final AgeIdentity identity = AgeIdentity(kIdentityPrefix, Uint8List.fromList(await pair.extractPrivateKeyBytes()));
     final AgeRecipient recipient = AgeRecipient(
       kRecipientPrefix,
       Uint8List.fromList((await pair.extractPublicKey()).bytes),
@@ -245,6 +242,7 @@ class SecretsStore {
 
 /// One `NAME=VALUE` pair, as `secrets --set` is given it.
 class SecretAssignment {
+  /// Sets [name] to [value].
   const SecretAssignment(this.name, this.value);
 
   /// The assignment [raw] spells.

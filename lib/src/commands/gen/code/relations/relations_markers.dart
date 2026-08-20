@@ -49,7 +49,7 @@ const String relationsMarkerEnd = '// @generated:relations:end';
 /// relation type is declared yet, and neither is a failure, since the section is
 /// written by a later step of the same run.
 Future<String> readRelationsSection(File file) async {
-  if (!await file.exists()) return '';
+  if (!file.existsSync()) return '';
 
   final String source = await file.readAsString();
   final int start = source.indexOf(relationsMarkerStart);

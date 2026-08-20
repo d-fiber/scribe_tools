@@ -37,6 +37,7 @@ import 'package:scribe_tools/src/base/common.dart';
 
 /// The engine that fills the holes of a template.
 abstract class TemplateRenderer {
+  /// Holds nothing, so every renderer can be a constant.
   const TemplateRenderer();
 
   /// [source] with its placeholders replaced from [values], [name] naming it in errors.
@@ -89,8 +90,5 @@ String renderTemplate(String name, String source, Map<String, String> values) {
 
 String _indentEveryLine(String value, String indent) {
   if (indent.isEmpty) return value;
-  return value
-      .split('\n')
-      .map((String line) => line.isEmpty ? line : '$indent$line')
-      .join('\n');
+  return value.split('\n').map((String line) => line.isEmpty ? line : '$indent$line').join('\n');
 }

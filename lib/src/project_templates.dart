@@ -61,6 +61,7 @@ const String kGitignoreTemplateName = 'gitignore';
 
 /// One file of a template, and where it lands in a new project.
 class TemplateFile {
+  /// Copies [source] to [destination] of the new project.
   const TemplateFile({required this.destination, required this.source});
 
   /// Where this file goes, relative to the project root, with POSIX separators.
@@ -82,6 +83,7 @@ class TemplateFile {
 /// gets, and a directory per SDK holds what only that target needs. The SDK
 /// layer wins file by file. See [filesFor].
 class ProjectTemplates {
+  /// Reads the templates of [directory], which is a `templates/project/`.
   const ProjectTemplates({required this.directory});
 
   /// The `templates/project/` directory these were read from.
@@ -106,13 +108,14 @@ class ProjectTemplates {
   String get path => directory.path;
 
   /// The SDKs a template exists for, sorted, the shared layer left out.
-  List<String> get sdkNames => directory
-      .listSync(followLinks: false)
-      .whereType<Directory>()
-      .map((Directory entry) => p.basename(entry.path))
-      .where((String name) => name != kSharedTemplateName && !name.startsWith('.'))
-      .toList()
-    ..sort();
+  List<String> get sdkNames =>
+      directory
+          .listSync(followLinks: false)
+          .whereType<Directory>()
+          .map((Directory entry) => p.basename(entry.path))
+          .where((String name) => name != kSharedTemplateName && !name.startsWith('.'))
+          .toList()
+        ..sort();
 
   /// Whether a template exists for [sdkName].
   bool has(String sdkName) => directory.childDirectory(sdkName).existsSync();

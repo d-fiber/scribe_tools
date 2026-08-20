@@ -34,17 +34,20 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
-import 'discovered_route.dart';
-import 'discovered_sink.dart';
+import 'package:scribe_tools/src/commands/gen/routes/discovered_route.dart';
+import 'package:scribe_tools/src/commands/gen/routes/discovered_sink.dart';
 
+/// Everything one scan of `lib/src/` found, which is what the emitter writes out.
 class DiscoveredSource {
-  const DiscoveredSource({
-    required this.nodes,
-    required this.routes,
-    this.sinks = const <DiscoveredSink>[],
-  });
+  /// Holds the [nodes], the [routes] under them, and the [sinks] they declare.
+  const DiscoveredSource({required this.nodes, required this.routes, this.sinks = const <DiscoveredSink>[]});
 
+  /// The nodes found, sorted, which is one name per directory of `lib/src/`.
   final List<String> nodes;
+
+  /// The routes found, sorted, so the generated table moves only when the tree does.
   final List<DiscoveredRoute> routes;
+
+  /// The log sinks found, sorted, empty when no `_log.ts` was written anywhere.
   final List<DiscoveredSink> sinks;
 }

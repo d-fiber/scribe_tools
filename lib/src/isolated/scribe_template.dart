@@ -45,9 +45,9 @@ import 'package:scribe_tools/src/base/template.dart';
 /// named once, where the context is built, and everything else takes whatever
 /// the context hands it, which is how a test renders with its own.
 class ScribeTemplateRenderer extends TemplateRenderer {
+  /// Holds nothing, since it forwards everything.
   const ScribeTemplateRenderer();
 
   @override
-  String renderString(String name, String source, Map<String, String> values) =>
-      renderTemplate(name, source, values);
+  String renderString(String name, String source, Map<String, String> values) => renderTemplate(name, source, values);
 }

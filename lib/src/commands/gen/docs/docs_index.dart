@@ -65,13 +65,9 @@ Future<void> writeDocsIndex(List<DocsSurface> surfaces) async {
     ],
   };
 
-  await globals.project.generated.docs.index.writeAsString(
-    '${const JsonEncoder.withIndent('  ').convert(manifest)}\n',
-  );
+  await globals.project.generated.docs.index.writeAsString('${const JsonEncoder.withIndent('  ').convert(manifest)}\n');
 
-  globals.logger.printStatus(
-    '${surfaces.length} surface(s), written to ${globals.project.generated.docs.index.path}',
-  );
+  globals.logger.printStatus('${surfaces.length} surface(s), written to ${globals.project.generated.docs.index.path}');
 }
 
 String _substitute(String template, String appName) =>

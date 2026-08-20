@@ -50,6 +50,7 @@ import 'package:scribe_tools/src/sdk_target.dart';
 /// it was taken, because a project silently created against the wrong SDK is
 /// found much later.
 class SdkChoice {
+  /// Chooses among [catalog], naming [commandName] in what it says, asking unless [assumeYes].
   const SdkChoice({required this.catalog, required this.commandName, required this.assumeYes});
 
   /// What the framework next to the caller offers.
@@ -162,6 +163,7 @@ class SdkChoice {
   /// The cursor opens on the first entry and not on the default SDK. A cursor
   /// sitting on the second line reads as a recommendation nobody wrote, and the
   /// default is what happens anyway when there is nothing to ask on.
-  static List<SdkTarget> orderedForMenu(List<SdkTarget> choices) => <SdkTarget>[...choices]
-    ..sort((SdkTarget a, SdkTarget b) => a.label.toLowerCase().compareTo(b.label.toLowerCase()));
+  static List<SdkTarget> orderedForMenu(List<SdkTarget> choices) =>
+      <SdkTarget>[...choices]
+        ..sort((SdkTarget a, SdkTarget b) => a.label.toLowerCase().compareTo(b.label.toLowerCase()));
 }

@@ -42,6 +42,7 @@ import 'package:scribe_tools/src/globals.dart' as globals;
 
 /// Everything the framework SQL and the project SQL declare, read together.
 class SqlSchema {
+  /// Holds what one scan of the socle and the project SQL read.
   const SqlSchema({
     required this.tables,
     required this.projectTables,
@@ -72,8 +73,7 @@ class SqlSchema {
   List<String> get sortedNames => tables.keys.toList()..sort();
 
   /// The tables the framework declares, sorted.
-  List<String> get frameworkTables =>
-      sortedNames.where((String table) => !projectTables.contains(table)).toList();
+  List<String> get frameworkTables => sortedNames.where((String table) => !projectTables.contains(table)).toList();
 
   /// The tables the project declares, sorted.
   List<String> get sortedProjectTables => projectTables.toList()..sort();

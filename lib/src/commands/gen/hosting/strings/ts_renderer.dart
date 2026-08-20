@@ -36,9 +36,13 @@
 
 import 'dart:convert';
 
-import 'entries.dart';
-import 'template.dart';
+import 'package:scribe_tools/src/commands/gen/hosting/strings/entries.dart';
+import 'package:scribe_tools/src/commands/gen/hosting/strings/template.dart';
 
+/// The TypeScript module holding [entries], [bin] naming the command that rewrites it.
+///
+/// A string carrying no placeholder becomes a value, one carrying some becomes
+/// a function taking them, so a caller cannot forget to substitute one.
 String renderStringsModule(String bin, Map<String, Entry> entries) {
   final String dataBody = entries.entries
       .map(

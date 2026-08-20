@@ -34,10 +34,12 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
-import 'openapi_document.dart';
+import 'package:scribe_tools/src/commands/gen/docs/openapi_document.dart';
 import 'package:scribe_tools/src/runner/scribe_command.dart';
 
+/// Rebuilds the OpenAPI document of every surface the API source declares.
 class GenDocsCommand extends ScribeCommand {
+  /// Takes no option: the surfaces are read off the API source.
   GenDocsCommand();
 
   @override

@@ -51,12 +51,7 @@ import 'package:scribe_tools/src/project.dart';
 ///
 /// The order matters: each later document overrides the earlier ones, so the
 /// base compose comes first and the sizing documents patch it.
-const List<String> composeTemplates = <String>[
-  composeTemplate,
-  'resources.yaml',
-  'replicas.yaml',
-  'tuning.yaml',
-];
+const List<String> composeTemplates = <String>[composeTemplate, 'resources.yaml', 'replicas.yaml', 'tuning.yaml'];
 
 /// The fragment a module uses to patch a service of the base, rather than to
 /// declare one of its own.
@@ -80,6 +75,7 @@ String overlayFileName(String path) => 'overlay.${path.replaceAll('/', '-')}.yam
 /// arguments, so they have to travel next to the documents rather than inside
 /// them. A caller that starts the stack needs both or it starts the wrong half.
 class ComposeDocuments {
+  /// Holds the [files] Compose reads and the [profiles] it is started with.
   const ComposeDocuments({required this.files, required this.profiles});
 
   /// The documents to pass Compose in `-f`, in the order it must read them.
@@ -95,6 +91,7 @@ class ComposeDocuments {
 /// fragments are fixed, and everything this produces lands under the project's
 /// generated directory.
 class ComposeRender {
+  /// Renders [project], the one the command is running in when none is named.
   ComposeRender({Project? project}) : project = project ?? globals.project;
 
   /// The project being rendered, whose `config.yaml` decides the selection.
@@ -176,9 +173,7 @@ class ComposeRender {
           ? '${active.length} dependency(ies) mounted: all of them'
           : '${active.length} dependency(ies) mounted, dropped: ${dropped.join(', ')}',
     );
-    globals.logger.printStatus(
-      'profiles: ${profiles.isEmpty ? 'none, the socle alone' : profiles.join(', ')}',
-    );
+    globals.logger.printStatus('profiles: ${profiles.isEmpty ? 'none, the socle alone' : profiles.join(', ')}');
   }
 
   Future<File> _renderTemplate(

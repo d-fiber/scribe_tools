@@ -86,6 +86,7 @@ Future<void> requireCleanCheckout(Framework framework) async {
 
 /// One version of the framework, and the commit that wrote it.
 class Release {
+  /// Holds the [version] written by [commit], authored on [date] when git said so.
   const Release({required this.version, required this.commit, this.date});
 
   /// The version this commit put in `VERSION`.
@@ -110,6 +111,7 @@ class Release {
 /// Every git call goes through the process runner, and none of them is a shell
 /// line, so nothing here has to be escaped.
 class Framework {
+  /// Reads the checkout at [root].
   const Framework(this.root);
 
   /// The checkout at or above [from], or null when there is none.
@@ -140,7 +142,7 @@ class Framework {
   /// The version `$kOrigin/$kReleaseBranch` is on, null when it cannot be read.
   ///
   /// Nothing is fetched here: it reads what the last fetch left behind, which
-  /// is why it costs no network. [scheduleFetch] is what keeps it current.
+  /// is why it costs no network. `scheduleFetch` is what keeps it current.
   Future<Version?> versionOnOrigin() async {
     final String raw = await _capture(<String>['show', '$kOrigin/$kReleaseBranch:VERSION']);
     return raw.isEmpty ? null : Version.tryParse(raw);
@@ -158,13 +160,7 @@ class Framework {
   /// repository has none, and `bump.py` writes that file on every release. One
   /// `git log -p` answers the whole list, so the cost does not grow with it.
   Future<List<Release>> history() async {
-    final String log = await _capture(<String>[
-      'log',
-      '--format=$_commitMark%H %aI',
-      '--patch',
-      '--',
-      'VERSION',
-    ]);
+    final String log = await _capture(<String>['log', '--format=$_commitMark%H %aI', '--patch', '--', 'VERSION']);
 
     final List<Release> releases = <Release>[];
     String? commit;

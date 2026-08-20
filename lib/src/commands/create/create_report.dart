@@ -45,6 +45,7 @@ import 'package:scribe_tools/src/sdk_target.dart';
 /// the commands to type next, one per line behind a `$` so a reader can copy
 /// them, then where the code they will edit sits.
 class CreateReport {
+  /// Holds nothing, since every sentence is built from what it is handed.
   const CreateReport();
 
   /// Says how many of [files] were written, and traces which ones.

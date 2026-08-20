@@ -46,6 +46,7 @@ import 'package:scribe_tools/src/globals.dart' as globals;
 /// Rendering from a workstation for a server is what `deploy.machine` in
 /// `config.yaml` is for.
 class Hardware {
+  /// Holds a machine of [cores] cores, [threads] threads and [memoryGb] gibibytes.
   const Hardware({required this.cores, required this.threads, required this.memoryGb});
 
   /// Physical cores, which is what parallelism settings are derived from.

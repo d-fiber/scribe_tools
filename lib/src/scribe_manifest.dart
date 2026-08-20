@@ -44,6 +44,7 @@ const int kMinPasswordLength = 8;
 
 /// One reason a manifest cannot be used yet.
 class ManifestProblem {
+  /// Reports [field] as unusable for [reason].
   const ManifestProblem(this.field, this.reason);
 
   /// The field it is about, written as a dotted path such as `api.config.origins`.
@@ -461,6 +462,7 @@ Object? _plain(Object? node) {
 
 /// The addresses a project serves, all derived from the one domain it declares.
 class ProjectUrls {
+  /// Holds the addresses derived from the domain a project declares.
   const ProjectUrls({
     required this.main,
     required this.admin,

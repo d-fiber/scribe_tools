@@ -39,11 +39,18 @@ import 'dart:io';
 import 'package:change_case/change_case.dart';
 import 'package:path/path.dart' as p;
 
+/// One documented surface, and the prose its OpenAPI document opens with.
 class DocsSurface {
+  /// Holds the surface [key], titled [title], described by [description].
   const DocsSurface({required this.key, required this.title, required this.description});
 
+  /// The surface's key, which is the name of the directory it is served from.
   final String key;
+
+  /// The document's title, `${APP_NAME}` left in for the portal to substitute.
   final String title;
+
+  /// The document's opening paragraph, `${APP_NAME}` left in the same way.
   final String description;
 }
 
@@ -53,30 +60,33 @@ const Map<String, DocsSurface> _known = <String, DocsSurface>{
     title: r'${APP_NAME} Admin API',
     description: r'Internal API for ${APP_NAME} admin panel. All routes require VPN access.',
   ),
-  'app': DocsSurface(
-    key: 'app',
-    title: r'${APP_NAME} App API',
-    description: r'Public API for the ${APP_NAME} app.',
-  ),
+  'app': DocsSurface(key: 'app', title: r'${APP_NAME} App API', description: r'Public API for the ${APP_NAME} app.'),
 };
 
+/// Every surface the framework at [root] serves, with the prose [declared] gives it.
+///
+/// The list comes from the tree rather than from a table here, so a surface
+/// added to the framework is documented without this file changing. A directory
+/// whose name starts with `_` is not one.
+///
+/// The project's own prose wins, the framework's default comes next, and a
+/// title derived from the key is the last resort.
 List<DocsSurface> discoverSurfaces(Directory root, Map<String, Map<String, String>> declared) {
   final Directory publicApis = Directory(p.join(root.path, 'scribe/host/api/public'));
   if (!publicApis.existsSync()) return const <DocsSurface>[];
 
-  final List<String> keys = publicApis
-      .listSync(followLinks: false)
-      .whereType<Directory>()
-      .map((Directory entry) => p.basename(entry.path))
-      .where((String key) => !key.startsWith('_'))
-      .toList()
-    ..sort();
+  final List<String> keys =
+      publicApis
+          .listSync(followLinks: false)
+          .whereType<Directory>()
+          .map((Directory entry) => p.basename(entry.path))
+          .where((String key) => !key.startsWith('_'))
+          .toList()
+        ..sort();
 
   return <DocsSurface>[for (final String key in keys) _resolve(key, declared[key])];
 }
 
-/// La prose du projet gagne, le defaut du framework sinon, la derivation en
-/// dernier recours.
 DocsSurface _resolve(String key, Map<String, String>? declared) {
   final DocsSurface fallback = _known[key] ?? _derive(key);
   if (declared == null) return fallback;

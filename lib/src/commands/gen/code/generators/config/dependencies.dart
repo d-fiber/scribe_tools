@@ -34,16 +34,15 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
-
+import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/dependencies.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
-import 'package:scribe_tools/src/base/common.dart';
 
+/// Writes the list of mounted modules the worker reads at startup.
 Future<void> generateDependencies() async {
-
   final Dependencies dependencies = Dependencies.load();
   final List<String> mounted = dependencies.active.map((Dependency d) => d.path).toList()..sort();
-  final String bin = kToolName;
+  const String bin = kToolName;
 
   await globals.project.generated.sdk.create();
   await globals.project.generated.sdk.dependencies.writeAsString(

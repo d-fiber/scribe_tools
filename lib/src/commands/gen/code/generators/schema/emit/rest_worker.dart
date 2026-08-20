@@ -49,9 +49,7 @@ List<String> renderRestWorker(SqlSchema schema, Set<String> projectEnums) {
   final List<String> owned = schema.sortedProjectTables;
   final List<String> extended = schema.extendedTables;
 
-  final Set<String> used = <String>{
-    for (final String table in extended) ...enumsUsedBy(schema.tables[table]!.cols),
-  };
+  final Set<String> used = <String>{for (final String table in extended) ...enumsUsedBy(schema.tables[table]!.cols)};
 
   return <String>[
     ...generatedHeader(),
@@ -78,8 +76,7 @@ List<String> renderRestWorker(SqlSchema schema, Set<String> projectEnums) {
   ];
 }
 
-String _extendedRow(String table) =>
-    '${table.toPascalCase()}KernelColumns & ${table.toPascalCase()}ProjectColumns';
+String _extendedRow(String table) => '${table.toPascalCase()}KernelColumns & ${table.toPascalCase()}ProjectColumns';
 
 List<String> _method(String table, String row) => <String>[
   '  $table(): RestQuery<$row> {',

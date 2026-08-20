@@ -41,6 +41,7 @@ import 'dart:async';
 /// [cycle] lists the types in the order they were requested, the one that
 /// closed the loop last.
 class ContextDependencyCycleException implements Exception {
+  /// Reports the loop [cycle] walked through.
   const ContextDependencyCycleException(this.cycle);
 
   /// The chain of types that led back to itself.
@@ -93,7 +94,11 @@ class AppContext {
   /// Throws a [ContextDependencyCycleException] when a generator ends up asking
   /// for the type it is building.
   Future<V> run<V>({required FutureOr<V> Function() body, String? name, Map<Type, Generator>? overrides}) async {
-    final AppContext child = AppContext._(this, name, Map<Type, Generator>.unmodifiable(overrides ?? <Type, Generator>{}));
+    final AppContext child = AppContext._(
+      this,
+      name,
+      Map<Type, Generator>.unmodifiable(overrides ?? <Type, Generator>{}),
+    );
 
     return runZoned<Future<V>>(() async => await body(), zoneValues: <Object, Object>{_key: child});
   }

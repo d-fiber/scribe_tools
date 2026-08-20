@@ -57,8 +57,7 @@ void main() {
   late Map<String, dynamic> golden;
 
   setUpAll(() {
-    golden =
-        jsonDecode(File('test/ops/fixtures/sizing_golden.json').readAsStringSync()) as Map<String, dynamic>;
+    golden = jsonDecode(File('test/ops/fixtures/sizing_golden.json').readAsStringSync()) as Map<String, dynamic>;
   });
 
   group('sizing a project that mounts every module', () {

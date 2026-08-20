@@ -47,8 +47,8 @@ final RegExp _references = RegExp(r'\breferences\s+public\.(\w+)', caseSensitive
 
 /// Which table points at which, read from the foreign keys of the whole schema.
 class RelationGraph {
-  const RelationGraph({required this.outbound, required this.inbound, required Map<String, bool> toOne})
-    : _toOne = toOne;
+  /// Holds the foreign keys read off the whole schema, in both directions.
+  const RelationGraph({required this.outbound, required this.inbound, required this._toOne});
 
   /// For each table, the tables it holds a foreign key to.
   final Map<String, Set<String>> outbound;
@@ -74,8 +74,7 @@ class RelationGraph {
   List<MapEntry<String, Set<String>>> parentsAmong(Set<String> exposed) =>
       inbound.entries
           .where(
-            (MapEntry<String, Set<String>> entry) =>
-                exposed.contains(entry.key) && entry.value.any(exposed.contains),
+            (MapEntry<String, Set<String>> entry) => exposed.contains(entry.key) && entry.value.any(exposed.contains),
           )
           .toList()
         ..sort((MapEntry<String, Set<String>> a, MapEntry<String, Set<String>> b) => a.key.compareTo(b.key));

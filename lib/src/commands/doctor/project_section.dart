@@ -85,10 +85,10 @@ List<Finding> _entries(Project project) {
   final List<Finding> findings = <Finding>[];
 
   if (project.config.existsSync()) {
-    findings.add(Finding.ok('${Project.configFileName} is here'));
+    findings.add(const Finding.ok('${Project.configFileName} is here'));
   } else {
     findings.add(
-      Finding.problem(
+      const Finding.problem(
         '${Project.configFileName} is missing',
         hint: 'Run `scribe create <name>` from the directory above to write a project that has one.',
       ),
@@ -119,7 +119,8 @@ List<Finding> _entries(Project project) {
     findings.add(
       Finding.problem(
         'lib/${project.entrypoint.basename} is missing',
-        hint: 'It is the file the host loads the project through, and it opens the app node. '
+        hint:
+            'It is the file the host loads the project through, and it opens the app node. '
             'Copy it from a project `scribe create` wrote.',
       ),
     );
@@ -130,10 +131,7 @@ List<Finding> _entries(Project project) {
 
 List<Finding> _manifest(Project project) => <Finding>[
   for (final ManifestProblem problem in project.manifest.problems)
-    Finding.problem(
-      '$problem',
-      hint: 'Fill `${problem.field}` in ${Project.configFileName}.',
-    ),
+    Finding.problem('$problem', hint: 'Fill `${problem.field}` in ${Project.configFileName}.'),
 ];
 
 /// The one secrets problem worth reporting: a store nothing can open.

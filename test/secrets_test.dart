@@ -58,10 +58,8 @@ Future<T> withHome<T>(Future<T> Function() body, {String? identity}) => AppConte
   body: body,
 );
 
-SecretsStore storeIn(String root) => SecretsStore(
-  file: fs.file('$root/${SecretsStore.fileName}'),
-  keyFile: fs.file('/home/.config/scribe/keys.txt'),
-);
+SecretsStore storeIn(String root) =>
+    SecretsStore(file: fs.file('$root/${SecretsStore.fileName}'), keyFile: fs.file('/home/.config/scribe/keys.txt'));
 
 void main() {
   setUp(() {

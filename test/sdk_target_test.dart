@@ -70,7 +70,10 @@ void _framework() {
   _write('/fw/sdk/test/whatever.ts', 'export {};');
 
   _write('/fw/templates/project/common/gitignore', '.env\n.{{name}}/\n');
-  _write('/fw/templates/project/common/config.yaml', 'name: "{{name}}"\nsdk: "{{sdk}}"\nurl: "https://{{host}}.example.com"\n');
+  _write(
+    '/fw/templates/project/common/config.yaml',
+    'name: "{{name}}"\nsdk: "{{sdk}}"\nurl: "https://{{host}}.example.com"\n',
+  );
   _write('/fw/templates/project/common/init/.gitkeep');
   _write('/fw/templates/project/common/lib/hostings/.gitkeep');
   _write('/fw/templates/project/js/lib/main.ts', 'import "@{{name}}/routes.ts";\n');

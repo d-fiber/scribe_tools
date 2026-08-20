@@ -38,15 +38,13 @@ import 'package:file/file.dart';
 import 'package:path/path.dart' as p;
 import 'package:scribe_tools/src/commands/gen/sql_scanner.dart';
 
-final RegExp _enumType = RegExp(
-  r'create\s+type\s+public\.(\w+)\s+as\s+enum\s*\(([\s\S]*?)\);',
-  caseSensitive: false,
-);
+final RegExp _enumType = RegExp(r'create\s+type\s+public\.(\w+)\s+as\s+enum\s*\(([\s\S]*?)\);', caseSensitive: false);
 
 final RegExp _quotedValue = RegExp(r"'([^']+)'");
 
 /// One `CREATE TYPE ... AS ENUM` found in the SQL.
 class ParsedEnum {
+  /// Holds the enum [name] and the [values] it was declared with.
   const ParsedEnum(this.name, this.values);
 
   /// The type's name in Postgres, as it was declared.

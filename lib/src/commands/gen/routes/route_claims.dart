@@ -42,6 +42,7 @@ import 'package:scribe_tools/src/base/common.dart';
 /// means one of them is dead code, and picking a winner here would make which
 /// one depends on the order the directory happened to be read in.
 class RouteClaims {
+  /// Starts with nothing claimed.
   RouteClaims();
 
   final Map<String, String> _byRoute = <String, String>{};

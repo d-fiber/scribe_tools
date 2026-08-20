@@ -68,7 +68,9 @@ List<String> _child(RelationGraph graph, Set<String> exposed, {required String c
   final String row = '${child.toPascalCase()}Row';
 
   final List<String> nested =
-      (graph.outbound[child] ?? const <String>{}).where((String table) => table != parent && exposed.contains(table)).toList()
+      (graph.outbound[child] ?? const <String>{})
+          .where((String table) => table != parent && exposed.contains(table))
+          .toList()
         ..sort();
 
   if (nested.isEmpty) {

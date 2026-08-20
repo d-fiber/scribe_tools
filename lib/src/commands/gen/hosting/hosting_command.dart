@@ -34,10 +34,12 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
-import 'strings.dart';
+import 'package:scribe_tools/src/commands/gen/hosting/strings.dart';
 import 'package:scribe_tools/src/runner/scribe_command.dart';
 
+/// Rebuilds the assets a host serves that are derived from `config.yaml`.
 class GenHostingCommand extends ScribeCommand {
+  /// Takes no option: everything it writes comes from `config.yaml`.
   GenHostingCommand();
 
   @override

@@ -43,30 +43,28 @@ import 'package:test/test.dart';
 
 late MemoryFileSystem fs;
 
-Future<T> _run<T>(T Function() body) => AppContext.current.run<T>(
-  overrides: <Type, Generator>{FileSystem: () => fs, Logger: () => BufferLogger()},
-  body: body,
-);
+Future<T> _run<T>(T Function() body) =>
+    AppContext.current.run<T>(overrides: <Type, Generator>{FileSystem: () => fs, Logger: BufferLogger.new}, body: body);
 
 /// Writes a module at [path] under [root], with a `register.ts` when asked.
 void _module(String root, String path, {bool registers = true}) {
-  final Directory directory = fs.directory('/work/notes/scribe/host/$root/$path')
-    ..createSync(recursive: true);
+  final Directory directory = fs.directory('/work/notes/scribe/host/$root/$path')..createSync(recursive: true);
   directory.childDirectory('protocol').createSync();
   if (registers) directory.childFile('register.ts').writeAsStringSync('');
 }
 
 /// Writes the project's `config.yaml`, mounting [wanted].
 void _project(List<String> wanted) {
-  fs.file('/work/notes/config.yaml').writeAsStringSync(
-    'name: "notes"\n'
-    'dependencies:\n'
-    '${wanted.map((String path) => '  - $path\n').join()}',
-  );
+  fs
+      .file('/work/notes/config.yaml')
+      .writeAsStringSync(
+        'name: "notes"\n'
+        'dependencies:\n'
+        '${wanted.map((String path) => '  - $path\n').join()}',
+      );
 }
 
-String _generated() =>
-    fs.file('/work/notes/.notes/sdk/js/registrations.ts').readAsStringSync();
+String _generated() => fs.file('/work/notes/.notes/sdk/js/registrations.ts').readAsStringSync();
 
 void main() {
   setUp(() {
@@ -116,10 +114,7 @@ void main() {
 
     await _run(generateRegistrations);
 
-    final List<String> lines = _generated()
-        .split('\n')
-        .where((String line) => line.startsWith('import'))
-        .toList();
+    final List<String> lines = _generated().split('\n').where((String line) => line.startsWith('import')).toList();
 
     expect(lines, <String>[
       'import "@scribe/host/dependencies/database/storage/register.ts";',

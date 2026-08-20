@@ -43,6 +43,7 @@ import 'package:scribe_tools/src/secrets.dart';
 
 /// Lists, adds and removes the secrets a project carries in `secrets.age`.
 class SecretsCommand extends ScribeCommand {
+  /// Declares `--set` and `--unset`, both repeatable.
   SecretsCommand() {
     argParser
       ..addMultiOption(

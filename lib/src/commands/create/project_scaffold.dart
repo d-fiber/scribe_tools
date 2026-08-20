@@ -41,35 +41,39 @@ import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/project_templates.dart';
 import 'package:scribe_tools/src/sdk_target.dart';
 
+/// The tree `create` writes, and everything that decides what goes in it.
 class ProjectScaffold {
-  ProjectScaffold({
-    required this.root,
-    required this.name,
-    required this.target,
-    required this.templates,
-  });
+  /// Writes a project called [name] into [root], from [templates], for [target].
+  ProjectScaffold({required this.root, required this.name, required this.target, required this.templates});
 
+  /// The directory the project is written into.
   final Directory root;
+
+  /// The project name, as the user typed it, in lower snake case.
   final String name;
+
+  /// The SDK the project is written against, which picks the template layer.
   final SdkTarget target;
+
+  /// The templates on hand, which is what the framework checkout carries.
   final ProjectTemplates templates;
 
   static const List<String> _generated = <String>['docs', 'ops', 'sdk'];
 
   List<TemplateFile> get _files => templates.filesFor(target.name);
 
+  /// The directory generated code goes in, hidden and named after the project.
   String get generatedDirectory => '.$name';
 
+  /// The project name as a host name, where an underscore is not allowed.
   String get hostName => name.replaceAll('_', '-');
 
+  /// Every path this scaffold writes, relative to [root].
   List<String> get files => <String>[for (final TemplateFile file in _files) file.destination];
 
+  /// Writes the whole tree, directories first, then every rendered file.
   Future<void> write() async {
-    final Map<String, String> values = <String, String>{
-      'name': name,
-      'sdk': target.name,
-      'host': hostName,
-    };
+    final Map<String, String> values = <String, String>{'name': name, 'sdk': target.name, 'host': hostName};
 
     for (final String directory in _generated) {
       await _directory(p.join(root.path, generatedDirectory, directory));

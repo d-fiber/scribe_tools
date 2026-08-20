@@ -34,15 +34,24 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
-import 'template.dart';
+import 'package:scribe_tools/src/commands/gen/hosting/strings/template.dart';
 
+/// One string of the catalogue, in the two languages it is written in.
 class Entry {
+  /// Holds the English [en] and the French [fr] of one string.
   Entry(this.en, this.fr);
 
+  /// The English text, placeholders already substituted.
   final String en;
+
+  /// The French text, placeholders already substituted.
   final String fr;
 }
 
+/// The strings [csv] declares, by identifier, with [tokens] already substituted.
+///
+/// The separator is a semicolon and the columns are identifier, English,
+/// French. A line without an identifier is dropped rather than guessed at.
 Map<String, Entry> parseEntries(String csv, Map<String, String> tokens) {
   final List<String> lines = csv
       .split('\n')

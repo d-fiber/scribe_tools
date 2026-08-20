@@ -34,16 +34,20 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
+/// A route the scan found, and everything the generated table says about it.
 class DiscoveredRoute {
-  const DiscoveredRoute({
-    required this.node,
-    required this.path,
-    required this.file,
-    required this.branches,
-  });
+  /// Holds a route of [node], answering on [path], written in [file].
+  const DiscoveredRoute({required this.node, required this.path, required this.file, required this.branches});
 
+  /// The node this route belongs to, which is the directory of `lib/src/` it sits under.
   final String node;
+
+  /// The path this route answers on, with `:name` for each parameter.
   final String path;
+
+  /// The file the route is written in, relative to the project root.
   final String file;
+
+  /// The `_middleware.ts` files wrapping this route, outermost first.
   final List<String> branches;
 }

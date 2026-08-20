@@ -63,11 +63,12 @@ void renderResponses(Indented out, int depth, List<GeneratedResponse> responses)
   out.add(depth, 'responses:');
 
   for (final GeneratedResponse response in responses) {
-    out.add(depth + 1, '"${response.status}":');
-    out.add(depth + 2, 'description: ${_statusDescriptions[response.status] ?? 'Response'}');
-    out.add(depth + 2, 'content:');
-    out.add(depth + 3, 'application/json:');
-    out.add(depth + 4, 'schema:');
+    out
+      ..add(depth + 1, '"${response.status}":')
+      ..add(depth + 2, 'description: ${_statusDescriptions[response.status] ?? 'Response'}')
+      ..add(depth + 2, 'content:')
+      ..add(depth + 3, 'application/json:')
+      ..add(depth + 4, 'schema:');
 
     if (response.status >= 200 && response.status < 300) {
       _renderSuccessSchema(out, depth + 5, response);
@@ -80,10 +81,11 @@ void renderResponses(Indented out, int depth, List<GeneratedResponse> responses)
 }
 
 void _renderSuccessSchema(Indented out, int depth, GeneratedResponse response) {
-  out.add(depth, 'type: object');
-  out.add(depth, 'properties:');
-  out.add(depth + 1, 'code:');
-  out.add(depth + 2, 'type: string');
+  out
+    ..add(depth, 'type: object')
+    ..add(depth, 'properties:')
+    ..add(depth + 1, 'code:')
+    ..add(depth + 2, 'type: string');
 
   if (response.variants.isEmpty) return;
   if (response.variants.first.code case final String code) {
@@ -106,8 +108,9 @@ void _renderErrorExamples(Indented out, int depth, GeneratedResponse response) {
       final int occurrence = (seen[base] ?? 0) + 1;
       seen[base] = occurrence;
 
-      out.add(depth + 1, '${occurrence == 1 ? base : '${base}_$occurrence'}:');
-      out.add(depth + 2, 'value:');
+      out
+        ..add(depth + 1, '${occurrence == 1 ? base : '${base}_$occurrence'}:')
+        ..add(depth + 2, 'value:');
       _renderVariantFields(out, depth + 3, variant);
     }
     return;

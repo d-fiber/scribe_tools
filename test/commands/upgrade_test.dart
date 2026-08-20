@@ -158,10 +158,7 @@ void main() {
 
       await runScribe(<String>['upgrade'], processes);
 
-      expect(
-        processes.commands.map((List<String> command) => command.join(' ')),
-        contains('git checkout main'),
-      );
+      expect(processes.commands.map((List<String> command) => command.join(' ')), contains('git checkout main'));
     });
 
     test('work that is not committed stops it before anything is fetched', () async {

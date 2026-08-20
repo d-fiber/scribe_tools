@@ -45,7 +45,6 @@ const double _oldSpaceShare = 0.70;
 const int _v8Overhead = 96;
 const double _inflightBodyShare = 0.15;
 
-
 const int _minShares = 256;
 
 int _clamp(num value, int low, int high) => math.max(low, math.min(high, value.round()));
@@ -58,8 +57,10 @@ String _mib(num megabytes) {
 
 /// Every value the compose templates take, derived from [hardware].
 class SizingRules {
+  /// Derives every value from [hardware], sharing it out according to [capacity].
   const SizingRules(this.hardware, this.capacity);
 
+  /// The machine every value below is derived from.
   final Hardware hardware;
 
   /// What each service declares it costs, read from the capacity files.
@@ -68,8 +69,13 @@ class SizingRules {
   int get _ramMb => hardware.memoryGb * 1024;
   double get _budget => _ramMb * _budgetShare;
 
+  /// How many api containers to start, one per two hardware threads, capped at 64.
   int get apiReplicas => _clamp(hardware.threads * 0.5, 1, 64);
+
+  /// How many rest containers to start, one per four cores, capped at 16.
   int get restReplicas => _clamp(hardware.cores / 4, 1, 16);
+
+  /// How many storage containers to start, one per six cores, capped at 8.
   int get storageReplicas => _clamp(hardware.cores / 6, 1, 8);
 
   int _replicasFor(String service) => switch (service) {
@@ -152,10 +158,7 @@ class SizingRules {
         'rest_db_pool': '${math.max(4, _restPoolTotal ~/ restReplicas)}',
         'rest_ghc_rts': '-N${_parallelism(4)}',
       },
-      'auth' => <String, String>{
-        'auth_db_pool': '$_authPool',
-        'auth_gomaxprocs': '${_parallelism(4)}',
-      },
+      'auth' => <String, String>{'auth_db_pool': '$_authPool', 'auth_gomaxprocs': '${_parallelism(4)}'},
       'redis' => <String, String>{
         // Half, not three quarters: rewriting the append-only file doubles the
         // footprint, so a container sized on maxmemory alone is killed during a
@@ -206,10 +209,7 @@ class SizingRules {
         'opensearch_node_processors': '${_clamp(hardware.cores / 2, 1, 16)}',
         'opensearch_cpu_limit': _cpuCap(0.35, 0.5, 12),
       },
-      'gorse' => <String, String>{
-        'gorse_gomaxprocs': '${_parallelism(6)}',
-        'gorse_cpu_limit': _cpuCap(0.20, 0.25, 6),
-      },
+      'gorse' => <String, String>{'gorse_gomaxprocs': '${_parallelism(6)}', 'gorse_cpu_limit': _cpuCap(0.20, 0.25, 6)},
       _ => const <String, String>{},
     };
   }

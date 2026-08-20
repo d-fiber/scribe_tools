@@ -42,8 +42,7 @@ final RegExp _parameter = RegExp(r':(\w+)');
 String openApiPath(String path) => path.replaceAllMapped(_parameter, (Match match) => '{${match[1]}}');
 
 /// The names of the parameters [path] carries, in the order they appear.
-List<String> pathParameters(String path) =>
-    _parameter.allMatches(path).map((Match match) => match[1]!).toList();
+List<String> pathParameters(String path) => _parameter.allMatches(path).map((Match match) => match[1]!).toList();
 
 /// [type] as OpenAPI names it.
 ///

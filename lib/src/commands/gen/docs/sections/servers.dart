@@ -37,6 +37,7 @@
 import 'package:scribe_tools/src/base/yaml.dart';
 import 'package:scribe_tools/src/scribe_manifest.dart';
 
+/// The address [surface] is served at, derived from the domain the project declares.
 String surfaceServerUrl(ProjectUrls urls, String surface) {
   return switch (surface) {
     'admin' => '${urls.admin}/v1/admin',
@@ -45,6 +46,7 @@ String surfaceServerUrl(ProjectUrls urls, String surface) {
   };
 }
 
+/// The `servers:` section of an OpenAPI document, holding [url] alone.
 String renderServersSection(String url) {
   final Indented out = Indented.empty();
   out.lines.add('servers:');
