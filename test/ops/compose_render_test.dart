@@ -110,7 +110,7 @@ void main() {
   setUp(() {
     fs = MemoryFileSystem.test();
     _vendorFramework(fs, '/work/koko/scribe');
-    project(<String>['auth', 'security/rbac']);
+    project(<String>['security/auth', 'security/rbac']);
   });
 
   Future<ComposeDocuments> render() => _withContext(fs, () async {
@@ -160,7 +160,7 @@ void main() {
       final File compose = written.firstWhere((File file) => p.basename(file.path) == 'docker-compose.yaml');
       final YamlMap services = (loadYaml(compose.readAsStringSync()) as YamlMap)['services'] as YamlMap;
 
-      expect(services.keys, contains('auth'), reason: 'auth is in the selection');
+      expect(services.keys, contains('auth'), reason: 'security/auth is in the selection');
       expect(services.keys, isNot(contains('opensearch')), reason: 'search is not');
       expect(services.keys, isNot(contains('realtime')), reason: 'realtime is not either');
     });
@@ -210,14 +210,13 @@ void main() {
       final YamlMap services = (loadYaml(compose.readAsStringSync()) as YamlMap)['services'] as YamlMap;
 
       expect(services.keys, containsAll(<String>['db', 'redis', 'rest']), reason: 'foundation is not declinable');
-      expect(services.keys, isNot(contains('auth')), reason: 'auth is a module like any other');
+      expect(services.keys, isNot(contains('auth')), reason: 'security/auth is a module like any other');
       expect(services.keys, isNot(contains('opensearch')));
     });
 
     test('a project that names every module still resolves', () async {
       project(const <String>[
         'audience',
-        'auth',
         'dynamic_links',
         'features/devops',
         'features/messagings',
@@ -226,6 +225,7 @@ void main() {
         'realtime',
         'remote_configs',
         'search',
+        'security/auth',
         'security/rbac',
         'security/vpn',
         'storage',
