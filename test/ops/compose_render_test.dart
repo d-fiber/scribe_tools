@@ -114,7 +114,7 @@ void main() {
   setUp(() {
     fs = MemoryFileSystem.test();
     _vendorFramework(fs, '/work/koko/scribe');
-    project(<String>['security/auth', 'security/rbac']);
+    project(<String>['auth', 'security/rbac']);
   });
 
   Future<ComposeDocuments> render() => _withContext(fs, () async {
@@ -164,8 +164,8 @@ void main() {
       final File compose = written.firstWhere((File file) => p.basename(file.path) == 'docker-compose.yaml');
       final YamlMap services = (loadYaml(compose.readAsStringSync()) as YamlMap)['services'] as YamlMap;
 
-      expect(services.keys, contains('auth'), reason: 'security/auth is in the selection');
-      expect(services.keys, isNot(contains('opensearch')), reason: 'features/searcher is not');
+      expect(services.keys, contains('auth'), reason: 'auth is in the selection');
+      expect(services.keys, isNot(contains('opensearch')), reason: 'search is not');
       expect(services.keys, isNot(contains('realtime')), reason: 'realtime is not either');
     });
 
@@ -186,7 +186,7 @@ void main() {
     test('switches on the profiles the mounted modules declare, and no others', () async {
       expect((await render()).profiles, isEmpty, reason: 'neither auth nor rbac declares a profile');
 
-      project(const <String>['features/searcher', 'realtime']);
+      project(const <String>['search', 'realtime']);
 
       expect((await render()).profiles, <String>['realtime', 'search']);
     });
@@ -215,19 +215,22 @@ void main() {
       final YamlMap services = (loadYaml(compose.readAsStringSync()) as YamlMap)['services'] as YamlMap;
 
       expect(services.keys, containsAll(<String>['db', 'redis', 'rest']), reason: 'foundation is not declinable');
-      expect(services.keys, isNot(contains('auth')), reason: 'security/auth is a module like any other');
+      expect(services.keys, isNot(contains('auth')), reason: 'auth is a module like any other');
       expect(services.keys, isNot(contains('opensearch')));
     });
 
     test('a project that names every module still resolves', () async {
       project(const <String>[
+        'audience',
+        'auth',
+        'dynamic_links',
         'features/devops',
         'features/messagings',
         'features/recommendation',
-        'features/searcher',
         'geospatial',
         'realtime',
-        'security/auth',
+        'remote_configs',
+        'search',
         'security/rbac',
         'security/vpn',
         'storage',

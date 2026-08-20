@@ -179,7 +179,7 @@ void main() {
     ///
     /// `foundation` is in it because a project cannot leave it out: it owns the
     /// database, the cache and the queue, which nothing else declares.
-    const List<String> defaultSelection = <String>['foundation', 'security/auth', 'security/rbac'];
+    const List<String> defaultSelection = <String>['foundation', 'auth', 'security/rbac'];
 
     double spentBy(Capacity capacity, Set<String> profiles) => capacity.services
         .where((ServiceCapacity service) => service.startsUnder(profiles))
