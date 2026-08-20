@@ -80,5 +80,7 @@ Future<void> _writeSurface(DocsSurface surface, {required Directory root, requir
   final File file = globals.project.generated.docs.surface(surface.key);
   await file.writeAsString('$document\n');
 
-  globals.logger.printStatus('${surface.key}: ${tags.length} tags, ${walked.paths.length} paths → ${file.path}');
+  globals.logger.printStatus(
+    '${surface.key}: ${tags.length} tags and ${walked.paths.length} paths, written to ${file.path}',
+  );
 }

@@ -54,5 +54,8 @@ Future<void> generateDependencies() async {
     '[${mounted.map((String path) => '"$path"').join(', ')}];\n',
   );
 
-  globals.logger.printStatus('${mounted.length}/${dependencies.all.length} dependencies mounted → ${globals.project.generatedDirectoryName}/sdk/js/dependencies.ts');
+  globals.logger.printStatus(
+    '${mounted.length} of ${dependencies.all.length} dependencies mounted, written to '
+    '${globals.project.generatedDirectoryName}/sdk/js/dependencies.ts',
+  );
 }

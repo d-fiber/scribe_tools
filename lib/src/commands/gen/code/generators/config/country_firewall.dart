@@ -62,5 +62,8 @@ Future<void> generateCountryFirewall() async {
     '[${countries.map((String c) => '"$c"').join(', ')}];\n',
   );
 
-  globals.logger.printStatus('${countries.length} allowed countries → ${globals.project.generatedDirectoryName}/sdk/js/allowed_countries.ts');
+  globals.logger.printStatus(
+    '${countries.length} allowed countries, written to '
+    '${globals.project.generatedDirectoryName}/sdk/js/allowed_countries.ts',
+  );
 }

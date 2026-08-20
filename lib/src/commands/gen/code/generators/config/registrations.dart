@@ -69,6 +69,7 @@ Future<void> generateRegistrations() async {
   );
 
   globals.logger.printStatus(
-    '${specifiers.length} module registration(s) → ${globals.project.generatedDirectoryName}/sdk/js/registrations.ts',
+    '${specifiers.length} module registration(s), written to '
+    '${globals.project.generatedDirectoryName}/sdk/js/registrations.ts',
   );
 }

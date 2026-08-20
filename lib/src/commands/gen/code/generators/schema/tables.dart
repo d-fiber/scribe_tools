@@ -93,8 +93,8 @@ void _reportWhatWasWritten(SqlSchema schema) {
   final int withOwner = schema.sortedProjectTables.where(schema.owners.containsKey).length;
   final String where = '${globals.project.generatedDirectoryName}/sdk/js/rest';
 
-  globals.logger.printStatus('${owned + extended} worker table methods → $where/worker.ts');
+  globals.logger.printStatus('${owned + extended} worker table methods, written to $where/worker.ts');
   globals.logger.printStatus(
-    '$owned project Row interfaces + table methods, $withOwner project table owners → $where/',
+    '$owned project Row interfaces and table methods, and $withOwner project table owners, written to $where/',
   );
 }

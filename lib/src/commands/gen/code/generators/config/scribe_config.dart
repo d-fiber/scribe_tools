@@ -80,6 +80,7 @@ Future<void> generateScribeConfig() async {
   );
 
   globals.logger.printStatus(
-    '${inherited.length} deps inherited → ${globals.project.generatedDirectoryName}/sdk/js/scribe{,.container}.json',
+    '${inherited.length} deps inherited, written to '
+    '${globals.project.generatedDirectoryName}/sdk/js/scribe{,.container}.json',
   );
 }

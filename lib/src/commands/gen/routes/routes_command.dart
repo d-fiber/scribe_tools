@@ -54,7 +54,8 @@ Future<void> generateRoutes() async {
   await globals.project.generated.sdk.routes.writeAsString(RoutesEmitter(source).render(header));
 
   globals.logger.printStatus(
-    '${source.routes.length} paths on ${source.nodes.length} nodes \u2192 ${globals.project.generatedDirectoryName}/sdk/js/routes.ts',
+    '${source.routes.length} paths on ${source.nodes.length} nodes, written to '
+    '${globals.project.generatedDirectoryName}/sdk/js/routes.ts',
   );
 }
 

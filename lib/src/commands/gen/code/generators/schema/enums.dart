@@ -60,7 +60,8 @@ Future<Set<String>> generateEnums() async {
   await globals.project.generated.sdk.enums.writeAsString(renderProjectEnums(fromProject).join('\n'));
 
   globals.logger.printStatus(
-    '${fromProject.length} project enums → ${globals.project.generatedDirectoryName}/sdk/js/enums.ts',
+    '${fromProject.length} project enums, written to '
+    '${globals.project.generatedDirectoryName}/sdk/js/enums.ts',
   );
 
   return <String>{for (final ParsedEnum parsed in fromProject) parsed.name.toPascalCase()};

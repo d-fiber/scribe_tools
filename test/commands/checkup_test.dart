@@ -192,7 +192,7 @@ void main() {
       await runScribe(<String>['work'], processes: RecordingProcessRunner(outputs: <String, String>{'show': '0.2.0'}));
 
       expect(logger.statusText, contains('working\n'));
-      expect(logger.statusText, contains('A new version of scribe is available: 0.1.5 → 0.2.0'));
+      expect(logger.statusText, contains('A new version of scribe is available: 0.2.0'));
       expect(logger.statusText, contains('Run `scribe upgrade` to get it.'));
       expect(logger.statusText.indexOf('working'), lessThan(logger.statusText.indexOf('A new version')));
     });
