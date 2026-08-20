@@ -34,12 +34,12 @@ jobs:
 
       - name: Check that the key this needs is here
         env:
-          KEY: ${{ secrets.TOOLS_PUSH_KEY }}
+          KEY: ${{ secrets.PROMOTE_PUSH_KEY }}
         run: |
           set -eu
           [ -n "$KEY" ] && exit 0
 
-          echo "TOOLS_PUSH_KEY is not set on this repository, and nothing can move without it." >&2
+          echo "PROMOTE_PUSH_KEY is not set on this repository, and nothing can move without it." >&2
           echo "" >&2
           echo "It is the private half of the deploy key named \"promote push\", which the" >&2
           echo "ruleset lets through to main. Without it the push is refused like anybody else's." >&2
@@ -51,7 +51,7 @@ jobs:
         with:
           ref: dev
           fetch-depth: 0
-          ssh-key: ${{ secrets.TOOLS_PUSH_KEY }}
+          ssh-key: ${{ secrets.PROMOTE_PUSH_KEY }}
 
       - name: Check that dev holds the version you named, and that it was tagged
         env:
