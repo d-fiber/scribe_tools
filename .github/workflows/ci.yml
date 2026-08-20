@@ -2,6 +2,7 @@ name: ci
 
 on:
   push:
+    branches: [dev, main]
   pull_request:
 
 permissions:
@@ -11,18 +12,19 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  DART_SDK: 3.12.2
+
 jobs:
-  scribe:
+  verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
           path: scribe_tools
 
-      # The ops tests read the capacity files and the compose templates that
-      # ship, so the framework has to sit next to the package, the way the two
-      # checkouts sit locally.
-      - name: Check out scribe
+      - name: Check out the framework next to it
         uses: actions/checkout@v4
         with:
           repository: d-fiber/scribe
@@ -45,28 +47,77 @@ jobs:
 
       - uses: dart-lang/setup-dart@v1
         with:
-          sdk: 3.12.2
+          sdk: ${{ env.DART_SDK }}
 
-      - name: Analyze
-        working-directory: scribe_tools
-        run: |
-          dart pub get
-          dart analyze
+      - uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: pub-${{ runner.os }}-${{ hashFiles('scribe_tools/pubspec.lock') }}
+          restore-keys: pub-${{ runner.os }}-
 
-      - name: Run tests
+      - name: Resolve, analyse, check the formatting and run the suite
         working-directory: scribe_tools
-        run: dart test
+        run: bash tool/test.sh
 
   headers:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check license headers
+      - name: Check licence headers
         run: bash .github/headers/check.sh
 
-  publish:
-    needs: [headers, scribe]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'd-fiber/scribe_tools'
-    uses: ./.github/workflows/publish.yml
-    secrets: inherit
+  commits:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check commit messages
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: bash .github/commits/check.sh "$BASE" "$HEAD"
+
+  version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check the version and what the changelog says about it
+        run: bash .github/version/check.sh
+
+  release:
+    needs: [verify, headers, commits, version]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Write what this version is made of, if it has moved
+        run: |
+          set -eu
+          bash .github/version/changelog.sh
+
+          git diff --quiet CHANGELOG.md && exit 0
+
+          version=$(awk '/^version:/ { print $2; exit }' pubspec.yaml)
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          git commit -m "[DOC]: write what $version is made of"
+          git push origin HEAD:dev
+
+      - name: Name this commit after the version, if it has moved
+        run: bash .github/version/tag.sh

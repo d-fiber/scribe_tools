@@ -36,64 +36,33 @@
 # LICENSE file, the LICENSE file governs.
 
 
-set -uo pipefail
+set -euo pipefail
 
-ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-LOG=$(mktemp)
+ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
+SCOPE="tag"
+
+say() {
+  echo "[$SCOPE] $1"
+}
 
 cd "$ROOT"
 
-failed=0
-started=$SECONDS
+version=$(awk '/^version:/ { print $2; exit }' pubspec.yaml)
+tag="v$version"
 
-step() {
-  label="$1"
-  shift
-
-  if ! "$@" >"$LOG" 2>&1; then
-    echo "FAILED   $label"
-    sed 's/^/         /' "$LOG" | tail -25
-    failed=$((failed + 1))
-    return
-  fi
-
-  echo "ok       $label"
-}
-
-while read -r _local_ref local_sha _remote_ref remote_sha; do
-  [ "$local_sha" = "0000000000000000000000000000000000000000" ] && continue
-
-  if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
-    step "the commit messages are tagged" bash .github/commits/check.sh "" "$local_sha"
-  else
-    step "the commit messages are tagged" bash .github/commits/check.sh "$remote_sha" "$local_sha"
-  fi
-done
-
-if command -v dart >/dev/null 2>&1; then
-  step "it analyses, formats and passes its own suite" bash tool/test.sh
-else
-  echo "skipped  the Dart checks (dart is not installed)"
+if git rev-parse "$tag" >/dev/null 2>&1; then
+  say "$tag is already on $(git rev-parse --short "$tag^{commit}"), so there is nothing to name"
+  exit 0
 fi
 
-step "every source file carries the licence header" bash .github/headers/check.sh
-step "the version and the changelog agree" bash .github/version/check.sh
-
-rm -f "$LOG"
-
-if [ "$failed" -gt 0 ]; then
-  cat >&2 <<MESSAGE
-
-Push refused: $failed check(s) failed after $((SECONDS - started))s.
-
-These are the checks CI runs, so pushing would only move the failure somewhere
-it blocks a release instead of your terminal.
-
-git push --no-verify skips this hook. CI will still catch it, and main will
-still refuse the merge.
-MESSAGE
-  exit 1
+if [ -z "$(git config user.email || true)" ]; then
+  git config user.name "github-actions[bot]"
+  git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 fi
 
-echo ""
-echo "Everything CI checks is green here, after $((SECONDS - started))s."
+say "naming $(git rev-parse --short HEAD) as $tag"
+
+git tag -a "$tag" -m "$version"
+git push origin "$tag"
+
+say "$tag is pushed. It stays on this commit for good, and moving it is refused by the ruleset."

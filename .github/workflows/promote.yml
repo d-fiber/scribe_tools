@@ -1,103 +1,119 @@
 name: promote
 
 on:
-  workflow_run:
-    workflows: [ci]
-    types: [completed]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: The version on dev you are putting on main, as three numbers.
+        required: true
 
 permissions:
-  contents: read
-  checks: read
-  actions: read
+  contents: write
 
 concurrency:
   group: promote
   cancel-in-progress: false
 
 jobs:
-  to-main:
-    if: >
-      vars.DEV_PHASE == 'true'
-      && github.event.workflow_run.head_branch == 'dev'
-      && github.event.workflow_run.conclusion == 'success'
+  promote:
     runs-on: ubuntu-latest
-
+    timeout-minutes: 10
+    environment: promotion
     steps:
-      - name: Wait for every required check on this commit
+      - name: Check who asked
         env:
-          GH_TOKEN: ${{ github.token }}
-          SHA: ${{ github.event.workflow_run.head_sha }}
+          ASKED_BY: ${{ github.actor }}
+          OWNER: ${{ vars.PROMOTER || 'daf-ep' }}
         run: |
           set -eu
-          required="headers scribe format"
+          if [ "$ASKED_BY" != "$OWNER" ]; then
+            echo "$ASKED_BY asked to promote, and only $OWNER decides that. Nothing was moved." >&2
+            exit 1
+          fi
+          echo "asked by $ASKED_BY"
 
-          for attempt in $(seq 1 45); do
-            runs=$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/check-runs" --paginate \
-              --jq '.check_runs[] | .name + ":" + (.conclusion // "pending")')
+      - name: Check that the key this needs is here
+        env:
+          KEY: ${{ secrets.PROMOTE_PUSH_KEY }}
+        run: |
+          set -eu
+          [ -n "$KEY" ] && exit 0
 
-            waiting=0
-            broken=""
-            for name in $required; do
-              state=$(printf '%s\n' "$runs" | grep "^$name:" | head -1 | cut -d: -f2)
-              case "${state:-missing}" in
-                success) ;;
-                pending | missing) waiting=1 ;;
-                *) broken="$broken $name($state)" ;;
-              esac
-            done
-
-            if [ -n "$broken" ]; then
-              echo "Not promoting, these checks did not pass:$broken" >&2
-              exit 1
-            fi
-
-            if [ "$waiting" -eq 0 ]; then
-              echo "Every required check passed on ${SHA}"
-              exit 0
-            fi
-
-            sleep 20
-          done
-
-          echo "Timed out waiting for the checks on ${SHA}" >&2
+          echo "PROMOTE_PUSH_KEY is not set on this repository, and nothing can move without it." >&2
+          echo "" >&2
+          echo "It is the private half of the deploy key named \"scribe promote\", which the" >&2
+          echo "ruleset lets through to main. Without it the push is refused like anybody else's." >&2
+          echo "" >&2
+          echo "Nothing was moved." >&2
           exit 1
 
       - uses: actions/checkout@v4
         with:
           ref: dev
           fetch-depth: 0
-          ssh-key: ${{ secrets.TOOLS_PUSH_KEY }}
-          persist-credentials: true
+          ssh-key: ${{ secrets.PROMOTE_PUSH_KEY }}
 
-      - name: Refuse to promote a commit that is no longer the tip of dev
+      - name: Check that dev holds the version you named, and that it was tagged
         env:
-          SHA: ${{ github.event.workflow_run.head_sha }}
+          ASKED: ${{ inputs.version }}
         run: |
           set -eu
-          if [ "$(git rev-parse HEAD)" != "$SHA" ]; then
-            echo "dev moved on since $SHA, a later run will promote it"
+          held=$(awk '/^version:/ { print $2; exit }' pubspec.yaml)
+          if [ "$held" != "$ASKED" ]; then
+            echo "dev holds $held, and you asked for $ASKED. Nothing was moved." >&2
+            exit 1
+          fi
+          if ! git rev-parse "v$held" >/dev/null 2>&1; then
+            echo "v$held does not exist, so the CI has never been green on that version. Nothing was moved." >&2
             exit 1
           fi
 
-      - name: Bring dev into main
+      - name: Read where main stands
+        id: main
         run: |
           set -eu
-          git fetch origin main:refs/remotes/origin/main
-          tip=$(git rev-parse HEAD)
-
-          if git diff --quiet origin/main..HEAD; then
-            echo "main already carries this tree, nothing to promote"
-            exit 0
+          if git rev-parse --verify origin/main >/dev/null 2>&1; then
+            echo "version=$(git show origin/main:pubspec.yaml | awk '/^version:/ { print $2; exit }')" >> "$GITHUB_OUTPUT"
+          else
+            echo "main does not exist yet, so this promotion is what creates it"
+            echo "version=" >> "$GITHUB_OUTPUT"
           fi
 
-          git config user.name "scribe-tools[bot]"
-          git config user.email "scribe-tools@users.noreply.github.com"
-          git checkout -B promotion origin/main
-          git merge --no-edit "$tip"
-          git push origin promotion:main
+      - name: Put dev on main
+        env:
+          ASKED: ${{ inputs.version }}
+        run: |
+          set -eu
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor }}@users.noreply.github.com"
 
-          if [ "$(git rev-parse promotion)" != "$tip" ]; then
-            git push origin promotion:dev
-            echo "main had diverged, dev realigned onto the merge"
+          if git rev-parse --verify origin/main >/dev/null 2>&1; then
+            git checkout main
+            git merge --no-ff origin/dev -m "Merge dev into main for $ASKED"
+          else
+            git checkout -b main
           fi
-          echo "main now carries ${tip}, publish takes over"
+
+          git push origin main
+
+      - name: Write the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ASKED: ${{ inputs.version }}
+          FROM: ${{ steps.main.outputs.version }}
+        run: |
+          set -eu
+          bash .github/version/notes.sh "$FROM" > /tmp/notes.md
+
+          if gh release view "v$ASKED" >/dev/null 2>&1; then
+            gh release edit "v$ASKED" --notes-file /tmp/notes.md
+          else
+            gh release create "v$ASKED" --title "$ASKED" --notes-file /tmp/notes.md --verify-tag
+          fi
+
+  publish:
+    needs: promote
+    uses: ./.github/workflows/publish.yml
+    with:
+      version: ${{ inputs.version }}
+    secrets: inherit

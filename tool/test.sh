@@ -35,65 +35,41 @@
 # This header is a summary written for convenience. Where it differs from the
 # LICENSE file, the LICENSE file governs.
 
+set -euo pipefail
 
-set -uo pipefail
+PACKAGE=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+SCOPE="test"
 
-ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-LOG=$(mktemp)
-
-cd "$ROOT"
-
-failed=0
-started=$SECONDS
-
-step() {
-  label="$1"
-  shift
-
-  if ! "$@" >"$LOG" 2>&1; then
-    echo "FAILED   $label"
-    sed 's/^/         /' "$LOG" | tail -25
-    failed=$((failed + 1))
-    return
-  fi
-
-  echo "ok       $label"
+say() {
+  echo "[$SCOPE] $1"
 }
 
-while read -r _local_ref local_sha _remote_ref remote_sha; do
-  [ "$local_sha" = "0000000000000000000000000000000000000000" ] && continue
-
-  if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
-    step "the commit messages are tagged" bash .github/commits/check.sh "" "$local_sha"
-  else
-    step "the commit messages are tagged" bash .github/commits/check.sh "$remote_sha" "$local_sha"
-  fi
-done
-
-if command -v dart >/dev/null 2>&1; then
-  step "it analyses, formats and passes its own suite" bash tool/test.sh
-else
-  echo "skipped  the Dart checks (dart is not installed)"
-fi
-
-step "every source file carries the licence header" bash .github/headers/check.sh
-step "the version and the changelog agree" bash .github/version/check.sh
-
-rm -f "$LOG"
-
-if [ "$failed" -gt 0 ]; then
-  cat >&2 <<MESSAGE
-
-Push refused: $failed check(s) failed after $((SECONDS - started))s.
-
-These are the checks CI runs, so pushing would only move the failure somewhere
-it blocks a release instead of your terminal.
-
-git push --no-verify skips this hook. CI will still catch it, and main will
-still refuse the merge.
-MESSAGE
+if ! command -v dart >/dev/null 2>&1; then
+  echo "[$SCOPE] dart is not on your PATH. Install the Dart SDK, then run this again." >&2
+  echo "[$SCOPE]   https://dart.dev/get-dart" >&2
   exit 1
 fi
 
+cd "$PACKAGE"
+
+if [ ! -d ../scribe/host ]; then
+  echo "[$SCOPE] the framework is not checked out next to this package, and the ops tests read it." >&2
+  echo "[$SCOPE] clone d-fiber/scribe as a sibling directory named scribe, then run this again." >&2
+  exit 1
+fi
+
+say "resolving dependencies"
+dart pub get
+
+say "analysing"
+dart analyze
+
+say "checking the formatting"
+dart format --line-length 120 --output none --set-exit-if-changed lib bin test
+
+say "running the suite"
+dart test "$@"
+
 echo ""
-echo "Everything CI checks is green here, after $((SECONDS - started))s."
+say "everything a pull request has to pass is green."
+say "run the commands themselves through out/scribe too, see CONTRIBUTING.md."

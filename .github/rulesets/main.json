@@ -9,8 +9,8 @@
       "bypass_mode": "always"
     },
     {
-      "actor_id": 5,
-      "actor_type": "RepositoryRole",
+      "actor_id": 160855136,
+      "actor_type": "DeployKey",
       "bypass_mode": "always"
     }
   ],
@@ -38,32 +38,7 @@
         "require_last_push_approval": true,
         "required_review_thread_resolution": false,
         "allowed_merge_methods": [
-          "merge",
-          "squash"
-        ]
-      }
-    },
-    {
-      "type": "required_status_checks",
-      "parameters": {
-        "strict_required_status_checks_policy": true,
-        "do_not_enforce_on_create": false,
-        "required_status_checks": [
-          {
-            "context": "headers"
-          },
-          {
-            "context": "scribe"
-          },
-          {
-            "context": "sdk"
-          },
-          {
-            "context": "docs"
-          },
-          {
-            "context": "format"
-          }
+          "merge"
         ]
       }
     }

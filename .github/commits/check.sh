@@ -35,12 +35,13 @@
 # This header is a summary written for convenience. Where it differs from the
 # LICENSE file, the LICENSE file governs.
 
+
 set -euo pipefail
 
 BASE="${1:-}"
 HEAD="${2:-HEAD}"
 
-TAGS="DEV|BUGFIX|REFACTO|DOC|TEST|CI|PERF|SECURITY|BREAKING|RELEASE|REVERT|CHORE"
+TAGS="DEV|BUGFIX|REFACTO|DOC|TEST|CI|PERF|SECURITY|BREAKING|REVERT|CHORE"
 PATTERN="^\[(${TAGS})\]: .+$"
 SUBJECT_LIMIT=72
 

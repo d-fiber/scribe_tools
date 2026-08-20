@@ -1,6 +1,2 @@
-.github/                @daf-ep
-.github/workflows/      @daf-ep
-.github/rulesets/       @daf-ep
-.github/commits/        @daf-ep
-.github/fixture/        @daf-ep
-CODEOWNERS              @daf-ep
+* @daf-ep
+/.github/ @daf-ep

@@ -36,64 +36,43 @@
 # LICENSE file, the LICENSE file governs.
 
 
-set -uo pipefail
+set -euo pipefail
 
-ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-LOG=$(mktemp)
+ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
+SCOPE="version"
+
+say() {
+  echo "[$SCOPE] $1"
+}
+
+fail() {
+  echo "[$SCOPE] $1" >&2
+  exit 1
+}
 
 cd "$ROOT"
 
-failed=0
-started=$SECONDS
+declared=$(awk '/^version:/ { print $2; exit }' pubspec.yaml)
 
-step() {
-  label="$1"
-  shift
+[ -n "$declared" ] || fail "pubspec.yaml has no version."
 
-  if ! "$@" >"$LOG" 2>&1; then
-    echo "FAILED   $label"
-    sed 's/^/         /' "$LOG" | tail -25
-    failed=$((failed + 1))
-    return
-  fi
+case "$declared" in
+  *.*.*) ;;
+  *) fail "pubspec.yaml says \"$declared\", which is not a version. Write three numbers, as in \"1.0.2\"." ;;
+esac
 
-  echo "ok       $label"
-}
+say "the version is $declared, and pubspec.yaml is the only place that says so"
 
-while read -r _local_ref local_sha _remote_ref remote_sha; do
-  [ "$local_sha" = "0000000000000000000000000000000000000000" ] && continue
+previous=$(git tag --list 'v*' --sort=-v:refname | head -1)
 
-  if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
-    step "the commit messages are tagged" bash .github/commits/check.sh "" "$local_sha"
-  else
-    step "the commit messages are tagged" bash .github/commits/check.sh "$remote_sha" "$local_sha"
-  fi
-done
-
-if command -v dart >/dev/null 2>&1; then
-  step "it analyses, formats and passes its own suite" bash tool/test.sh
-else
-  echo "skipped  the Dart checks (dart is not installed)"
+if [ -z "$previous" ]; then
+  say "nothing has ever been tagged, so this will be the first"
+  exit 0
 fi
 
-step "every source file carries the licence header" bash .github/headers/check.sh
-step "the version and the changelog agree" bash .github/version/check.sh
-
-rm -f "$LOG"
-
-if [ "$failed" -gt 0 ]; then
-  cat >&2 <<MESSAGE
-
-Push refused: $failed check(s) failed after $((SECONDS - started))s.
-
-These are the checks CI runs, so pushing would only move the failure somewhere
-it blocks a release instead of your terminal.
-
-git push --no-verify skips this hook. CI will still catch it, and main will
-still refuse the merge.
-MESSAGE
-  exit 1
+if [ "${previous#v}" = "$declared" ]; then
+  say "it has not moved since $previous, so nothing will be tagged or written"
+  exit 0
 fi
 
-echo ""
-echo "Everything CI checks is green here, after $((SECONDS - started))s."
+say "it has moved from ${previous#v}, so the push will tag it and write its changelog section"
