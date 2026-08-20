@@ -1,0 +1,291 @@
+// Copyright (C) 2026 Fiber
+//
+// All rights reserved. This script, including its code and logic, is the
+// exclusive property of Fiber. Redistribution, reproduction,
+// or modification of any part of this script is strictly prohibited
+// without prior written permission from Fiber.
+//
+// Conditions of use:
+// - The code may not be copied, duplicated, or used, in whole or in part,
+//   for any purpose without explicit authorization.
+// - Redistribution of this code, with or without modification, is not
+//   permitted unless expressly agreed upon by Fiber.
+// - The name "Fiber" and any associated branding, logos, or
+//   trademarks may not be used to endorse or promote derived products
+//   or services without prior written approval.
+//
+// Disclaimer:
+// THIS SCRIPT AND ITS CODE ARE PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND,
+// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE, OR NON-INFRINGEMENT. IN NO EVENT SHALL
+// FIBER BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+// EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING BUT NOT LIMITED TO LOSS OF USE,
+// DATA, PROFITS, OR BUSINESS INTERRUPTION) ARISING OUT OF OR RELATED TO THE USE
+// OR INABILITY TO USE THIS SCRIPT, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+//
+// Unauthorized copying or reproduction of this script, in whole or in part,
+// is a violation of applicable intellectual property laws and will result
+// in legal action.
+
+import 'dart:io';
+
+import 'package:scribe_tools/src/commands/gen/routes/discovered_route.dart';
+import 'package:scribe_tools/src/commands/gen/routes/discovered_sink.dart';
+import 'package:scribe_tools/src/commands/gen/routes/discovered_source.dart';
+import 'package:scribe_tools/src/commands/gen/routes/emitter.dart';
+import 'package:scribe_tools/src/commands/gen/routes/scanner.dart';
+import 'package:scribe_tools/src/base/common.dart';
+import 'package:path/path.dart' as p;
+import 'package:test/test.dart';
+
+Directory _tree(Map<String, String> files) {
+  final Directory root = Directory.systemTemp.createTempSync('scribe_routes_');
+  final Directory src = Directory(p.join(root.path, 'lib', 'src'))..createSync(recursive: true);
+
+  files.forEach((String path, String content) {
+    final File file = File(p.join(src.path, path));
+    file.parent.createSync(recursive: true);
+    file.writeAsStringSync(content);
+  });
+
+  addTearDown(() => root.deleteSync(recursive: true));
+  return root;
+}
+
+DiscoveredSource _source(Map<String, String> files) =>
+    _sourceWith(files, root: const <String, String>{});
+
+/// Scans a tree of [files] under `lib/src/`, plus [root] files under `lib/`.
+///
+/// The root `_log.ts` is the only thing a project declares outside `lib/src/`,
+/// so it is the only reason this takes two maps rather than one.
+DiscoveredSource _sourceWith(
+  Map<String, String> files, {
+  required Map<String, String> root,
+}) {
+  final Directory tree = _tree(files);
+
+  root.forEach((String path, String content) {
+    final File file = File(p.join(tree.path, 'lib', path));
+    file.parent.createSync(recursive: true);
+    file.writeAsStringSync(content);
+  });
+
+  return RouteScanner.scan(Directory(p.join(tree.path, 'lib', 'src')), tree.path);
+}
+
+List<DiscoveredRoute> _scan(Map<String, String> files) => _source(files).routes;
+
+void main() {
+  group('the route scanner', () {
+    test('a file under a node folder becomes a path', () {
+      final List<DiscoveredRoute> routes = _scan(<String, String>{'app/brand.ts': ''});
+
+      expect(routes.single.node, 'app');
+      expect(routes.single.path, '/brand');
+    });
+
+    test('index answers the folder it sits in', () {
+      final List<DiscoveredRoute> routes = _scan(<String, String>{'app/brand/index.ts': ''});
+
+      expect(routes.single.path, '/brand');
+    });
+
+    test('a bracketed segment becomes a path parameter', () {
+      final List<DiscoveredRoute> routes = _scan(<String, String>{
+        'app/brand/[brandId]/status.ts': '',
+      });
+
+      expect(routes.single.path, '/brand/:brandId/status');
+    });
+
+    test('nesting folders nests the path', () {
+      final List<DiscoveredRoute> routes = _scan(<String, String>{
+        'app/store/search/nearby.ts': '',
+      });
+
+      expect(routes.single.path, '/store/search/nearby');
+    });
+
+    test('an underscore keeps a file out of the routing', () {
+      final List<DiscoveredRoute> routes = _scan(<String, String>{
+        'app/brand/_guards.ts': '',
+        'app/brand/index.ts': '',
+      });
+
+      expect(routes.map((DiscoveredRoute route) => route.path), <String>['/brand']);
+    });
+
+    test('a middleware applies to everything below it', () {
+      final List<DiscoveredRoute> routes = _scan(<String, String>{
+        'app/brand/_middleware.ts': '',
+        'app/brand/index.ts': '',
+        'app/brand/[brandId]/update.ts': '',
+        'app/store.ts': '',
+      });
+
+      final DiscoveredRoute update = routes.firstWhere(
+        (DiscoveredRoute route) => route.path == '/brand/:brandId/update',
+      );
+      final DiscoveredRoute store = routes.firstWhere(
+        (DiscoveredRoute route) => route.path == '/store',
+      );
+
+      expect(update.branches, hasLength(1));
+      expect(update.branches.single, endsWith('brand/_middleware.ts'));
+      expect(store.branches, isEmpty);
+    });
+
+    test('a file and a folder claiming the same path is refused', () {
+      expect(
+        () => _scan(<String, String>{'app/brand.ts': '', 'app/brand/index.ts': ''}),
+        throwsA(isA<ToolExit>()),
+      );
+    });
+
+    test('a leftover _node.ts is refused instead of silently ignored', () {
+      expect(
+        () => _scan(<String, String>{'app/_node.ts': '', 'app/brand.ts': ''}),
+        throwsA(isA<ToolExit>()),
+      );
+    });
+
+    test('a node folder starting with an underscore is not a node', () {
+      final DiscoveredSource source = _source(<String, String>{'_shared/helper.ts': ''});
+
+      expect(source.routes, isEmpty);
+      expect(source.nodes, isEmpty);
+    });
+
+    test('an empty node folder is still reported as a node', () {
+      final Directory root = _tree(<String, String>{'app/brand.ts': ''});
+      Directory(p.join(root.path, 'lib', 'src', 'admin')).createSync();
+
+      final DiscoveredSource source = RouteScanner.scan(
+        Directory(p.join(root.path, 'lib', 'src')),
+        root.path,
+      );
+
+      expect(source.nodes, <String>['admin', 'app']);
+      expect(source.routes, hasLength(1));
+    });
+  });
+
+  group('the log sink scanner', () {
+    test('a project with no _log.ts declares no sink', () {
+      expect(_source(<String, String>{'app/brand.ts': ''}).sinks, isEmpty);
+    });
+
+    test('a _log.ts at the root of lib answers for no node', () {
+      final DiscoveredSource source = _sourceWith(
+        <String, String>{'app/brand.ts': ''},
+        root: <String, String>{'_log.ts': ''},
+      );
+
+      expect(source.sinks.single.node, isNull);
+      expect(source.sinks.single.file, 'lib/_log.ts');
+    });
+
+    test('a _log.ts at the root of a node answers for that node', () {
+      final DiscoveredSource source = _source(<String, String>{
+        'app/_log.ts': '',
+        'admin/_log.ts': '',
+      });
+
+      expect(
+        source.sinks.map((DiscoveredSink sink) => sink.node),
+        <String>['admin', 'app'],
+      );
+      expect(source.sinks.first.file, 'lib/src/admin/_log.ts');
+    });
+
+    test('the root sink comes before the nodes, and the nodes are sorted', () {
+      final DiscoveredSource source = _sourceWith(
+        <String, String>{'app/_log.ts': '', 'admin/_log.ts': ''},
+        root: <String, String>{'_log.ts': ''},
+      );
+
+      expect(
+        source.sinks.map((DiscoveredSink sink) => sink.node),
+        <String?>[null, 'admin', 'app'],
+      );
+    });
+
+    test('a node without a _log.ts produces no entry at all', () {
+      final DiscoveredSource source = _source(<String, String>{
+        'app/_log.ts': '',
+        'admin/brand.ts': '',
+      });
+
+      expect(source.sinks.map((DiscoveredSink sink) => sink.node), <String>['app']);
+    });
+
+    test('a _log.ts deeper than a node root is not a sink', () {
+      final DiscoveredSource source = _source(<String, String>{'app/brand/_log.ts': ''});
+
+      expect(source.sinks, isEmpty);
+      expect(source.routes, isEmpty);
+    });
+
+    test('the emitter binds every sink to an import of its own', () {
+      final String rendered = RoutesEmitter(
+        const DiscoveredSource(
+          nodes: <String>['app'],
+          routes: <DiscoveredRoute>[],
+          sinks: <DiscoveredSink>[
+            DiscoveredSink(node: null, file: 'lib/_log.ts'),
+            DiscoveredSink(node: 'app', file: 'lib/src/app/_log.ts'),
+          ],
+        ),
+      ).render('// header');
+
+      expect(rendered, contains('import * as _l0 from "@app/_log.ts";'));
+      expect(rendered, contains('import * as _l1 from "@app/src/app/_log.ts";'));
+      expect(rendered, contains('{ node: null, file: "lib/_log.ts", module: _l0 },'));
+      expect(
+        rendered,
+        contains('{ node: "app", file: "lib/src/app/_log.ts", module: _l1 },'),
+      );
+    });
+
+    test('a project with no sink still exports the table the server reads', () {
+      final String rendered = RoutesEmitter(
+        const DiscoveredSource(nodes: <String>['app'], routes: <DiscoveredRoute>[]),
+      ).render('// header');
+
+      expect(rendered, contains('export const logSinks: readonly DiscoveredLogSink[] = [\n];'));
+    });
+  });
+
+  group('the routes emitter', () {
+    test('a project file becomes an aliased specifier', () {
+      expect(specifierOf('lib/src/app/brand/index.ts'), '@app/src/app/brand/index.ts');
+    });
+
+    test('a middleware shared by two routes is imported once', () {
+      final String rendered = RoutesEmitter(
+        const DiscoveredSource(
+          nodes: <String>['app'],
+          routes: <DiscoveredRoute>[
+            DiscoveredRoute(
+              node: 'app',
+              path: '/brand',
+              file: 'lib/src/app/brand/index.ts',
+              branches: <String>['lib/src/app/_middleware.ts'],
+            ),
+            DiscoveredRoute(
+              node: 'app',
+              path: '/store',
+              file: 'lib/src/app/store.ts',
+              branches: <String>['lib/src/app/_middleware.ts'],
+            ),
+          ],
+        ),
+      ).render('// header');
+
+      expect('_middleware.ts'.allMatches(rendered).length, 1);
+      expect(rendered, contains('node: "app"'));
+      expect(rendered, contains('path: "/brand"'));
+    });
+  });
+}

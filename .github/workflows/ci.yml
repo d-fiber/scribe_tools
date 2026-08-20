@@ -16,20 +16,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          path: scribe_tools
 
       # The ops tests read the capacity files and the compose templates that
-      # ship, so the framework has to sit where they look for it. The workspace
-      # puts it two levels above the CLI, the way the two checkouts sit locally.
+      # ship, so the framework has to sit next to the package, the way the two
+      # checkouts sit locally.
       - name: Check out scribe
         uses: actions/checkout@v4
         with:
           repository: d-fiber/scribe
           ref: dev
-          path: _fixture/scribe
+          path: scribe
           ssh-key: ${{ secrets.SCRIBE_DEPLOY_KEY }}
 
       - name: Check out the packages submodule
-        working-directory: _fixture/scribe
+        working-directory: scribe
         env:
           PACKAGES_READ_KEY: ${{ secrets.PACKAGES_READ_KEY }}
         run: |
@@ -45,17 +47,14 @@ jobs:
         with:
           sdk: 3.12.2
 
-      - name: Set up the test workspace
-        run: sh .github/fixture/workspace.sh "$GITHUB_WORKSPACE/_fixture" "$GITHUB_WORKSPACE"
-
       - name: Analyze
-        working-directory: _fixture/tools/scribe
+        working-directory: scribe_tools
         run: |
           dart pub get
           dart analyze
 
       - name: Run tests
-        working-directory: _fixture/tools/scribe
+        working-directory: scribe_tools
         run: dart test
 
   headers:
