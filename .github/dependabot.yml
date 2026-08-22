@@ -11,16 +11,7 @@ updates:
     open-pull-requests-limit: 5
 
   - package-ecosystem: pub
-    directory: /scribe
-    schedule:
-      interval: weekly
-      day: monday
-    commit-message:
-      prefix: "[CHORE]:"
-    open-pull-requests-limit: 5
-
-  - package-ecosystem: pub
-    directory: /sdk
+    directory: /
     schedule:
       interval: weekly
       day: monday

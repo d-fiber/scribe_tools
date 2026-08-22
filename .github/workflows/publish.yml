@@ -2,9 +2,17 @@ name: publish
 
 on:
   workflow_call:
+    inputs:
+      version:
+        description: The version being published, as three numbers.
+        required: true
+        type: string
 
 permissions:
-  contents: read
+  contents: write
+
+env:
+  DART_SDK: 3.12.2
 
 jobs:
   build:
@@ -23,97 +31,68 @@ jobs:
             ext: ".exe"
 
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
     defaults:
       run:
         shell: bash
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
 
       - uses: dart-lang/setup-dart@v1
         with:
-          sdk: 3.12.2
-
-      - uses: denoland/setup-deno@v2
-        with:
-          deno-version: v2.x
-
-      - name: Create the output directory
-        run: mkdir -p "$GITHUB_WORKSPACE/out/${{ matrix.target }}"
+          sdk: ${{ env.DART_SDK }}
 
       - name: Build scribe for ${{ matrix.target }}
-        working-directory: scribe
         run: |
-          dart pub get
-          dart compile exe bin/scribe.dart -o "$GITHUB_WORKSPACE/out/${{ matrix.target }}/scribe${{ matrix.ext }}"
+          set -eu
+          bash tool/build.sh "$GITHUB_WORKSPACE/out/${{ matrix.target }}"
 
-      - name: Build sdk for ${{ matrix.target }}
-        working-directory: sdk
+      - name: Check that what was built says the version it was asked for
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
-          dart pub get
-          dart compile exe bin/sdk.dart -o "$GITHUB_WORKSPACE/out/${{ matrix.target }}/sdk${{ matrix.ext }}"
-
-      - name: Build docs for ${{ matrix.target }}
-        working-directory: docs
-        run: |
-          deno compile \
-            --allow-read --allow-env --allow-sys --allow-net \
-            --output "$GITHUB_WORKSPACE/out/${{ matrix.target }}/docs${{ matrix.ext }}" \
-            walk_routes.ts
-
-      - name: List what was built
-        run: ls -lh "out/${{ matrix.target }}"
+          set -eu
+          said=$(./out/${{ matrix.target }}/scribe${{ matrix.ext }} --version)
+          [ "$said" = "scribe $VERSION" ] || {
+            echo "the build says $said and the release is $VERSION" >&2
+            exit 1
+          }
+          echo "the ${{ matrix.target }} build says $said"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: tools-${{ matrix.target }}
+          name: scribe-${{ matrix.target }}
           path: out/${{ matrix.target }}
           retention-days: 1
           if-no-files-found: error
 
-  release:
+  attach:
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - uses: actions/download-artifact@v4
         with:
-          pattern: tools-*
+          pattern: scribe-*
           path: incoming
 
-      - name: Name each asset after its platform
+      - name: Name each binary after its platform
         run: |
           set -eu
           mkdir -p assets
           for target in linux macos windows; do
             extension=""
             [ "$target" = windows ] && extension=".exe"
-            for tool in scribe docs; do
-              cp "incoming/tools-$target/$tool$extension" "assets/$tool-$target$extension"
-            done
+            cp "incoming/scribe-$target/scribe$extension" "assets/scribe-$target$extension"
           done
-          echo "sdk is deliberately left out: it is the framework's own CLI and"
-          echo "has no use in a project. Its binaries stay on this run's artifacts,"
-          echo "which only people with access to this private repository can reach."
           ls -lh assets
 
-      - name: Publish them on the scribe release
+      - name: Attach them to this release
         env:
-          GH_TOKEN: ${{ secrets.SCRIBE_RELEASE_TOKEN }}
-        run: |
-          set -eu
-          notes=$(printf 'Built from scribe_tools@%s.\n\nThese are the binaries `tools/install.sh` downloads. The tag is a rolling one: it always carries the newest build, so the assets are replaced rather than added to.' "${GITHUB_SHA:0:7}")
-
-          if ! gh release view tools-latest --repo d-fiber/scribe >/dev/null 2>&1; then
-            gh release create tools-latest \
-              --repo d-fiber/scribe \
-              --target main \
-              --title "scribe tools" \
-              --notes "$notes"
-          else
-            gh release edit tools-latest --repo d-fiber/scribe --notes "$notes"
-          fi
-
-          gh release upload tools-latest --repo d-fiber/scribe assets/* --clobber
-          echo "Uploaded:"
-          gh release view tools-latest --repo d-fiber/scribe --json assets --jq '.assets[] | "  " + .name + "  " + (.size/1048576 | floor | tostring) + " MB"'
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: gh release upload "v$VERSION" assets/* --clobber --repo ${{ github.repository }}

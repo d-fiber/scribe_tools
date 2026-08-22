@@ -1,45 +1,58 @@
 #!/usr/bin/env bash
 # Copyright (C) 2026 Fiber
 #
-# All rights reserved. This script, including its code and logic, is the
-# exclusive property of Fiber. Redistribution, reproduction,
-# or modification of any part of this script is strictly prohibited
-# without prior written permission from Fiber.
+# This Source Code Form is subject to the terms of the Mozilla Public License,
+# v. 2.0. If a copy of the MPL was not distributed with this file, You can
+# obtain one at https://mozilla.org/MPL/2.0/.
 #
-# Conditions of use:
-# - The code may not be copied, duplicated, or used, in whole or in part,
-#   for any purpose without explicit authorization.
-# - Redistribution of this code, with or without modification, is not
-#   permitted unless expressly agreed upon by Fiber.
-# - The name "Fiber" and any associated branding, logos, or
-#   trademarks may not be used to endorse or promote derived products
-#   or services without prior written approval.
+# What you may do:
+# - Use this software for any purpose, including commercially, and build and
+#   sell your own products on top of it.
+# - Change it, and create new works based on it.
+# - Distribute copies of it, with or without your changes.
+# - Combine it with files under any other licence, proprietary ones included,
+#   and licence that larger work on your own terms.
+#
+# What you must do in return:
+# - Keep this notice on every file you received it on.
+# - Publish, under these same terms, the source of every file covered by them
+#   that you distribute, including the ones you changed, so that whoever
+#   receives your version can obtain that source.
+# - Leave Fiber out of it: the name "Fiber", its branding, its logos and its
+#   trademarks may not be used to endorse or promote what you build, and this
+#   licence grants no right to them.
 #
 # Disclaimer:
-# THIS SCRIPT AND ITS CODE ARE PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE, OR NON-INFRINGEMENT. IN NO EVENT SHALL
-# FIBER BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-# EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING BUT NOT LIMITED TO LOSS OF USE,
-# DATA, PROFITS, OR BUSINESS INTERRUPTION) ARISING OUT OF OR RELATED TO THE USE
-# OR INABILITY TO USE THIS SCRIPT, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+# AS FAR AS THE LAW ALLOWS, THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY
+# OR CONDITION OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+# WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, OR
+# NON-INFRINGEMENT. IN NO EVENT SHALL FIBER BE LIABLE FOR ANY DIRECT, INDIRECT,
+# INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING BUT NOT
+# LIMITED TO LOSS OF USE, DATA, PROFITS, OR BUSINESS INTERRUPTION) ARISING OUT
+# OF OR RELATED TO THESE TERMS OR THE USE OR NATURE OF THE SOFTWARE, UNDER ANY
+# KIND OF LEGAL CLAIM.
 #
-# Unauthorized copying or reproduction of this script, in whole or in part,
-# is a violation of applicable intellectual property laws and will result
-# in legal action.
+# This header is a summary written for convenience. Where it differs from the
+# LICENSE file, the LICENSE file governs.
+
 
 set -uo pipefail
+
+ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+LOG=$(mktemp)
+
+cd "$ROOT"
 
 failed=0
 started=$SECONDS
 
 step() {
-  local label="$1"
+  label="$1"
   shift
 
-  if ! "$@" >/tmp/scribe-tools-prepush.log 2>&1; then
+  if ! "$@" >"$LOG" 2>&1; then
     echo "FAILED   $label"
-    sed 's/^/         /' /tmp/scribe-tools-prepush.log | tail -25
+    sed 's/^/         /' "$LOG" | tail -25
     failed=$((failed + 1))
     return
   fi
@@ -47,39 +60,40 @@ step() {
   echo "ok       $label"
 }
 
-missing() {
-  echo "skipped  $1 ($2 is not installed)"
-}
+while read -r _local_ref local_sha _remote_ref remote_sha; do
+  [ "$local_sha" = "0000000000000000000000000000000000000000" ] && continue
+
+  if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
+    step "the commit messages are tagged" bash .github/commits/check.sh "" "$local_sha"
+  else
+    step "the commit messages are tagged" bash .github/commits/check.sh "$remote_sha" "$local_sha"
+  fi
+done
 
 if command -v dart >/dev/null 2>&1; then
-  step "scribe analyzes" bash -c 'cd scribe && dart analyze'
-  step "sdk analyzes"    bash -c 'cd sdk && dart analyze'
+  step "it analyses, formats and passes its own suite" bash tool/test.sh
 else
-  missing "the Dart checks" dart
+  echo "skipped  the Dart checks (dart is not installed)"
 fi
 
-if command -v deno >/dev/null 2>&1; then
-  step "docs type-checks" bash -c 'cd docs && deno check walk_routes.ts'
-else
-  missing "the Deno check" deno
-fi
+step "every source file carries the licence header" bash .github/headers/check.sh
+step "the version and the changelog agree" bash .github/version/check.sh
 
-step "every source file carries the license header" bash .github/headers/check.sh
-
-rm -f /tmp/scribe-tools-prepush.log
+rm -f "$LOG"
 
 if [ "$failed" -gt 0 ]; then
   cat >&2 <<MESSAGE
 
 Push refused: $failed check(s) failed after $((SECONDS - started))s.
 
-These are the same checks CI runs, so pushing would only move the failure to a
-place where it blocks the release instead of your terminal.
+These are the checks CI runs, so pushing would only move the failure somewhere
+it blocks a release instead of your terminal.
 
-If you know what you are doing, git push --no-verify skips this hook. CI will
-still catch it, and main will still refuse the merge.
+git push --no-verify skips this hook. CI will still catch it, and main will
+still refuse the merge.
 MESSAGE
   exit 1
 fi
 
-echo "All checks passed in $((SECONDS - started))s"
+echo ""
+echo "Everything CI checks is green here, after $((SECONDS - started))s."
