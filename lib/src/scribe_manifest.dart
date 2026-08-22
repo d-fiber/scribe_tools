@@ -68,7 +68,7 @@ class ScribeManifest {
   const ScribeManifest._(this.file, this.document);
 
   /// The fields a manifest is unusable without.
-  static const List<String> requiredFields = <String>['name', 'url', 'email'];
+  static const List<String> requiredFields = <String>['name', 'email'];
 
   /// The manifest in [file], or null when it is missing or is not a YAML mapping.
   static ScribeManifest? loadFrom(File file) {
@@ -102,8 +102,19 @@ class ScribeManifest {
   /// The project's name, as it is shown to a user.
   String get name => _string(<String>['name']) ?? '';
 
-  /// The domain every other address is derived from. See [deriveUrls].
-  String get url => _string(<String>['url']) ?? '';
+  /// Where the dashboard is served, empty when it is not served at all.
+  ///
+  /// An empty value is a choice and not an omission: Caddy opens no site block
+  /// for it, and asks for no certificate in a name nobody gave it.
+  String get dashboard => _string(<String>['dashboard']) ?? '';
+
+  /// Where the API answers, empty when something in front of the stack routes it.
+  ///
+  /// Filled, Caddy terminates TLS on that host and sends everything to the
+  /// gateway. Empty, the stack listens on its port and a proxy, a load balancer
+  /// or an ingress does the rest, which is the deployment this says nothing
+  /// about on purpose.
+  String get apiUrl => _string(<String>['api', 'url']) ?? '';
 
   /// The address the project's mail is sent from.
   String get email => _string(<String>['email']) ?? '';

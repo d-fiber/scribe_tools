@@ -159,6 +159,8 @@ class ComposeRender {
       'app_name_snake': name.toSnakeCase(),
       'sdk_root': './${p.basename(project.sdk.path)}',
       'alchemy_dir': p.basename(project.generated.path),
+      'dashboard': project.manifest.dashboard,
+      'api_url': project.manifest.apiUrl,
     };
   }
 

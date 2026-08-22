@@ -53,7 +53,7 @@ import 'package:scribe_tools/src/scribe_manifest.dart';
 /// thing that can be trusted to still be true.
 Future<void> generateDocs() async {
   final Directory root = globals.project.directory;
-  final ProjectUrls urls = deriveUrls(globals.project.manifest.url);
+  final ProjectUrls urls = deriveUrls(globals.project.manifest.apiUrl);
   final List<DocsSurface> surfaces = discoverSurfaces(root, globals.project.manifest.docsSurfaces);
 
   for (final DocsSurface surface in surfaces) {
