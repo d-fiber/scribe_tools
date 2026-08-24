@@ -48,7 +48,7 @@ import 'package:scribe_tools/src/package/sdk.dart';
 /// file the version is read from, the language's own manifest, and the import map
 /// everything outside the framework is pinned in. [languageExports] is what the
 /// language publishes, from the specifier a package writes to the file inside
-/// `host/alchemy/` that answers it.
+/// `engine/alchemy/` that answers it.
 void writeCheckout(
   Directory root, {
   String version = '3.0.1',

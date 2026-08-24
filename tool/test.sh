@@ -52,7 +52,7 @@ fi
 
 cd "$PACKAGE"
 
-if [ ! -d ../scribe/host ]; then
+if [ ! -d ../scribe/engine ]; then
   echo "[$SCOPE] the framework is not checked out next to this package, and the ops tests read it." >&2
   echo "[$SCOPE] clone d-fiber/scribe as a sibling directory named scribe, then run this again." >&2
   exit 1
