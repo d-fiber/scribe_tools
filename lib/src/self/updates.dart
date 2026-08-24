@@ -37,7 +37,7 @@
 import 'package:file/file.dart';
 import 'package:scribe_tools/src/framework.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
-import 'package:scribe_tools/src/version.dart';
+import 'package:scribe_tools/src/self/version.dart';
 
 /// How long the last fetch is trusted before another one is worth starting.
 ///

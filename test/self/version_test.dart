@@ -34,7 +34,7 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
-import 'package:scribe_tools/src/version.dart';
+import 'package:scribe_tools/src/self/version.dart';
 import 'package:test/test.dart';
 
 void main() {

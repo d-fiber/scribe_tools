@@ -45,8 +45,8 @@ import 'package:scribe_tools/src/commands/doctor/checkup.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/project.dart';
 import 'package:scribe_tools/src/runner/scribe_command_runner.dart';
+import 'package:scribe_tools/src/self/updates.dart';
 import 'package:scribe_tools/src/tools.dart';
-import 'package:scribe_tools/src/updates.dart';
 
 /// How a command ended.
 ///

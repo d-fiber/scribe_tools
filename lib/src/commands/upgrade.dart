@@ -38,7 +38,7 @@ import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/framework.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/runner/scribe_command.dart';
-import 'package:scribe_tools/src/version.dart';
+import 'package:scribe_tools/src/self/version.dart';
 
 /// Brings the framework checkout to the newest version on the release branch.
 ///

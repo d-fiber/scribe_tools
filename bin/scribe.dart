@@ -44,7 +44,7 @@ import 'package:scribe_tools/src/commands/gen.dart';
 import 'package:scribe_tools/src/commands/secrets.dart';
 import 'package:scribe_tools/src/commands/upgrade.dart';
 import 'package:scribe_tools/src/runner/scribe_command.dart';
-import 'package:scribe_tools/src/tool_version.dart';
+import 'package:scribe_tools/src/self/tool_version.dart';
 
 Future<void> main(List<String> args) async {
   final int code = await runner.run(

@@ -40,8 +40,8 @@ import 'package:scribe_tools/src/base/context.dart';
 import 'package:scribe_tools/src/base/logger.dart';
 import 'package:scribe_tools/src/base/process.dart';
 import 'package:scribe_tools/src/framework.dart';
-import 'package:scribe_tools/src/updates.dart';
-import 'package:scribe_tools/src/version.dart';
+import 'package:scribe_tools/src/self/updates.dart';
+import 'package:scribe_tools/src/self/version.dart';
 import 'package:test/test.dart';
 
 late MemoryFileSystem fs;

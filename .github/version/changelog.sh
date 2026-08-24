@@ -41,7 +41,7 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 SCOPE="changelog"
 
 ORDER="BREAKING SECURITY DEV BUGFIX PERF REVERT REFACTO DOC TEST CI CHORE"
-BOOKKEEPING='^(CHANGELOG\.md|pubspec\.yaml|lib/src/tool_version\.dart)$'
+BOOKKEEPING='^(CHANGELOG\.md|pubspec\.yaml|lib/src/self/tool_version\.dart)$'
 
 say() {
   echo "[$SCOPE] $1"

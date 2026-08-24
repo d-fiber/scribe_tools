@@ -40,9 +40,9 @@ import 'package:scribe_tools/src/commands/doctor/project_section.dart';
 import 'package:scribe_tools/src/commands/doctor/report.dart';
 import 'package:scribe_tools/src/commands/doctor/tools_section.dart';
 import 'package:scribe_tools/src/framework.dart';
+import 'package:scribe_tools/src/self/updates.dart';
+import 'package:scribe_tools/src/self/version.dart';
 import 'package:scribe_tools/src/tools.dart';
-import 'package:scribe_tools/src/updates.dart';
-import 'package:scribe_tools/src/version.dart';
 
 /// The three sections, read from the machine and the directory as they are now.
 ///

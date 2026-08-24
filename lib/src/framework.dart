@@ -38,7 +38,7 @@ import 'package:file/file.dart';
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/sdk_target.dart';
-import 'package:scribe_tools/src/version.dart';
+import 'package:scribe_tools/src/self/version.dart';
 
 /// The remote a checkout follows.
 const String kOrigin = 'origin';
