@@ -46,7 +46,7 @@ import 'package:scribe_tools/src/globals.dart' as globals;
 /// the project's sibling; now the project points at the framework, absolutely,
 /// and the framework no longer has to know a project exists.
 ///
-/// There are two files because the host's paths do not exist inside the
+/// There are two files because the engine's paths do not exist inside the
 /// container. `scribe.json` is what the editor and a local check read;
 /// `scribe.container.json` is mounted and passed as `--config` by the compose.
 ///
@@ -54,7 +54,7 @@ import 'package:scribe_tools/src/globals.dart' as globals;
 /// should give away what the framework is implemented with.
 Future<void> generateScribeConfig() async {
   final Map<String, dynamic> frameworkConfig =
-      jsonDecode(await globals.project.sdk.hostDenoJson.readAsString()) as Map<String, dynamic>;
+      jsonDecode(await globals.project.sdk.engineDenoJson.readAsString()) as Map<String, dynamic>;
   final Map<String, String> inherited = inheritedImports(frameworkConfig);
 
   await globals.project.generated.sdk.create();
@@ -63,7 +63,7 @@ Future<void> generateScribeConfig() async {
     renderImportMap(
       frameworkConfig,
       inherited,
-      frameworkRoot: asDirectory(globals.project.sdk.host.path),
+      frameworkRoot: asDirectory(globals.project.sdk.engine.path),
       projectRoot: asDirectory(globals.project.lib.path),
       assetsRoot: asDirectory(globals.project.assets.path),
     ),
@@ -73,7 +73,7 @@ Future<void> generateScribeConfig() async {
     renderImportMap(
       frameworkConfig,
       inherited,
-      frameworkRoot: '/app/scribe/host/',
+      frameworkRoot: '/app/scribe/engine/',
       projectRoot: '/app/lib/',
       assetsRoot: '/app/assets/',
     ),

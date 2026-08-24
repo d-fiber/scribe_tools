@@ -51,10 +51,10 @@ const String kSdkVersionFile = 'VERSION';
 /// outside the framework is pinned. A package resolves through it rather than
 /// pinning its own, so that two packages cannot disagree on which redis client
 /// they got.
-const String kSdkImportMapFile = 'host/deno.json';
+const String kSdkImportMapFile = 'engine/deno.json';
 
 /// The directory, inside a checkout, holding the language a package is written against.
-const String kAlchemyDirectory = 'host/alchemy';
+const String kAlchemyDirectory = 'engine/alchemy';
 
 /// The variable that names the checkout when nothing else can find it.
 const String kSdkRootVariable = 'SCRIBE_ROOT';

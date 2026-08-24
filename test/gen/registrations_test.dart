@@ -48,7 +48,7 @@ Future<T> _run<T>(T Function() body) =>
 
 /// Writes a module at [path] under [root], with a `register.ts` when asked.
 void _module(String root, String path, {bool registers = true}) {
-  final Directory directory = fs.directory('/work/notes/scribe/host/$root/$path')..createSync(recursive: true);
+  final Directory directory = fs.directory('/work/notes/scribe/engine/$root/$path')..createSync(recursive: true);
   directory.childDirectory('protocol').createSync();
   if (registers) directory.childFile('register.ts').writeAsStringSync('');
 }
@@ -80,7 +80,7 @@ void main() {
 
     await _run(generateRegistrations);
 
-    expect(_generated(), contains('import "@scribe/host/dependencies/security/rbac/register.ts";'));
+    expect(_generated(), contains('import "@scribe/engine/dependencies/security/rbac/register.ts";'));
   });
 
   test('a module in the packages submodule renders under its own root', () async {
@@ -89,7 +89,7 @@ void main() {
 
     await _run(generateRegistrations);
 
-    expect(_generated(), contains('import "@scribe/host/packages/security/auth/register.ts";'));
+    expect(_generated(), contains('import "@scribe/engine/packages/security/auth/register.ts";'));
   });
 
   test('a module without a register.ts contributes no import', () async {
@@ -117,8 +117,8 @@ void main() {
     final List<String> lines = _generated().split('\n').where((String line) => line.startsWith('import')).toList();
 
     expect(lines, <String>[
-      'import "@scribe/host/dependencies/database/storage/register.ts";',
-      'import "@scribe/host/packages/security/auth/register.ts";',
+      'import "@scribe/engine/dependencies/database/storage/register.ts";',
+      'import "@scribe/engine/packages/security/auth/register.ts";',
     ]);
   });
 }

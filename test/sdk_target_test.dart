@@ -53,7 +53,7 @@ void _write(String path, [String content = '']) => fs.file(path)
   ..writeAsStringSync(content);
 
 void _framework() {
-  fs.directory('/fw/host').createSync(recursive: true);
+  fs.directory('/fw/engine').createSync(recursive: true);
   fs.directory('/fw/protocol').createSync(recursive: true);
 
   _write('/fw/sdk/js/mod.ts', 'export {};');
@@ -152,7 +152,7 @@ void main() {
         fs.directory('/fw/examples/notes').createSync(recursive: true);
         expect(SdkCatalog.findFrameworkRoot(fs.directory('/fw/examples/notes'))?.path, '/fw');
 
-        fs.directory('/work/app/scribe/host').createSync(recursive: true);
+        fs.directory('/work/app/scribe/engine').createSync(recursive: true);
         fs.directory('/work/app/scribe/protocol').createSync(recursive: true);
         fs.directory('/work/app/scribe/sdk').createSync(recursive: true);
         expect(SdkCatalog.findFrameworkRoot(fs.directory('/work/app'))?.path, '/work/app/scribe');

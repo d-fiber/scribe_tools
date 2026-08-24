@@ -44,9 +44,9 @@ import 'package:scribe_tools/src/globals.dart' as globals;
 /// The socle comes first, the mounted modules next, sorted so the order does
 /// not depend on the file system, and the migrations last.
 List<Directory> kernelSqlRoots() => <Directory>[
-  globals.project.sdk.hostDbInit,
+  globals.project.sdk.engineDbInit,
   ..._moduleSqlRoots(),
-  globals.project.sdk.hostDbMigrations,
+  globals.project.sdk.engineDbMigrations,
 ];
 
 List<Directory> _moduleSqlRoots() {

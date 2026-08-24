@@ -46,7 +46,7 @@ final RegExp _accepted = RegExp(r'^[a-z]+(_[a-z]+)*$');
 /// Each one already resolves to something else in an import specifier or in a
 /// generated directory, so a package taking one would be reachable under a name
 /// that already points elsewhere.
-const List<String> kReservedPackageNames = <String>['app', 'core', 'generated', 'host', 'scribe'];
+const List<String> kReservedPackageNames = <String>['app', 'core', 'engine', 'generated', 'scribe'];
 
 /// Whether [name] is spelled the way a package name has to be spelled.
 bool isValidPackageName(String name) => _accepted.hasMatch(name);

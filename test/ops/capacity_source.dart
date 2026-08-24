@@ -47,11 +47,11 @@ const FileSystem _fs = LocalFileSystem();
 
 /// Where the modules of the framework live, both roots.
 ///
-/// `host/dependencies/` holds what the framework owns, `host/packages/` the
+/// `engine/dependencies/` holds what the framework owns, `engine/packages/` the
 /// mounted packages. A render reads both, so a check on what ships has to.
 List<Directory> get modulesRoots => <Directory>[
-  _fs.directory(p.join(repository, 'host/dependencies')),
-  _fs.directory(p.join(repository, 'host/packages')),
+  _fs.directory(p.join(repository, 'engine/dependencies')),
+  _fs.directory(p.join(repository, 'engine/packages')),
 ];
 
 /// The socle's own ops directory, which holds the `capacity.yaml` every project reads.

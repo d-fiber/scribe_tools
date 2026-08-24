@@ -120,7 +120,7 @@ Future<int> runScribe(List<String> args, {List<String> installed = everyExecutab
 
 /// Writes a framework checkout at [checkoutDirectory] and runs the tests in it.
 void writeCheckout({String version = '0.1.5'}) {
-  for (final String directory in <String>['sdk', 'host', 'protocol', '.git']) {
+  for (final String directory in <String>['sdk', 'engine', 'protocol', '.git']) {
     fs.directory('$checkoutDirectory/$directory').createSync(recursive: true);
   }
 

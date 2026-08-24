@@ -92,7 +92,7 @@ void writeFramework({
   Map<String, String> sdks = const <String, String>{'js': '.ts', 'dart': '.dart'},
   List<String> templates = const <String>['common', 'js'],
 }) {
-  fs.directory('/framework/host').createSync(recursive: true);
+  fs.directory('/framework/engine').createSync(recursive: true);
   fs.directory('/framework/protocol').createSync(recursive: true);
 
   sdks.forEach((String name, String extension) {

@@ -48,7 +48,7 @@ import 'package:scribe_tools/src/commands/gen/docs/sections/module_names.dart';
 /// project adds under `lib/api/`.
 List<String> surfaceTagNames(Directory root, String surface) {
   final List<String> names = moduleNames(<Directory>[
-    Directory(p.join(root.path, 'scribe/host/api/public/$surface/src')),
+    Directory(p.join(root.path, 'scribe/engine/api/public/$surface/src')),
     Directory(p.join(root.path, 'lib/api/$surface/src')),
   ]);
   return names.map((String name) => name.toPascalCase()).toList();

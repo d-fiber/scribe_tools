@@ -72,7 +72,7 @@ const Map<String, DocsSurface> _known = <String, DocsSurface>{
 /// The project's own prose wins, the framework's default comes next, and a
 /// title derived from the key is the last resort.
 List<DocsSurface> discoverSurfaces(Directory root, Map<String, Map<String, String>> declared) {
-  final Directory publicApis = Directory(p.join(root.path, 'scribe/host/api/public'));
+  final Directory publicApis = Directory(p.join(root.path, 'scribe/engine/api/public'));
   if (!publicApis.existsSync()) return const <DocsSurface>[];
 
   final List<String> keys =

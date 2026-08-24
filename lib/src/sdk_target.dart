@@ -275,7 +275,7 @@ class SdkCatalog {
   /// Whether [directory] holds the three directories a framework checkout has.
   static bool isFrameworkRoot(Directory directory) =>
       directory.childDirectory('sdk').existsSync() &&
-      directory.childDirectory('host').existsSync() &&
+      directory.childDirectory('engine').existsSync() &&
       directory.childDirectory('protocol').existsSync();
 
   static SdkTarget _read(Directory directory) {

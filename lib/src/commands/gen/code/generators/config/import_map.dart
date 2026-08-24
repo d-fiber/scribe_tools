@@ -48,7 +48,7 @@ import 'package:scribe_tools/src/globals.dart' as globals;
 const Set<String> _frameworkPathAliases = <String>{
   '@scribe/core/',
   '@scribe/foundation/',
-  '@scribe/host/',
+  '@scribe/engine/',
   '@scribe/protocol/',
   '@scribe/sdk',
   '@scribe/sdk/',
@@ -69,7 +69,7 @@ Map<String, String> inheritedImports(Map<String, dynamic> frameworkConfig) {
 /// One import map, as the JSON text it is written to disk as.
 ///
 /// The three roots are what changes between the copy the editor reads and the
-/// copy the container is given: the host's paths do not exist inside the
+/// copy the container is given: the engine's paths do not exist inside the
 /// container, so the same map cannot serve both.
 ///
 /// `@scribe/sdk/`, which opens the inside of the SDK, is in the map even though
@@ -90,7 +90,7 @@ String renderImportMap(
       ...inherited,
       '@scribe/core/': '${frameworkRoot}core/',
       '@scribe/foundation/': '${frameworkRoot}packages/foundation/',
-      '@scribe/host/': frameworkRoot,
+      '@scribe/engine/': frameworkRoot,
       '@scribe/protocol/': '$above/protocol/',
       '@scribe/sdk': '$above/sdk/js/mod.ts',
       '@scribe/sdk/': '$above/sdk/js/',

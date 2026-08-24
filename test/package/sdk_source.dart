@@ -55,7 +55,7 @@ void writeCheckout(
   Map<String, String> languageExports = const <String, String>{'.': './mod.ts'},
   String imports = '{"imports":{"@scribe/core/":"./core/"}}',
 }) {
-  for (final String directory in <String>['sdk', 'host', 'protocol']) {
+  for (final String directory in <String>['sdk', 'engine', 'protocol']) {
     Directory(p.join(root.path, directory)).createSync(recursive: true);
   }
 
@@ -64,7 +64,7 @@ void writeCheckout(
     ..parent.createSync(recursive: true)
     ..writeAsStringSync('$imports\n');
 
-  final String alchemy = p.join(root.path, 'host', 'alchemy');
+  final String alchemy = p.join(root.path, 'engine', 'alchemy');
   for (final String file in languageExports.values) {
     File(p.join(alchemy, p.joinAll(p.posix.split(file))))
       ..createSync(recursive: true)

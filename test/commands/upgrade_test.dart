@@ -94,7 +94,7 @@ class MergingProcessRunner extends RecordingProcessRunner {
 
 /// Writes a checkout carrying [version], cloned unless told otherwise.
 void writeCheckout({String version = '0.1.5', bool cloned = true}) {
-  for (final String directory in <String>['sdk', 'host', 'protocol']) {
+  for (final String directory in <String>['sdk', 'engine', 'protocol']) {
     fs.directory('$checkoutDirectory/$directory').createSync(recursive: true);
   }
 

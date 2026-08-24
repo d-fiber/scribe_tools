@@ -114,7 +114,7 @@ void main() {
 
   test('no checkout anywhere leaves the status of a fault, and says how to name one', () async {
     final String package = await created('notifications');
-    machine.fs.directory('$kCheckoutDirectory/host').deleteSync(recursive: true);
+    machine.fs.directory('$kCheckoutDirectory/engine').deleteSync(recursive: true);
 
     expect(await machine.run(<String>['pkg', 'get', package]), 1);
     expect(machine.logger.errorText, contains(kSdkRootVariable));

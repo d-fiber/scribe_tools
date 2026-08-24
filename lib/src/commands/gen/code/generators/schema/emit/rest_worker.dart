@@ -41,7 +41,7 @@ import 'package:scribe_tools/src/commands/gen/code/sql/table_schema.dart';
 
 /// The lines of `worker.ts`: the same tables, reached from another process.
 ///
-/// A worker cannot import `@scribe/core/` or `@scribe/host/`, because it runs
+/// A worker cannot import `@scribe/core/` or `@scribe/engine/`, because it runs
 /// somewhere else, possibly without the host on disk at all. The framework
 /// columns of an extended table are therefore redeclared here from the same
 /// SQL rather than imported, which is the one duplication this file accepts.

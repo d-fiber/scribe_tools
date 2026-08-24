@@ -100,7 +100,7 @@ void main() {
     final Map<String, Object?> imports = importsOf(created.directory);
     expect(
       imports['@scribe/alchemy/http'],
-      Uri.file(p.join(checkout.path, 'host', 'alchemy', 'src', 'http', 'mod.ts')).toString(),
+      Uri.file(p.join(checkout.path, 'engine', 'alchemy', 'src', 'http', 'mod.ts')).toString(),
       reason: 'a sub-entry nobody maps is a sub-entry no package can import',
     );
   });
@@ -122,7 +122,7 @@ void main() {
 
     expect(
       importsOf(created.directory)['@scribe/alchemy'],
-      Uri.file(p.join(checkout.path, 'host', 'alchemy', 'mod.ts')).toString(),
+      Uri.file(p.join(checkout.path, 'engine', 'alchemy', 'mod.ts')).toString(),
       reason: 'the language does not point at the checkout',
     );
   });
@@ -135,7 +135,7 @@ void main() {
     expect(imports['croner'], 'npm:croner@8', reason: 'a registry pin did not survive');
     expect(
       imports['@scribe/core/'],
-      Uri.directory(p.join(checkout.path, 'host', 'core')).toString(),
+      Uri.directory(p.join(checkout.path, 'engine', 'core')).toString(),
       reason: 'a path of the checkout was carried over as it was written, so it means nothing here',
     );
   });

@@ -362,39 +362,39 @@ class ScribeSdk {
   String get path => directory.path;
 
   /// The process that serves the API.
-  Directory get host => directory.childDirectory('host');
+  Directory get engine => directory.childDirectory('engine');
 
-  /// The host's Deno configuration, which its import map is merged into.
-  File get hostDenoJson => host.childFile('deno.json');
+  /// The engine's Deno configuration, which its import map is merged into.
+  File get engineDenoJson => engine.childFile('deno.json');
 
-  /// The environment variables the host reads, and their types.
-  File get hostEnv => host.childFile('env.ts');
+  /// The environment variables the engine reads, and their types.
+  File get engineEnv => engine.childFile('env.ts');
 
   /// The endpoints the framework serves on its own.
-  Directory get hostApi => host.childDirectory('api');
+  Directory get engineApi => engine.childDirectory('api');
 
   /// The modules the framework owns, one root of the walk that finds them.
-  Directory get hostDependencies => host.childDirectory('dependencies');
+  Directory get engineDependencies => engine.childDirectory('dependencies');
 
   /// The mountable packages, in the submodule that carries them.
   ///
-  /// Same shape as [hostDependencies] and read the same way: the two are
+  /// Same shape as [engineDependencies] and read the same way: the two are
   /// searched together, and a module is addressed relative to whichever holds
   /// it. Absent from a clone made without `--recurse-submodules`, which is why
   /// nothing may assume it exists.
-  Directory get hostPackages => host.childDirectory('packages');
+  Directory get enginePackages => engine.childDirectory('packages');
 
   /// The primitive package, `@scribe/core`.
-  Directory get hostCore => host.childDirectory('core');
+  Directory get engineCore => engine.childDirectory('core');
 
   /// The SQL run once on an empty database.
-  Directory get hostDbInit => hostCore.childDirectory('db').childDirectory('init');
+  Directory get engineDbInit => engineCore.childDirectory('db').childDirectory('init');
 
   /// The SQL run in order on a database that already holds data.
-  Directory get hostDbMigrations => hostCore.childDirectory('db').childDirectory('migrations');
+  Directory get engineDbMigrations => engineCore.childDirectory('db').childDirectory('migrations');
 
   /// The SQL that creates the roles and the grants.
-  Directory get hostDbProvisioning => hostCore.childDirectory('db').childDirectory('provisioning');
+  Directory get engineDbProvisioning => engineCore.childDirectory('db').childDirectory('provisioning');
 
   /// What the stack mounts or builds as it is, from Dockerfiles to the Caddyfile.
   ///

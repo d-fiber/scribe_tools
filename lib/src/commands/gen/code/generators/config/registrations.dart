@@ -47,16 +47,16 @@ import 'package:scribe_tools/src/globals.dart' as globals;
 /// told about.
 ///
 /// The specifier is built from where the module actually sits, which is why it
-/// survives the move to `host/packages/`: the two roots render the same way
-/// under the `@scribe/host/` alias.
+/// survives the move to `engine/packages/`: the two roots render the same way
+/// under the `@scribe/engine/` alias.
 Future<void> generateRegistrations() async {
   final Dependencies dependencies = Dependencies.load();
-  final String host = globals.project.sdk.host.path;
+  final String engine = globals.project.sdk.engine.path;
 
   final List<String> specifiers = <String>[
     for (final Dependency dependency in dependencies.active)
       if (dependency.directory.childFile(registrationFile).existsSync())
-        '@scribe/host/${p.url.joinAll(p.split(p.relative(dependency.directory.path, from: host)))}/$registrationFile',
+        '@scribe/engine/${p.url.joinAll(p.split(p.relative(dependency.directory.path, from: engine)))}/$registrationFile',
   ]..sort();
 
   await globals.project.generated.sdk.create();

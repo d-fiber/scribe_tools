@@ -80,7 +80,7 @@ index 0000000..0123456
 
 /// Writes a checkout carrying [version], a clone unless told otherwise.
 void writeCheckout({String version = '0.1.5', bool cloned = true}) {
-  for (final String directory in <String>['sdk', 'host', 'protocol']) {
+  for (final String directory in <String>['sdk', 'engine', 'protocol']) {
     fs.directory('$checkoutDirectory/$directory').createSync(recursive: true);
   }
 
@@ -103,8 +103,8 @@ void main() {
   group('finding the checkout', () {
     test('it is found from a directory below it', () async {
       writeCheckout();
-      fs.directory('$checkoutDirectory/host/api').createSync(recursive: true);
-      fs.currentDirectory = '$checkoutDirectory/host/api';
+      fs.directory('$checkoutDirectory/engine/api').createSync(recursive: true);
+      fs.currentDirectory = '$checkoutDirectory/engine/api';
 
       await withProcesses(RecordingProcessRunner(), () async {
         expect(Framework.locate()?.root.path, checkoutDirectory);

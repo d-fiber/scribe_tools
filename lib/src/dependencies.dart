@@ -161,15 +161,15 @@ class Dependencies {
   /// Every module under [roots], the project's vendored framework by default.
   ///
   /// There are two roots and not one because a module can live in either of two
-  /// repositories: `host/dependencies/` holds what the framework owns, and
-  /// `host/packages/` is the submodule where the mountable packages live. A
+  /// repositories: `engine/dependencies/` holds what the framework owns, and
+  /// `engine/packages/` is the submodule where the mountable packages live. A
   /// module's address stays relative to the root that carries it, so moving one
   /// between the two leaves `security/auth` spelled `security/auth`, which is
   /// what a project wrote in its `config.yaml`, and what must not break.
   ///
   /// A root that does not exist yields nothing rather than failing: a project
   /// can be read before its framework is vendored in, and a clone without
-  /// `--recurse-submodules` has no `host/packages/` at all.
+  /// `--recurse-submodules` has no `engine/packages/` at all.
   static Dependencies load({List<Directory>? roots}) {
     final List<Directory> searched = roots ?? _defaultRoots();
     final List<Dependency> found = <Dependency>[];
@@ -215,8 +215,8 @@ class Dependencies {
   );
 
   static List<Directory> _defaultRoots() => <Directory>[
-    globals.fs.directory(globals.project.sdk.hostDependencies.path),
-    globals.fs.directory(globals.project.sdk.hostPackages.path),
+    globals.fs.directory(globals.project.sdk.engineDependencies.path),
+    globals.fs.directory(globals.project.sdk.enginePackages.path),
   ];
 
   /// The modules the current project mounts.

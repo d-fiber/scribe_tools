@@ -68,7 +68,7 @@ void _vendorFramework(FileSystem fs, String root) {
   }
   _copy(fs, p.join(_repository, 'ops/docker', capacityFileName), p.join(root, 'ops/docker', capacityFileName));
 
-  for (final String source in <String>['host/dependencies', 'host/packages']) {
+  for (final String source in <String>['engine/dependencies', 'engine/packages']) {
     final io.Directory modules = io.Directory(p.join(_repository, source));
     if (!modules.existsSync()) continue;
 
