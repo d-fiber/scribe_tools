@@ -133,10 +133,32 @@ class ScribeCommandRunner extends CommandRunner<void> {
   String? usageOf(String? name) {
     if (name == null) return null;
 
-    final Command<void>? found = _find(name, commands);
+    final List<String> path = name.split(' ').where((String word) => word != executableName).toList();
+    if (path.isEmpty) return null;
+
+    final Command<void>? found = path.length > 1 ? _descend(path, commands) : _find(path.single, commands);
     if (found is ScribeCommand) return found.usageWithoutDescription;
 
     return found?.usage;
+  }
+
+  /// The command [path] spells, walking one word at a time from [among].
+  ///
+  /// This is what tells apart two commands that end on the same word: `scribe
+  /// create` and `scribe pkg create` are both `create`, and searching by that
+  /// word alone answered whichever came first, so a refusal from one printed the
+  /// options of the other.
+  static Command<void>? _descend(List<String> path, Map<String, Command<void>> among) {
+    Command<void>? found;
+    Map<String, Command<void>> here = among;
+
+    for (final String word in path) {
+      found = here[word];
+      if (found == null) return null;
+      here = found.subcommands;
+    }
+
+    return found;
   }
 
   static Command<void>? _find(String name, Map<String, Command<void>> among) {

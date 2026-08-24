@@ -253,7 +253,7 @@ abstract class ScribeCommand extends Command<void> {
   ///
   /// Throws a [UsageError] when it was not given.
   String requireStringArg(String name) =>
-      stringArg(name) ?? (throw UsageError('Option --$name is required.', command: this.name));
+      stringArg(name) ?? (throw UsageError('Option --$name is required.', command: invocationName));
 
   /// Every value given to the repeatable option [name], empty when it was not given.
   List<String> stringsArg(String name) => (argResults?[name] as List<String>?) ?? const <String>[];
@@ -266,7 +266,7 @@ abstract class ScribeCommand extends Command<void> {
     if (raw == null) return null;
 
     final int? parsed = int.tryParse(raw);
-    if (parsed == null) throwUsageError('--$name expects a whole number, got "$raw".', command: this.name);
+    if (parsed == null) throwUsageError('--$name expects a whole number, got "$raw".', command: invocationName);
     return parsed;
   }
 
@@ -291,7 +291,10 @@ abstract class ScribeCommand extends Command<void> {
     final List<String> rest = argResults?.rest ?? const <String>[];
 
     if (rest.isEmpty) {
-      throwUsageError(<String>['$invocationName needs a <$label>.', ?alsoWrong, ?explain].join('\n\n'), command: name);
+      throwUsageError(
+        <String>['$invocationName needs a <$label>.', ?alsoWrong, ?explain].join('\n\n'),
+        command: invocationName,
+      );
     }
 
     if (rest.length > 1) {
@@ -299,7 +302,7 @@ abstract class ScribeCommand extends Command<void> {
       final String tooMany =
           '$invocationName takes a single <$label>. It read "${rest.first}" as the <$label>, '
           'and has nothing to do with $extra.';
-      throwUsageError(<String>[tooMany, ?alsoWrong].join('\n\n'), command: name);
+      throwUsageError(<String>[tooMany, ?alsoWrong].join('\n\n'), command: invocationName);
     }
 
     return rest.first;
