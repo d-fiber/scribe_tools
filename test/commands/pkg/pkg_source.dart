@@ -1,0 +1,127 @@
+// Copyright (C) 2026 Fiber
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License,
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
+// obtain one at https://mozilla.org/MPL/2.0/.
+//
+// What you may do:
+// - Use this software for any purpose, including commercially, and build and
+//   sell your own products on top of it.
+// - Change it, and create new works based on it.
+// - Distribute copies of it, with or without your changes.
+// - Combine it with files under any other licence, proprietary ones included,
+//   and licence that larger work on your own terms.
+//
+// What you must do in return:
+// - Keep this notice on every file you received it on.
+// - Publish, under these same terms, the source of every file covered by them
+//   that you distribute, including the ones you changed, so that whoever
+//   receives your version can obtain that source.
+// - Leave Fiber out of it: the name "Fiber", its branding, its logos and its
+//   trademarks may not be used to endorse or promote what you build, and this
+//   licence grants no right to them.
+//
+// Disclaimer:
+// AS FAR AS THE LAW ALLOWS, THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY
+// OR CONDITION OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+// WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, OR
+// NON-INFRINGEMENT. IN NO EVENT SHALL FIBER BE LIABLE FOR ANY DIRECT, INDIRECT,
+// INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING BUT NOT
+// LIMITED TO LOSS OF USE, DATA, PROFITS, OR BUSINESS INTERRUPTION) ARISING OUT
+// OF OR RELATED TO THESE TERMS OR THE USE OR NATURE OF THE SOFTWARE, UNDER ANY
+// KIND OF LEGAL CLAIM.
+//
+// This header is a summary written for convenience. Where it differs from the
+// LICENSE file, the LICENSE file governs.
+
+import 'package:file/file.dart';
+import 'package:file/memory.dart';
+import 'package:scribe_tools/runner.dart' as runner;
+import 'package:scribe_tools/src/base/context.dart';
+import 'package:scribe_tools/src/base/io.dart';
+import 'package:scribe_tools/src/base/logger.dart';
+import 'package:scribe_tools/src/base/platform.dart';
+import 'package:scribe_tools/src/base/process.dart';
+import 'package:scribe_tools/src/commands/pkg.dart';
+import 'package:scribe_tools/src/package/sdk.dart';
+import 'package:scribe_tools/src/runner/scribe_command.dart';
+
+/// The directory a package is written into by the tests below.
+const String kWorkDirectory = '/work';
+
+/// The checkout every test resolves against, named by `SCRIBE_ROOT`.
+const String kCheckoutDirectory = '/framework';
+
+/// The home directory the resolution builds the runtime's files under.
+const String kHomeDirectory = '/home/someone';
+
+/// Where the executables this fake machine carries are written.
+const String kBinDirectory = '/usr/bin';
+
+/// The file system, the buffer and the runner a test reads back what happened from.
+///
+/// Nothing here reaches the disk, the terminal or a process. It matters more than
+/// convenience: a resolution writes under the home directory, so a suite let
+/// through to the real one would write into the directory of whoever ran it and
+/// read back whatever was already there.
+class PkgHarness {
+  /// Opens a machine carrying every tool a command looks for, and a checkout at [kCheckoutDirectory].
+  PkgHarness() {
+    for (final String executable in <String>['git', 'deno', 'npm', 'docker']) {
+      fs.file('$kBinDirectory/$executable').createSync(recursive: true);
+    }
+
+    fs.directory(kWorkDirectory).createSync(recursive: true);
+    writeCheckout();
+  }
+
+  /// The file system everything this run reads and writes lives in.
+  final MemoryFileSystem fs = MemoryFileSystem.test();
+
+  /// What the commands printed.
+  final BufferLogger logger = BufferLogger();
+
+  /// What the commands asked to be run, none of which was started.
+  final RecordingProcessRunner processRunner = RecordingProcessRunner();
+
+  /// Writes a checkout at [kCheckoutDirectory] publishing [version].
+  ///
+  /// It carries the three directories a checkout is recognised by, the `VERSION`
+  /// the version is read from, the language's own manifest, and the import map
+  /// everything outside the framework is pinned in.
+  void writeCheckout({String version = '3.0.1'}) {
+    for (final String directory in <String>['sdk', 'host', 'protocol']) {
+      fs.directory('$kCheckoutDirectory/$directory').createSync(recursive: true);
+    }
+
+    fs.file('$kCheckoutDirectory/$kSdkVersionFile').writeAsStringSync('$version\n');
+    fs.file('$kCheckoutDirectory/$kSdkImportMapFile')
+      ..createSync(recursive: true)
+      ..writeAsStringSync('{"imports":{"@scribe/core/":"./core/"}}\n');
+
+    fs.file('$kCheckoutDirectory/host/alchemy/mod.ts')
+      ..createSync(recursive: true)
+      ..writeAsStringSync('export {};\n');
+    fs.file('$kCheckoutDirectory/host/alchemy/deno.json').writeAsStringSync('{"exports":{".":"./mod.ts"}}\n');
+  }
+
+  /// Runs `scribe` with [args] against this machine, and answers the status it left with.
+  Future<int> run(List<String> args) => runner.run(
+    args,
+    () => <ScribeCommand>[PkgCommand()],
+    toolVersion: 'test',
+    overrides: <Type, Generator>{
+      FileSystem: () => fs,
+      Logger: () => logger,
+      Stdio: FakeStdio.new,
+      ProcessRunner: () => processRunner,
+      Platform: () => const FakePlatform(
+        environment: <String, String>{
+          'PATH': kBinDirectory,
+          'HOME': kHomeDirectory,
+          kSdkRootVariable: kCheckoutDirectory,
+        },
+      ),
+    },
+  );
+}

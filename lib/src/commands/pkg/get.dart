@@ -34,33 +34,42 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
-import 'dart:io';
-
-import 'package:scribe_tools/runner.dart' as runner;
-import 'package:scribe_tools/src/commands/create.dart';
-import 'package:scribe_tools/src/commands/doctor.dart';
-import 'package:scribe_tools/src/commands/downgrade.dart';
-import 'package:scribe_tools/src/commands/gen.dart';
-import 'package:scribe_tools/src/commands/pkg.dart';
-import 'package:scribe_tools/src/commands/secrets.dart';
-import 'package:scribe_tools/src/commands/upgrade.dart';
+import 'package:path/path.dart' as p;
+import 'package:scribe_tools/src/globals.dart' as globals;
+import 'package:scribe_tools/src/package/resolution.dart';
+import 'package:scribe_tools/src/package/sdk.dart';
 import 'package:scribe_tools/src/runner/scribe_command.dart';
-import 'package:scribe_tools/src/self/tool_version.dart';
 
-Future<void> main(List<String> args) async {
-  final int code = await runner.run(
-    args,
-    () => <ScribeCommand>[
-      CreateCommand(),
-      DoctorCommand(),
-      DowngradeCommand(),
-      GenCommand(),
-      PkgCommand(),
-      SecretsCommand(),
-      UpgradeCommand(),
-    ],
-    toolVersion: kToolVersion,
-  );
+/// Works out what a package's specifiers answer to, and writes it down.
+class PkgGetCommand extends ScribeCommand {
+  @override
+  String get name => 'get';
 
-  if (code != 0) exit(code);
+  @override
+  String get description => 'Work out what this package reaches, and write it down for the tools.';
+
+  @override
+  String get invocation => 'scribe pkg get [directory]';
+
+  @override
+  bool get requiresProject => false;
+
+  @override
+  Future<ScribeCommandResult> runCommand() async {
+    final String directory = p.absolute(optionalPositional('directory') ?? globals.fs.currentDirectory.path);
+    final Sdk sdk = findSdk(from: directory);
+    final Resolution resolution = resolve(directory, sdk);
+
+    globals.logger.printStatus('Resolved against scribe ${sdk.version} in ${sdk.root}');
+    for (final MapEntry<String, String> held in resolution.imports.entries) {
+      globals.logger.printStatus('  ${held.key} ${held.value}');
+    }
+    globals.logger.printStatus('');
+    globals.logger.printStatus('Written to ${resolution.file}, which git ignores and nobody edits.');
+    globals.logger.printStatus(
+      'What the runtime is handed was built outside the package, in ${resolution.runtimeConfig}.',
+    );
+
+    return const ScribeCommandResult.success();
+  }
 }

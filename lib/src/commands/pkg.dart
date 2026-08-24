@@ -34,33 +34,32 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
-import 'dart:io';
-
-import 'package:scribe_tools/runner.dart' as runner;
-import 'package:scribe_tools/src/commands/create.dart';
-import 'package:scribe_tools/src/commands/doctor.dart';
-import 'package:scribe_tools/src/commands/downgrade.dart';
-import 'package:scribe_tools/src/commands/gen.dart';
-import 'package:scribe_tools/src/commands/pkg.dart';
-import 'package:scribe_tools/src/commands/secrets.dart';
-import 'package:scribe_tools/src/commands/upgrade.dart';
+import 'package:scribe_tools/src/commands/pkg/analyze.dart';
+import 'package:scribe_tools/src/commands/pkg/create.dart';
+import 'package:scribe_tools/src/commands/pkg/get.dart';
+import 'package:scribe_tools/src/commands/pkg/test.dart';
 import 'package:scribe_tools/src/runner/scribe_command.dart';
-import 'package:scribe_tools/src/self/tool_version.dart';
 
-Future<void> main(List<String> args) async {
-  final int code = await runner.run(
-    args,
-    () => <ScribeCommand>[
-      CreateCommand(),
-      DoctorCommand(),
-      DowngradeCommand(),
-      GenCommand(),
-      PkgCommand(),
-      SecretsCommand(),
-      UpgradeCommand(),
-    ],
-    toolVersion: kToolVersion,
-  );
+/// Everything done to a package of the framework: writing one, and reading what is wrong with it.
+///
+/// This family works on the framework and never on a project, which is why none
+/// of it declares [ScribeCommand.requiresProject]. What it resolves against is
+/// the checkout `package/sdk.dart` finds, not the one a project vendors.
+class PkgCommand extends ScribeCommandGroup {
+  /// Gathers everything done to a package behind the word `pkg`.
+  PkgCommand() {
+    addSubcommand(PkgAnalyzeCommand());
+    addSubcommand(PkgCreateCommand());
+    addSubcommand(PkgGetCommand());
+    addSubcommand(PkgTestCommand());
+  }
 
-  if (code != 0) exit(code);
+  @override
+  String get name => 'pkg';
+
+  @override
+  String get description => 'Write a package, and read what is wrong with the ones already there.';
+
+  @override
+  String get invocation => 'scribe pkg <command> [arguments]';
 }

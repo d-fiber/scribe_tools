@@ -34,33 +34,54 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
-import 'dart:io';
-
-import 'package:scribe_tools/runner.dart' as runner;
-import 'package:scribe_tools/src/commands/create.dart';
-import 'package:scribe_tools/src/commands/doctor.dart';
-import 'package:scribe_tools/src/commands/downgrade.dart';
-import 'package:scribe_tools/src/commands/gen.dart';
-import 'package:scribe_tools/src/commands/pkg.dart';
-import 'package:scribe_tools/src/commands/secrets.dart';
-import 'package:scribe_tools/src/commands/upgrade.dart';
+import 'package:path/path.dart' as p;
+import 'package:scribe_tools/src/base/common.dart';
+import 'package:scribe_tools/src/globals.dart' as globals;
+import 'package:scribe_tools/src/package/checks.dart';
+import 'package:scribe_tools/src/package/workspace.dart';
 import 'package:scribe_tools/src/runner/scribe_command.dart';
-import 'package:scribe_tools/src/self/tool_version.dart';
 
-Future<void> main(List<String> args) async {
-  final int code = await runner.run(
-    args,
-    () => <ScribeCommand>[
-      CreateCommand(),
-      DoctorCommand(),
-      DowngradeCommand(),
-      GenCommand(),
-      PkgCommand(),
-      SecretsCommand(),
-      UpgradeCommand(),
-    ],
-    toolVersion: kToolVersion,
-  );
+/// Reads every package under the roots and says what is wrong with them.
+class PkgAnalyzeCommand extends ScribeCommand {
+  @override
+  String get name => 'analyze';
 
-  if (code != 0) exit(code);
+  @override
+  String get description => 'Read the packages under a directory and report what is wrong with them.';
+
+  @override
+  String get invocation => 'scribe pkg analyze <directory>...';
+
+  @override
+  bool get requiresProject => false;
+
+  @override
+  Future<ScribeCommandResult> runCommand() async {
+    final List<String> roots = <String>[
+      for (final String given in argResults?.rest ?? const <String>[]) p.absolute(given),
+    ];
+
+    if (roots.isEmpty) roots.add(globals.fs.currentDirectory.path);
+
+    final List<DiscoveredPackage> packages = discover(roots);
+    if (packages.isEmpty) throwToolExit('No package under ${roots.join(', ')}.');
+
+    final List<Problem> problems = check(packages);
+    for (final Problem problem in problems) {
+      globals.logger.printError('$problem');
+    }
+
+    if (problems.isEmpty) {
+      globals.logger.printStatus('${_counted(packages.length, 'package')}, nothing to report.');
+      return const ScribeCommandResult.success();
+    }
+
+    globals.logger.printError('');
+    globals.logger.printError(
+      '${_counted(problems.length, 'problem')} across ${_counted(packages.length, 'package')}.',
+    );
+    return const ScribeCommandResult.fail();
+  }
+
+  String _counted(int many, String what) => many == 1 ? '1 $what' : '$many ${what}s';
 }

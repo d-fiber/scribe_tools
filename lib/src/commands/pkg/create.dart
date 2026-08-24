@@ -34,33 +34,53 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
-import 'dart:io';
-
-import 'package:scribe_tools/runner.dart' as runner;
-import 'package:scribe_tools/src/commands/create.dart';
-import 'package:scribe_tools/src/commands/doctor.dart';
-import 'package:scribe_tools/src/commands/downgrade.dart';
-import 'package:scribe_tools/src/commands/gen.dart';
-import 'package:scribe_tools/src/commands/pkg.dart';
-import 'package:scribe_tools/src/commands/secrets.dart';
-import 'package:scribe_tools/src/commands/upgrade.dart';
+import 'package:scribe_tools/src/globals.dart' as globals;
+import 'package:scribe_tools/src/package/scaffold.dart';
+import 'package:scribe_tools/src/package/sdk.dart';
 import 'package:scribe_tools/src/runner/scribe_command.dart';
-import 'package:scribe_tools/src/self/tool_version.dart';
 
-Future<void> main(List<String> args) async {
-  final int code = await runner.run(
-    args,
-    () => <ScribeCommand>[
-      CreateCommand(),
-      DoctorCommand(),
-      DowngradeCommand(),
-      GenCommand(),
-      PkgCommand(),
-      SecretsCommand(),
-      UpgradeCommand(),
-    ],
-    toolVersion: kToolVersion,
-  );
+/// Writes the mandatory layout of a new package, ready to pass the checks.
+class PkgCreateCommand extends ScribeCommand {
+  /// Takes the directory to write into, since it is not always the current one.
+  PkgCreateCommand() {
+    argParser.addOption(
+      'in',
+      valueHelp: 'directory',
+      help: 'Where the package is written. The current directory when left out.',
+    );
+  }
 
-  if (code != 0) exit(code);
+  @override
+  String get name => 'create';
+
+  @override
+  String get description => 'Write a new package, laid out the way every package has to be.';
+
+  @override
+  String get invocation => 'scribe pkg create <name> [--in <directory>]';
+
+  @override
+  bool get requiresProject => false;
+
+  @override
+  Future<ScribeCommandResult> runCommand() async {
+    final String named = requirePositional(
+      'name',
+      explain:
+          'The name becomes the directory, the segment of every import specifier that reaches the '
+          'package, and the key a project writes to mount it. Lowercase letters and single '
+          'underscores, as in "dynamic_links".',
+    );
+
+    final String inside = stringArg('in') ?? globals.fs.currentDirectory.path;
+    final Sdk sdk = findSdk(from: inside);
+    final CreatedPackage created = createPackage(inside, named, sdk);
+
+    globals.logger.printStatus('Wrote ${created.directory}');
+    for (final String file in created.files) {
+      globals.logger.printStatus('  $file');
+    }
+
+    return const ScribeCommandResult.success();
+  }
 }

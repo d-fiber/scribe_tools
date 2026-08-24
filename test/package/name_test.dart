@@ -34,33 +34,35 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
-import 'dart:io';
+import 'package:scribe_tools/src/package/name.dart';
+import 'package:test/test.dart';
 
-import 'package:scribe_tools/runner.dart' as runner;
-import 'package:scribe_tools/src/commands/create.dart';
-import 'package:scribe_tools/src/commands/doctor.dart';
-import 'package:scribe_tools/src/commands/downgrade.dart';
-import 'package:scribe_tools/src/commands/gen.dart';
-import 'package:scribe_tools/src/commands/pkg.dart';
-import 'package:scribe_tools/src/commands/secrets.dart';
-import 'package:scribe_tools/src/commands/upgrade.dart';
-import 'package:scribe_tools/src/runner/scribe_command.dart';
-import 'package:scribe_tools/src/self/tool_version.dart';
+void main() {
+  test('a lowercase name with single underscores is a package name', () {
+    expect(isValidPackageName('dynamic_links'), isTrue, reason: 'dynamic_links was refused');
+  });
 
-Future<void> main(List<String> args) async {
-  final int code = await runner.run(
-    args,
-    () => <ScribeCommand>[
-      CreateCommand(),
-      DoctorCommand(),
-      DowngradeCommand(),
-      GenCommand(),
-      PkgCommand(),
-      SecretsCommand(),
-      UpgradeCommand(),
-    ],
-    toolVersion: kToolVersion,
-  );
+  test('a capital letter cannot name a package', () {
+    expect(packageNameProblem('Audiences'), contains('cannot name a package'));
+  });
 
-  if (code != 0) exit(code);
+  test('a digit cannot name a package', () {
+    expect(packageNameProblem('s3'), contains('cannot name a package'));
+  });
+
+  test('a doubled underscore cannot name a package', () {
+    expect(packageNameProblem('dynamic__links'), contains('cannot name a package'));
+  });
+
+  test('a trailing underscore cannot name a package', () {
+    expect(packageNameProblem('audiences_'), contains('cannot name a package'));
+  });
+
+  test('a name the framework keeps is refused by naming the list', () {
+    expect(packageNameProblem('core'), contains('keeps for itself'));
+  });
+
+  test('an ordinary name has nothing wrong with it', () {
+    expect(packageNameProblem('audiences'), isNull, reason: 'audiences was refused');
+  });
 }

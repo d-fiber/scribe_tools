@@ -34,33 +34,37 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
-import 'dart:io';
+/// What a package may be called.
+///
+/// The name becomes three things at once: the directory, the segment of an
+/// import specifier and the key a project writes in its configuration. Anything
+/// that cannot sit in all three cannot name a package.
+final RegExp _accepted = RegExp(r'^[a-z]+(_[a-z]+)*$');
 
-import 'package:scribe_tools/runner.dart' as runner;
-import 'package:scribe_tools/src/commands/create.dart';
-import 'package:scribe_tools/src/commands/doctor.dart';
-import 'package:scribe_tools/src/commands/downgrade.dart';
-import 'package:scribe_tools/src/commands/gen.dart';
-import 'package:scribe_tools/src/commands/pkg.dart';
-import 'package:scribe_tools/src/commands/secrets.dart';
-import 'package:scribe_tools/src/commands/upgrade.dart';
-import 'package:scribe_tools/src/runner/scribe_command.dart';
-import 'package:scribe_tools/src/self/tool_version.dart';
+/// The names the framework answers to itself, which no package may take.
+///
+/// Each one already resolves to something else in an import specifier or in a
+/// generated directory, so a package taking one would be reachable under a name
+/// that already points elsewhere.
+const List<String> kReservedPackageNames = <String>['app', 'core', 'generated', 'host', 'scribe'];
 
-Future<void> main(List<String> args) async {
-  final int code = await runner.run(
-    args,
-    () => <ScribeCommand>[
-      CreateCommand(),
-      DoctorCommand(),
-      DowngradeCommand(),
-      GenCommand(),
-      PkgCommand(),
-      SecretsCommand(),
-      UpgradeCommand(),
-    ],
-    toolVersion: kToolVersion,
-  );
+/// Whether [name] is spelled the way a package name has to be spelled.
+bool isValidPackageName(String name) => _accepted.hasMatch(name);
 
-  if (code != 0) exit(code);
+/// What is wrong with [name], in the sentence a caller prints, or null.
+///
+/// The sentence is built here rather than at each call site so that the rule and
+/// its wording move together.
+String? packageNameProblem(String name) {
+  if (!isValidPackageName(name)) {
+    return '"$name" cannot name a package. Use lowercase letters and single underscores, '
+        'starting and ending with a letter, as in "dynamic_links".';
+  }
+
+  if (kReservedPackageNames.contains(name)) {
+    return '"$name" is a name the framework keeps for itself. The reserved ones are '
+        '${kReservedPackageNames.join(', ')}.';
+  }
+
+  return null;
 }

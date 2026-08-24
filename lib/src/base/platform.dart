@@ -56,6 +56,13 @@ abstract class Platform {
   /// The Dart version string, which also names the architecture at its end.
   String get version;
 
+  /// The path of the executable this process is, symbolic links unresolved.
+  ///
+  /// It is what says where the tool itself sits, which is how a command reaches
+  /// the checkout that installed it when the current directory is nowhere near
+  /// one.
+  String get resolvedExecutable;
+
   /// Whether this platform is Windows.
   bool get isWindows => operatingSystem == 'windows';
 
@@ -85,6 +92,9 @@ class LocalPlatform extends Platform {
 
   @override
   String get version => io.Platform.version;
+
+  @override
+  String get resolvedExecutable => io.Platform.resolvedExecutable;
 }
 
 /// A [Platform] whose answers are fixed by its constructor.
@@ -96,6 +106,7 @@ class FakePlatform extends Platform {
     this.pathSeparator = '/',
     this.stdoutSupportsAnsi = false,
     this.version = 'test',
+    this.resolvedExecutable = '/usr/bin/scribe',
   });
 
   @override
@@ -112,4 +123,7 @@ class FakePlatform extends Platform {
 
   @override
   final String version;
+
+  @override
+  final String resolvedExecutable;
 }

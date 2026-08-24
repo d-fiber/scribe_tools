@@ -308,6 +308,31 @@ abstract class ScribeCommand extends Command<void> {
     return rest.first;
   }
 
+  /// The one argument the caller gave, [label] naming it, or null when there is none.
+  ///
+  /// It is [requirePositional] for a command whose argument stands for a
+  /// directory it can work out itself. A second argument is refused the same
+  /// way and for the same reason: an unknown word is almost always a misspelled
+  /// option, and reading the first and dropping the rest would act somewhere
+  /// nobody named.
+  ///
+  /// Throws a [UsageError] when there is more than one.
+  String? optionalPositional(String label) {
+    final List<String> rest = argResults?.rest ?? const <String>[];
+    if (rest.isEmpty) return null;
+
+    if (rest.length > 1) {
+      final String extra = rest.skip(1).map((String word) => '"$word"').join(', ');
+      throwUsageError(
+        '$invocationName takes a single <$label>. It read "${rest.first}" as the <$label>, '
+        'and has nothing to do with $extra.',
+        command: invocationName,
+      );
+    }
+
+    return rest.first;
+  }
+
   /// This command's usage, without the description a refusal has already said.
   ///
   /// `Command.usage` opens with [description], which repeats the sentence the
