@@ -63,8 +63,12 @@ version=$(awk '/^version:/ { print $2; exit }' pubspec.yaml)
 
 dart compile exe bin/scribe.dart -o "$binary" --define=SCRIBE_VERSION="$version"
 
+rm -rf "$destination/templates"
+cp -R templates "$destination/templates"
+
 echo ""
 echo "Built $binary $version ($(du -h "$binary" | cut -f1))"
+echo "Copied templates/ next to it, which is where the binary reads them from."
 echo ""
 echo "out/ is ignored by git, so this binary never reaches a commit."
 

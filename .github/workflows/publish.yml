@@ -75,6 +75,10 @@ jobs:
     timeout-minutes: 10
 
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
       - uses: actions/download-artifact@v4
         with:
           pattern: scribe-*
@@ -90,6 +94,12 @@ jobs:
             cp "incoming/scribe-$target/scribe$extension" "assets/scribe-$target$extension"
           done
           ls -lh assets
+
+      - name: Pack the templates the binary reads at runtime
+        run: |
+          set -eu
+          tar -czf assets/scribe-templates.tar.gz templates
+          ls -lh assets/scribe-templates.tar.gz
 
       - name: Attach them to this release
         env:

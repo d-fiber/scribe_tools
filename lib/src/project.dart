@@ -402,16 +402,10 @@ class ScribeSdk {
 
   /// What the stack mounts or builds as it is, from Dockerfiles to the Caddyfile.
   ///
-  /// Nothing here carries a placeholder. Everything that does lives under
-  /// [templates] instead, so that a file read from this directory is always a
-  /// file Docker can use directly.
+  /// Nothing here carries a placeholder. Everything that does is a template, and
+  /// templates ship with the tool rather than with the framework, so a file read
+  /// from this directory is always a file Docker can use directly.
   Directory get ops => directory.childDirectory('ops');
-
-  /// Everything the tool renders rather than reads, under `templates/`.
-  Directory get templates => directory.childDirectory('templates');
-
-  /// The compose and gateway templates a project's stack is rendered from.
-  Directory get opsTemplates => templates.childDirectory('ops');
 
   /// The `.proto` files of the host-to-worker contract.
   Directory get protocol => directory.childDirectory('protocol');

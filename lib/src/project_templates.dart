@@ -38,24 +38,14 @@ import 'package:file/file.dart';
 import 'package:path/path.dart' as p;
 
 import 'package:scribe_tools/src/globals.dart' as globals;
-
-/// The directory of the framework holding everything it renders.
-const String kTemplatesDirectoryName = 'templates';
-
-/// The layer of [kTemplatesDirectoryName] holding what `create` copies.
-///
-/// It sits under its own name rather than at the top so that the directories
-/// next to it are SDK names and nothing else: [ProjectTemplates.sdkNames] reads
-/// that level, and `templates/ops/` would otherwise answer as an SDK called
-/// `ops`.
-const String kProjectTemplatesDirectoryName = 'project';
+import 'package:scribe_tools/src/templates.dart';
 
 /// The layer every project gets, whatever SDK it targets.
 const String kSharedTemplateName = 'common';
 
 /// The name a `.gitignore` is stored under, its dot removed.
 ///
-/// A `.gitignore` inside the templates would apply to the framework's own
+/// A `.gitignore` inside the templates would apply to the tool's own
 /// checkout, so the file is kept dotless and the dot is put back on the way out.
 const String kGitignoreTemplateName = 'gitignore';
 
@@ -89,16 +79,13 @@ class ProjectTemplates {
   /// The `templates/project/` directory these were read from.
   final Directory directory;
 
-  /// The templates of the framework at [frameworkRoot], or null when there are none.
+  /// The project templates this tool ships, or null when they are not next to it.
   ///
-  /// Null covers both cases a caller handles the same way: no framework was
-  /// found, or the one that was found ships no templates.
-  static ProjectTemplates? find(Directory? frameworkRoot) {
-    if (frameworkRoot == null) return null;
-
-    final Directory templates = frameworkRoot
-        .childDirectory(kTemplatesDirectoryName)
-        .childDirectory(kProjectTemplatesDirectoryName);
+  /// Null means the tool was installed without them, which is the one case a
+  /// caller has to explain rather than work around: nothing else on the machine
+  /// holds them.
+  static ProjectTemplates? find() {
+    final Directory templates = globals.templatePaths.directoryInPackage(kProjectTemplatesDirectoryName, globals.fs);
     if (!templates.existsSync()) return null;
 
     return ProjectTemplates(directory: templates);

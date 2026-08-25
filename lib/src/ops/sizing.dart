@@ -46,6 +46,7 @@ import 'package:scribe_tools/src/ops/hardware.dart';
 import 'package:scribe_tools/src/ops/sizing_rules.dart';
 import 'package:scribe_tools/src/packages.dart';
 import 'package:scribe_tools/src/project.dart';
+import 'package:scribe_tools/src/templates.dart';
 
 /// The templates rendered on every run, in the order Compose reads them.
 ///
@@ -88,11 +89,11 @@ class ComposeDocuments {
   final List<String> profiles;
 }
 
-/// The compose documents of a project, rendered from the framework's templates.
+/// The compose documents of a project, rendered from the templates the tool ships.
 ///
-/// The framework's own tree is never written to: the templates and the package
-/// fragments are fixed, and everything this produces lands under the project's
-/// generated directory.
+/// Neither the tool's own tree nor the framework's is written to: the templates
+/// and the package fragments are fixed, and everything this produces lands under
+/// the project's generated directory.
 class ComposeRender {
   /// Renders [project], the one the command is running in when none is named.
   ComposeRender({Project? project}) : project = project ?? globals.project;
@@ -185,7 +186,10 @@ class ComposeRender {
     Directory target,
     List<YamlFragment> fragments,
   ) async {
-    final File source = project.sdk.opsTemplates.childDirectory('docker').childFile(name);
+    final File source = globals.templatePaths
+        .directoryInPackage(kOpsTemplatesDirectoryName, globals.fs)
+        .childDirectory('docker')
+        .childFile(name);
     if (!source.existsSync()) {
       throwToolExit('No template at ${source.path}');
     }

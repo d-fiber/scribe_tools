@@ -63,6 +63,20 @@ abstract class Platform {
   /// one.
   String get resolvedExecutable;
 
+  /// The entrypoint this process was started from.
+  ///
+  /// Its scheme says how the tool was started, which is the only thing that
+  /// tells a compiled binary apart from a `dart run` of `bin/scribe.dart`: a
+  /// binary answers its own path, a source run answers the entrypoint under
+  /// `bin/`, and a test answers a `data:` URI. That is what
+  /// `defaultToolRoot` reads to find the directory the templates sit in.
+  Uri get script;
+
+  /// The `package_config.json` this process resolves its imports through, when it has one.
+  ///
+  /// Null for a compiled binary, which resolved everything at build time.
+  String? get packageConfig;
+
   /// Whether this platform is Windows.
   bool get isWindows => operatingSystem == 'windows';
 
@@ -95,6 +109,12 @@ class LocalPlatform extends Platform {
 
   @override
   String get resolvedExecutable => io.Platform.resolvedExecutable;
+
+  @override
+  Uri get script => io.Platform.script;
+
+  @override
+  String? get packageConfig => io.Platform.packageConfig;
 }
 
 /// A [Platform] whose answers are fixed by its constructor.
@@ -107,7 +127,12 @@ class FakePlatform extends Platform {
     this.stdoutSupportsAnsi = false,
     this.version = 'test',
     this.resolvedExecutable = '/usr/bin/scribe',
+    this.scriptPath = _testEntrypoint,
+    this.packageConfig,
   });
+
+  /// The entrypoint a test run reports, which is the source it was compiled from.
+  static const String _testEntrypoint = 'data:application/dart;charset=utf-8,';
 
   @override
   final String operatingSystem;
@@ -126,4 +151,17 @@ class FakePlatform extends Platform {
 
   @override
   final String resolvedExecutable;
+
+  /// What [script] is parsed from, spelled as a URI so a test can name a scheme.
+  ///
+  /// It is a string rather than a [Uri] because this class is a constant and
+  /// there is no constant way to build a [Uri]. A test naming a file passes
+  /// `file:///path`, since a bare path parses to no scheme at all.
+  final String scriptPath;
+
+  @override
+  final String? packageConfig;
+
+  @override
+  Uri get script => Uri.parse(scriptPath);
 }

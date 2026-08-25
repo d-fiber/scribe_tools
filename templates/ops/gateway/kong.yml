@@ -1,0 +1,167 @@
+_format_version: "2.1"
+_transform: true
+
+consumers:
+  - username: DASHBOARD
+  - username: anon
+    keyauth_credentials:
+      - key: $SUPABASE_ANON_KEY
+      - key: $SUPABASE_PUBLISHABLE_KEY
+  - username: service_role
+    keyauth_credentials:
+      - key: $SUPABASE_SERVICE_KEY
+      - key: $SUPABASE_SECRET_KEY
+  {{app_key_consumers}}
+
+acls:
+  - consumer: anon
+    group: anon
+  - consumer: service_role
+    group: admin
+  - consumer: app
+    group: app_key
+  - consumer: admin
+    group: admin_key
+
+basicauth_credentials:
+  - consumer: DASHBOARD
+    username: "$DASHBOARD_USERNAME"
+    password: "$DASHBOARD_PASSWORD"
+
+upstreams:
+  - name: api-upstream
+    _comment: "Target for every service that used to point straight at http://api:3000 (hooks + api-app/api-admin). Still declared as a single target (api:3000), but Kong re-resolves that DNS name on every check and round-robins across whatever IPs Docker returns for it (one per api replica, see docker/replicas.yaml + docker/sizing.yaml). The active healthcheck drops a dead replica from rotation without waiting on a DNS TTL."
+    algorithm: round-robin
+    healthchecks:
+      active:
+        type: http
+        http_path: /app/health
+        healthy:
+          interval: 5
+          successes: 2
+        unhealthy:
+          interval: 5
+          http_failures: 3
+    targets:
+      - target: api:3000
+        weight: 100
+
+services:
+
+  - name: hosting-pages
+    _comment: "Generic entry point for every public HTML page served by the functions edge-runtime (email confirmation today, anything under api/internal/hosting/<name>/index.ts tomorrow). Kong route paths prefix-match by default, so /functions/v1/hosting/<anything> forwards straight through no new Kong block needed when a new page gets added, just a new folder with an index.ts (see main/index.ts's FunctionServiceLocator, which already resolves paths to folders dynamically)."
+    url: http://functions:9000/hosting
+    routes:
+      - name: hosting-pages-route
+        strip_path: true
+        paths:
+          - /functions/v1/hosting
+    plugins:
+      - name: rate-limiting
+        _comment: "These pages carry no key-auth (they are opened straight from an email) and run on the functions edge-runtime, which has no Kong quota of its own. Without this block the only throttle was the application limiter, itself keyed on request.ip() see api-app for why the policy must be redis."
+        config:
+          second: 5
+          minute: 60
+          limit_by: ip
+          policy: redis
+          redis:
+            host: redis
+            port: 6379
+            password: $REDIS_PASSWORD
+            database: 0
+          fault_tolerant: true
+          hide_client_headers: false
+
+  - name: api-app
+    _comment: "API app: /v1/app/* -> api-upstream/app/ (round-robins across every replica of the api service, see the api-upstream definition at the top of this file). The /app/ prefix is NOT cosmetic: server.ts mounts the internal services (auth/intra, gotrue, messaging, queue) at the root of the same port 3000, so a service path of / made /v1/app/auth/intra resolve to the intranet Basic-Auth endpoint straight from the public app domain. See .claude/scribe/host/kernel/global.md § Surfaces."
+    protocol: http
+    host: api-upstream
+    port: 3000
+    path: /app/
+    read_timeout: 150000
+    write_timeout: 150000
+    connect_timeout: 15000
+    routes:
+      - name: api-app-route
+        strip_path: true
+        paths:
+          - /v1/app/
+    plugins:
+      - name: cors
+        config:
+          {{app_cors_origins}}
+      - name: request-size-limiting
+        _comment: "Matches MAX_FORM_BYTES (scribe/host/server/_request/validation/schema.ts) the largest legitimate body (multipart media upload) our own code ever reads. Rejected here, at the edge, before api:3000 spends memory/time buffering it regardless of what content-type the request claims."
+        config:
+          allowed_payload_size: 100
+          size_unit: megabytes
+      - name: key-auth
+        config:
+          key_names:
+            - x-app-key
+          key_in_query: false
+      - name: acl
+        config:
+          allow:
+            - app_key
+      - name: rate-limiting
+        _comment: "policy: redis, not local a local counter lives in one Kong worker, so the effective limit gets multiplied by the number of Kong replicas and workers. The shared Redis makes the quota mean what it says cluster-wide."
+        config:
+          second: 40
+          minute: 1200
+          limit_by: ip
+          policy: redis
+          redis:
+            host: redis
+            port: 6379
+            password: $REDIS_PASSWORD
+            database: 0
+          fault_tolerant: true
+          hide_client_headers: false
+
+  - name: api-admin
+    _comment: "API admin: /v1/admin/* -> api-upstream/admin/ (round-robins across every replica of the api service, see the api-upstream definition at the top of this file)"
+    protocol: http
+    host: api-upstream
+    port: 3000
+    path: /admin/
+    read_timeout: 150000
+    write_timeout: 150000
+    connect_timeout: 15000
+    routes:
+      - name: api-admin-route
+        strip_path: true
+        paths:
+          - /v1/admin/
+    plugins:
+      - name: cors
+        config:
+          {{admin_cors_origins}}
+      - name: request-size-limiting
+        _comment: "Matches MAX_FORM_BYTES (scribe/host/server/_request/validation/schema.ts) the largest legitimate body (multipart media upload) our own code ever reads. Rejected here, at the edge, before api:3000 spends memory/time buffering it regardless of what content-type the request claims."
+        config:
+          allowed_payload_size: 100
+          size_unit: megabytes
+      - name: key-auth
+        config:
+          key_names:
+            - x-admin-app-key
+          key_in_query: false
+      - name: acl
+        config:
+          allow:
+            - admin_key
+      - name: rate-limiting
+        _comment: "policy: redis, not local see the api-app rate-limiting block for why a per-worker counter cannot enforce a cluster-wide quota."
+        config:
+          second: 20
+          minute: 400
+          limit_by: ip
+          policy: redis
+          redis:
+            host: redis
+            port: 6379
+            password: $REDIS_PASSWORD
+            database: 0
+          fault_tolerant: true
+          hide_client_headers: false

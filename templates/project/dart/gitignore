@@ -1,0 +1,8 @@
+.DS_Store
+.env
+
+.{{name}}/
+
+node_modules/
+.dart_tool/
+pubspec.lock

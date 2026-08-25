@@ -45,6 +45,7 @@ import 'package:scribe_tools/src/commands/create.dart';
 import 'package:scribe_tools/src/commands/create/sdk_choice.dart';
 import 'package:scribe_tools/src/runner/scribe_command.dart';
 import 'package:scribe_tools/src/sdk_target.dart';
+import 'package:scribe_tools/src/templates.dart';
 import 'package:test/test.dart';
 
 late MemoryFileSystem fs;
@@ -52,6 +53,9 @@ late BufferLogger logger;
 
 /// The directory `create` is run from, one below the framework.
 const String workDirectory = '/framework/work';
+
+/// The root of the tool, which is where its templates sit.
+const String toolDirectory = '/tools';
 
 /// Where the executables this fake machine carries are written.
 const String binDirectory = '/usr/bin';
@@ -80,14 +84,16 @@ Future<int> runScribe(List<String> args) => runner.run(
     Logger: () => logger,
     Stdio: FakeStdio.new,
     Platform: () => const FakePlatform(environment: <String, String>{'PATH': binDirectory}),
+    TemplatePathProvider: () => FixedTemplatePathProvider(fs.directory(toolDirectory)),
   },
 );
 
-/// Writes a framework checkout at `/framework`, with a template per SDK.
+/// Writes a framework checkout at `/framework`, and the tool's templates at `/tools`.
 ///
 /// [sdks] names the directories of `sdk/`, each given one hand-written file so
 /// it counts as ready. [templates] names the layers of `templates/project/`,
-/// `common` included, so a test can drop the one it wants missing.
+/// `common` included, so a test can drop the one it wants missing. They sit
+/// apart from the checkout because they ship with the tool, not the framework.
 void writeFramework({
   Map<String, String> sdks = const <String, String>{'js': '.ts', 'dart': '.dart'},
   List<String> templates = const <String>['common', 'js'],
@@ -101,20 +107,20 @@ void writeFramework({
 
   for (final String layer in templates) {
     if (layer == 'common') {
-      fs.file('/framework/templates/project/common/gitignore')
+      fs.file('/tools/templates/project/common/gitignore')
         ..createSync(recursive: true)
         ..writeAsStringSync('/{{name}}.log\n');
-      fs.file('/framework/templates/project/common/config.yaml')
+      fs.file('/tools/templates/project/common/config.yaml')
         ..createSync(recursive: true)
         ..writeAsStringSync('name: {{name}}\nhost: {{host}}\nsdk: {{sdk}}\n');
-      fs.file('/framework/templates/project/common/lib/main.txt')
+      fs.file('/tools/templates/project/common/lib/main.txt')
         ..createSync(recursive: true)
         ..writeAsStringSync('the shared entrypoint\n');
-      fs.file('/framework/templates/project/common/tests/.gitkeep').createSync(recursive: true);
+      fs.file('/tools/templates/project/common/tests/.gitkeep').createSync(recursive: true);
       continue;
     }
 
-    fs.file('/framework/templates/project/$layer/lib/main.txt')
+    fs.file('/tools/templates/project/$layer/lib/main.txt')
       ..createSync(recursive: true)
       ..writeAsStringSync('the $layer entrypoint of {{name}}\n');
   }
@@ -344,6 +350,15 @@ void main() {
       expect(await runScribe(<String>['create', 'app']), 1);
       expect(logger.errorText, contains('there is no scribe checkout above'));
       expect(fs.directory('/elsewhere/app').existsSync(), isFalse);
+    });
+
+    test('nothing is written when the tool was installed without its templates', () async {
+      writeFramework(templates: const <String>[]);
+
+      expect(await runScribe(<String>['create', 'app', '--sdk', 'js']), 1);
+      expect(logger.errorText, contains('templates live in templates/project/ next to the tool'));
+      expect(logger.errorText, contains(toolDirectory));
+      expect(fs.directory('$workDirectory/app').existsSync(), isFalse);
     });
   });
 

@@ -54,14 +54,15 @@ Directory get packagesRoot => _fs.directory(p.join(repository, 'packages'));
 /// The socle's own ops directory, which holds the `capacity.yaml` every project reads.
 Directory get socleOps => _fs.directory(p.join(repository, 'ops/docker'));
 
-/// Where the socle's compose templates live, which is not next to its weights.
-Directory get socleComposeTemplates => _fs.directory(p.join(repository, 'templates/ops/docker'));
+/// Where the socle's compose templates live, which is this package rather than the framework.
+Directory get socleComposeTemplates => _fs.directory('templates/ops/docker');
 
 /// A `capacity.yaml` and the compose document its weights have to agree with.
 ///
 /// A module keeps both in the same directory, since neither is read without the
-/// other. The socle does not: its compose carries `{{variables}}` and so lives
-/// under `templates/`, while its weights are plain numbers and stay in `ops/`.
+/// other. The socle does not: its compose carries `{{variables}}` and so ships
+/// with the tool under `templates/`, while its weights are plain numbers and
+/// stay in the framework's `ops/`.
 class CapacitySource {
   const CapacitySource({required this.weights, required this.compose});
 

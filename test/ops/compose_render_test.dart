@@ -44,6 +44,7 @@ import 'package:scribe_tools/src/base/logger.dart';
 import 'package:scribe_tools/src/ops/capacity.dart';
 import 'package:scribe_tools/src/ops/hardware.dart';
 import 'package:scribe_tools/src/ops/sizing.dart';
+import 'package:scribe_tools/src/templates.dart';
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
@@ -54,17 +55,28 @@ const Hardware _machine = Hardware(cores: 8, threads: 16, memoryGb: 32);
 
 final RegExp _placeholder = RegExp(r'\{\{\w+\}\}');
 
-Future<T> _withContext<T>(FileSystem fs, Future<T> Function() body) =>
-    AppContext.current.run<T>(overrides: <Type, Generator>{FileSystem: () => fs, Logger: BufferLogger.new}, body: body);
+/// The root the templates are vendored under, standing in for an installed tool.
+const String _toolRoot = '/tools';
 
-/// Copies the parts of the real framework a render reads into [fs].
+Future<T> _withContext<T>(FileSystem fs, Future<T> Function() body) => AppContext.current.run<T>(
+  overrides: <Type, Generator>{
+    FileSystem: () => fs,
+    Logger: BufferLogger.new,
+    TemplatePathProvider: () => FixedTemplatePathProvider(fs.directory(_toolRoot)),
+  },
+  body: body,
+);
+
+/// Copies what a render reads into [fs]: this package's templates and the framework's rest.
 ///
 /// The templates and the package fragments are the input of every assertion
 /// below, so the test reads the ones that ship rather than a fixture: a
-/// fragment that stops matching its base has to fail here.
+/// fragment that stops matching its base has to fail here. The templates come
+/// from this package because that is where an installed tool carries them, and
+/// everything else from the framework checked out next door.
 void _vendorFramework(FileSystem fs, String root) {
   for (final String name in composeTemplates) {
-    _copy(fs, p.join(_repository, 'templates/ops/docker', name), p.join(root, 'templates/ops/docker', name));
+    _copy(fs, p.join('templates/ops/docker', name), p.join(_toolRoot, 'templates/ops/docker', name));
   }
   _copy(fs, p.join(_repository, 'ops/docker', capacityFileName), p.join(root, 'ops/docker', capacityFileName));
 

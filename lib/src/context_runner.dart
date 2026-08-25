@@ -48,6 +48,7 @@ import 'package:scribe_tools/src/base/template.dart';
 import 'package:scribe_tools/src/base/terminal.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/isolated/scribe_template.dart';
+import 'package:scribe_tools/src/templates.dart';
 
 /// Runs [body] in a context where every dependency has its real implementation.
 ///
@@ -63,6 +64,7 @@ Future<T> runInContext<T>(FutureOr<T> Function() body, {Map<Type, Generator>? ov
       ProcessRunner: () => const LocalProcessRunner(),
       OperatingSystemUtils: () => OperatingSystemUtils.forPlatform(platform: globals.platform, fileSystem: globals.fs),
       TemplateRenderer: () => const ScribeTemplateRenderer(),
+      TemplatePathProvider: () => const TemplatePathProvider(),
       Stdio: Stdio.new,
       FileSystem: () => const LocalFileSystem(),
       OutputPreferences: () => OutputPreferences(stdio: globals.stdio, showColor: globals.terminal.supportsColor),

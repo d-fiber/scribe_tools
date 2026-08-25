@@ -58,6 +58,7 @@ import 'package:scribe_tools/src/base/terminal.dart';
 import 'package:scribe_tools/src/isolated/scribe_template.dart';
 import 'package:scribe_tools/src/project.dart';
 import 'package:scribe_tools/src/shell.dart';
+import 'package:scribe_tools/src/templates.dart';
 import 'package:scribe_tools/src/tools.dart';
 
 /// The context the current zone carries.
@@ -106,6 +107,9 @@ Project get project => context.get<Project>() ?? Project.current;
 
 /// The engine that fills the templates this run writes from.
 TemplateRenderer get templateRenderer => context.get<TemplateRenderer>() ?? const ScribeTemplateRenderer();
+
+/// Where the templates this run reads are stored.
+TemplatePathProvider get templatePaths => context.get<TemplatePathProvider>() ?? const TemplatePathProvider();
 
 OperatingSystemUtils? _osInstance;
 

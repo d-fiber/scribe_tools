@@ -45,6 +45,7 @@ import 'package:scribe_tools/src/project_templates.dart';
 import 'package:scribe_tools/src/runner/scribe_command.dart';
 import 'package:scribe_tools/src/runner/scribe_command_runner.dart';
 import 'package:scribe_tools/src/sdk_target.dart';
+import 'package:scribe_tools/src/templates.dart';
 
 /// Scaffolds a project in `./<name>`, and nothing else.
 ///
@@ -140,6 +141,8 @@ class CreateCommand extends ScribeCommand {
       explain: _nameExplained,
       alsoWrong: choice.unknownSdk(stringArg(sdkOption)),
     );
+    _requireFramework();
+
     final Directory root = _destinationFor(projectName);
     final ProjectTemplates templates = _templates();
 
@@ -182,19 +185,35 @@ class CreateCommand extends ScribeCommand {
     return root;
   }
 
-  /// The templates of the framework above the current directory.
+  /// Refuses when no framework sits above the current directory.
   ///
-  /// Throws a [ToolExit] when there is none. A project without the framework
-  /// would not run anyway, so this refuses rather than writing half of one.
+  /// The templates no longer come from the checkout, so nothing else would stop
+  /// a scaffold here. It still has to stop: what is written imports the SDK
+  /// through a relative path into `scribe/`, and a project written next to
+  /// nothing would not run.
+  void _requireFramework() {
+    if (SdkCatalog.findFrameworkRoot(globals.fs.currentDirectory) != null) return;
+
+    throwToolExit(
+      'A project reads the SDK out of the framework next to it, and there is no scribe '
+      'checkout above ${globals.fs.currentDirectory.path}.\n'
+      'Run this from inside a checkout, or next to one.',
+    );
+  }
+
+  /// The templates this tool ships.
+  ///
+  /// Throws a [ToolExit] when they are not there. An installation missing them
+  /// cannot scaffold anything, so this refuses rather than writing half a project.
   ProjectTemplates _templates() {
-    final ProjectTemplates? found = ProjectTemplates.find(SdkCatalog.findFrameworkRoot(globals.fs.currentDirectory));
+    final ProjectTemplates? found = ProjectTemplates.find();
     if (found != null) return found;
 
     throwToolExit(
-      'The project templates live in <scribe>/$kTemplatesDirectoryName/$kProjectTemplatesDirectoryName/, '
-      'and there is no scribe '
-      'checkout above ${globals.fs.currentDirectory.path}.\n'
-      'Run this from inside a checkout, or next to one.',
+      'The project templates live in $kTemplatesDirectoryName/$kProjectTemplatesDirectoryName/ '
+      'next to the tool, and there are none under '
+      '${globals.templatePaths.root(globals.fs).path}.\n'
+      'Run tools/install.sh again, or set $kToolRootEnvironmentVariableName to a scribe_tools checkout.',
     );
   }
 
