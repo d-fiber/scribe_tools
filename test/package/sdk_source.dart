@@ -60,11 +60,7 @@ const Map<String, String> kCheckoutImports = <String, String>{
 ///
 /// Every entry answering a path inside the checkout gets a file written for it,
 /// so that a test reading back what a package reaches finds something behind it.
-void writeCheckout(
-  Directory root, {
-  String version = '3.0.1',
-  Map<String, String> imports = kCheckoutImports,
-}) {
+void writeCheckout(Directory root, {String version = '3.0.1', Map<String, String> imports = kCheckoutImports}) {
   for (final String directory in <String>['sdk', 'engine', 'protocol']) {
     Directory(p.join(root.path, directory)).createSync(recursive: true);
   }

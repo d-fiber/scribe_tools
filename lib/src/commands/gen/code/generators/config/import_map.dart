@@ -68,14 +68,7 @@ const Set<String> _frameworkPathAliases = <String>{
 /// the way the framework's own members do. The checkout keeps each layer's own
 /// visibility to itself: those declarations say which layer may reach which, and
 /// a project is outside that graph, so it gets all of them.
-const List<String> _layers = <String>[
-  'contracts',
-  'runtime',
-  'kernel',
-  'embedder',
-  'testing',
-  'shell',
-];
+const List<String> _layers = <String>['contracts', 'runtime', 'kernel', 'embedder', 'testing', 'shell'];
 
 /// The packages the framework carries, reached by name like the layers.
 const List<String> _packages = <String>[

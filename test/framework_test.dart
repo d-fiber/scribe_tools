@@ -123,25 +123,31 @@ void main() {
       writeCheckout();
       fs.currentDirectory = checkoutDirectory;
 
-      await withProcesses(RecordingProcessRunner(outputs: <String, String>{...taggedCommits, 'tag': versionTags}), () async {
-        final List<Release> history = await Framework.locate()!.history();
+      await withProcesses(
+        RecordingProcessRunner(outputs: <String, String>{...taggedCommits, 'tag': versionTags}),
+        () async {
+          final List<Release> history = await Framework.locate()!.history();
 
-        expect(history.map((Release release) => '${release.version}'), <String>['0.1.5', '0.1.4', '0.1.3']);
-        expect(history.first.shortCommit, '9f8e7d6');
-        expect(history.last.date, DateTime.parse('2026-08-14T11:41:02+02:00'));
-      });
+          expect(history.map((Release release) => '${release.version}'), <String>['0.1.5', '0.1.4', '0.1.3']);
+          expect(history.first.shortCommit, '9f8e7d6');
+          expect(history.last.date, DateTime.parse('2026-08-14T11:41:02+02:00'));
+        },
+      );
     });
 
     test('the oldest tag is a release like the others', () async {
       writeCheckout();
       fs.currentDirectory = checkoutDirectory;
 
-      await withProcesses(RecordingProcessRunner(outputs: <String, String>{...taggedCommits, 'tag': versionTags}), () async {
-        final Release first = (await Framework.locate()!.history()).last;
+      await withProcesses(
+        RecordingProcessRunner(outputs: <String, String>{...taggedCommits, 'tag': versionTags}),
+        () async {
+          final Release first = (await Framework.locate()!.history()).last;
 
-        expect(first.version, const Version(0, 1, 3));
-        expect(first.commit, 'cafebabedeadbeef0123456789abcdefcafebabe');
-      });
+          expect(first.version, const Version(0, 1, 3));
+          expect(first.commit, 'cafebabedeadbeef0123456789abcdefcafebabe');
+        },
+      );
     });
 
     test('a log that says nothing is no history, not a crash', () async {

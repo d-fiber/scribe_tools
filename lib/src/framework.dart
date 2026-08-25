@@ -181,11 +181,9 @@ class Framework {
       if (held.isEmpty) continue;
 
       final List<String> parts = held.split(' ');
-      releases.add(Release(
-        version: version,
-        commit: parts.first,
-        date: parts.length > 1 ? DateTime.tryParse(parts[1]) : null,
-      ));
+      releases.add(
+        Release(version: version, commit: parts.first, date: parts.length > 1 ? DateTime.tryParse(parts[1]) : null),
+      );
     }
 
     return releases;
@@ -231,7 +229,6 @@ class Framework {
   /// checkout now is and how to come back.
   Future<bool> checkout(Release release) async =>
       await _run(<String>['-c', 'advice.detachedHead=false', 'checkout', release.commit]) == 0;
-
 
   Future<int> _run(List<String> arguments) =>
       globals.processRunner.run(<String>['git', ...arguments], workingDirectory: root.path);

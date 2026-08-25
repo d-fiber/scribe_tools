@@ -254,10 +254,7 @@ Map<String, String> packageClosure(
       final Manifest reached = loadManifest(at);
       if (!allows(constraint, reached.version)) {
         problems.add(
-          Unresolved(
-            name,
-            '${held.key.name} accepts $constraint, and the copy at $at publishes ${reached.version}.',
-          ),
+          Unresolved(name, '${held.key.name} accepts $constraint, and the copy at $at publishes ${reached.version}.'),
         );
         return;
       }

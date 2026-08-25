@@ -114,10 +114,6 @@ void main() {
     final String manifest = File(p.join(root.path, 'audiences', 'package.yaml')).readAsStringSync();
 
     expect(manifest, contains('\ndependencies:\n'), reason: 'a package that depends on nothing does not say so');
-    expect(
-      manifest,
-      contains('\n$kDevDependenciesKey:\n'),
-      reason: 'a block nothing writes is a block nobody finds',
-    );
+    expect(manifest, contains('\n$kDevDependenciesKey:\n'), reason: 'a block nothing writes is a block nobody finds');
   });
 }

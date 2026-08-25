@@ -198,7 +198,6 @@ void main() {
     expect(problemsUnder().single, contains('the copy on hand is 0.2.0'));
   });
 
-
   test('a specifier the checkout pins is not looked for among the packages', () {
     written(
       'realtime',

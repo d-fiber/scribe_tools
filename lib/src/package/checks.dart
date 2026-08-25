@@ -130,10 +130,7 @@ List<Problem> _misplaced(DiscoveredPackage found) {
 /// client a package plainly imports as a package nobody wrote.
 List<Problem> _dependencies(DiscoveredPackage found, Map<String, DiscoveredPackage> known) {
   final List<Problem> problems = <Problem>[];
-  final Map<String, String> asked = <String, String>{
-    ...found.manifest.dependencies,
-    ...found.manifest.devDependencies,
-  };
+  final Map<String, String> asked = <String, String>{...found.manifest.dependencies, ...found.manifest.devDependencies};
 
   for (final MapEntry<String, String> entry in asked.entries) {
     if (entry.value == kAny) continue;

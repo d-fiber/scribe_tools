@@ -88,9 +88,9 @@ void main() {
 
   String packageAt(String parent, String name, String blocks, {String version = '1.0.0'}) {
     final CreatedPackage created = createPackage(parent, name, sdkOfCheckout());
-    File(p.join(created.directory, kManifestFile)).writeAsStringSync(
-      'name: $name\nversion: $version\n\nenvironment:\n  $kEnvironmentKey: "^3.0.0"\n\n$blocks',
-    );
+    File(
+      p.join(created.directory, kManifestFile),
+    ).writeAsStringSync('name: $name\nversion: $version\n\nenvironment:\n  $kEnvironmentKey: "^3.0.0"\n\n$blocks');
 
     return created.directory;
   }

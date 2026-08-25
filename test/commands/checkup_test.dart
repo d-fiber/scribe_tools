@@ -182,7 +182,9 @@ void main() {
     test('a newer framework is said once, under what the command printed', () async {
       writeCheckout();
 
-      await runScribe(<String>['work'], processes: RecordingProcessRunner(outputs: <String, String>{'show': '{"version":"0.2.0"}'}));
+      await runScribe(<String>[
+        'work',
+      ], processes: RecordingProcessRunner(outputs: <String, String>{'show': '{"version":"0.2.0"}'}));
 
       expect(logger.statusText, contains('working\n'));
       expect(logger.statusText, contains('A new version of scribe is available: 0.2.0'));
@@ -193,13 +195,17 @@ void main() {
     test('a checkout that is already current says nothing at all', () async {
       writeCheckout();
 
-      await runScribe(<String>['work'], processes: RecordingProcessRunner(outputs: <String, String>{'show': '{"version":"0.1.5"}'}));
+      await runScribe(<String>[
+        'work',
+      ], processes: RecordingProcessRunner(outputs: <String, String>{'show': '{"version":"0.1.5"}'}));
 
       expect(logger.statusText, 'working\n');
     });
 
     test('outside a checkout there is no version to compare, and no git is run', () async {
-      final RecordingProcessRunner processes = RecordingProcessRunner(outputs: <String, String>{'show': '{"version":"0.2.0"}'});
+      final RecordingProcessRunner processes = RecordingProcessRunner(
+        outputs: <String, String>{'show': '{"version":"0.2.0"}'},
+      );
 
       await runScribe(<String>['work'], processes: processes);
 

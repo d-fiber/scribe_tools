@@ -186,7 +186,9 @@ void main() {
 
   group('downgrade', () {
     test('a version it is given is checked out by its commit', () async {
-      final RecordingProcessRunner processes = RecordingProcessRunner(outputs: <String, String>{...taggedCommits, 'tag': versionTags});
+      final RecordingProcessRunner processes = RecordingProcessRunner(
+        outputs: <String, String>{...taggedCommits, 'tag': versionTags},
+      );
 
       expect(await runScribe(<String>['downgrade', '0.1.3'], processes), 0);
       expect(
@@ -198,7 +200,9 @@ void main() {
     });
 
     test('the version it is on, and anything above it, are not offered', () async {
-      final RecordingProcessRunner processes = RecordingProcessRunner(outputs: <String, String>{...taggedCommits, 'tag': versionTags});
+      final RecordingProcessRunner processes = RecordingProcessRunner(
+        outputs: <String, String>{...taggedCommits, 'tag': versionTags},
+      );
 
       expect(await runScribe(<String>['downgrade', '0.1.5'], processes), 64);
       expect(logger.errorText, contains('"0.1.5" is not a version this checkout can go back to.'));
@@ -206,7 +210,9 @@ void main() {
     });
 
     test('without a terminal it names the version to type instead of hanging', () async {
-      final RecordingProcessRunner processes = RecordingProcessRunner(outputs: <String, String>{...taggedCommits, 'tag': versionTags});
+      final RecordingProcessRunner processes = RecordingProcessRunner(
+        outputs: <String, String>{...taggedCommits, 'tag': versionTags},
+      );
 
       expect(await runScribe(<String>['downgrade'], processes), 1);
       expect(logger.errorText, contains('scribe downgrade 0.1.4'));
