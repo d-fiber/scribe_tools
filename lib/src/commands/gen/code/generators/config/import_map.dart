@@ -36,8 +36,12 @@
 
 import 'dart:convert';
 
+import 'package:file/file.dart';
+
 import 'package:path/path.dart' as p;
 import 'package:scribe_tools/src/globals.dart' as globals;
+import 'package:scribe_tools/src/package/sdk.dart';
+import 'package:scribe_tools/src/packages.dart';
 
 /// The aliases of the framework's own configuration that a project must not inherit.
 ///
@@ -46,14 +50,6 @@ import 'package:scribe_tools/src/globals.dart' as globals;
 /// party dependencies and their versions, is copied word for word, so that a
 /// version is declared in one place only.
 const Set<String> _frameworkPathAliases = <String>{
-  '@scribe/alchemy',
-  '@scribe/alchemy/',
-  '@scribe/alchemy/body',
-  '@scribe/alchemy/http',
-  '@scribe/alchemy/observe',
-  '@scribe/alchemy/route',
-  '@scribe/alchemy/server',
-  '@scribe/alchemy/test',
   '@scribe/protocol/',
   '@scribe/public/',
   '@scribe/sdk',
@@ -70,18 +66,6 @@ const Set<String> _frameworkPathAliases = <String>{
 /// a project is outside that graph, so it gets all of them.
 const List<String> _layers = <String>['contracts', 'runtime', 'kernel', 'embedder', 'testing', 'shell'];
 
-/// The packages the framework carries, reached by name like the layers.
-const List<String> _packages = <String>[
-  'audience',
-  'auth',
-  'dynamic_links',
-  'foundation',
-  'realtime',
-  'remote_configs',
-  'search',
-  'storage',
-];
-
 /// The third party imports of [frameworkConfig], its own path aliases removed.
 Map<String, String> inheritedImports(Map<String, dynamic> frameworkConfig) {
   final Map<String, dynamic> imports = frameworkConfig['imports'] as Map<String, dynamic>;
@@ -90,6 +74,51 @@ Map<String, String> inheritedImports(Map<String, dynamic> frameworkConfig) {
     for (final MapEntry<String, dynamic> entry in imports.entries)
       if (!_frameworkPathAliases.contains(entry.key)) entry.key: entry.value as String,
   };
+}
+
+/// Every specifier the packages a project mounts publish, plus the language.
+///
+/// It is read rather than listed, in two places. The framework's own map says
+/// where the language sits, and each mounted package's map says which doors it
+/// opens, so a package that adds one is reached without this tool being told, and
+/// a package the framework does not ship is reached the same way as one it does.
+///
+/// A path inside the checkout comes back relative to it, because the same map is
+/// rendered twice, once for this machine and once for the path in the container.
+/// A package that lives elsewhere has no such pair and comes back absolute.
+Map<String, String> mountedDoors(Directory checkout, Map<String, dynamic> frameworkConfig, Packages mounted) {
+  final Map<String, String> doors = <String, String>{};
+
+  final Object? imports = frameworkConfig['imports'];
+  if (imports is Map<String, dynamic>) {
+    for (final MapEntry<String, dynamic> entry in imports.entries) {
+      final Object? target = entry.value;
+      if (target is String && target.startsWith('./')) doors[entry.key] = target.substring(2);
+    }
+  }
+
+  for (final Package package in mounted.active) {
+    final File map = package.directory.childFile(kSdkImportMapFile);
+    if (!map.existsSync()) continue;
+
+    final Object? document = jsonDecode(map.readAsStringSync());
+    if (document is! Map<String, dynamic>) continue;
+
+    final Object? own = document['imports'];
+    if (own is! Map<String, dynamic>) continue;
+
+    for (final MapEntry<String, dynamic> entry in own.entries) {
+      if (entry.key != '@scribe/${package.name}' && !entry.key.startsWith('@scribe/${package.name}/')) continue;
+
+      final Object? target = entry.value;
+      if (target is! String || !target.startsWith('./')) continue;
+
+      final String file = p.join(package.directory.path, target.substring(2));
+      doors[entry.key] = p.isWithin(checkout.path, file) ? p.relative(file, from: checkout.path) : file;
+    }
+  }
+
+  return doors;
 }
 
 /// One import map, as the JSON text it is written to disk as.
@@ -108,22 +137,15 @@ String renderImportMap(
   required String frameworkRoot,
   required String projectRoot,
   required String assetsRoot,
+  required Map<String, String> doors,
 }) {
   final String engine = '${frameworkRoot}engine/';
 
   final Map<String, dynamic> document = <String, dynamic>{
     'imports': <String, String>{
       ...inherited,
-      '@scribe/alchemy': '${engine}alchemy/mod.ts',
-      '@scribe/alchemy/': '${engine}alchemy/',
-      '@scribe/alchemy/body': '${engine}alchemy/api/body/mod.ts',
-      '@scribe/alchemy/http': '${engine}alchemy/http/mod.ts',
-      '@scribe/alchemy/observe': '${engine}alchemy/observe/mod.ts',
-      '@scribe/alchemy/route': '${engine}alchemy/api/route/mod.ts',
-      '@scribe/alchemy/server': '${engine}alchemy/api/server/mod.ts',
-      '@scribe/alchemy/test': '${engine}alchemy/test/mod.ts',
+      for (final MapEntry<String, String> door in doors.entries) door.key: '$frameworkRoot${door.value}',
       for (final String layer in _layers) '@scribe/$layer/': '$engine$layer/',
-      for (final String package in _packages) '@scribe/$package/': '${frameworkRoot}packages/$package/',
       '@scribe/protocol/': '${frameworkRoot}protocol/',
       '@scribe/public/': '${frameworkRoot}public/',
       '@scribe/sdk': '${frameworkRoot}sdk/js/mod.ts',

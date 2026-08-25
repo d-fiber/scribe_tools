@@ -38,6 +38,7 @@ import 'dart:convert';
 
 import 'package:scribe_tools/src/commands/gen/code/generators/config/import_map.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
+import 'package:scribe_tools/src/packages.dart';
 
 /// Writes the project's two import maps.
 ///
@@ -57,6 +58,12 @@ Future<void> generateScribeConfig() async {
       jsonDecode(await globals.project.sdk.denoJson.readAsString()) as Map<String, dynamic>;
   final Map<String, String> inherited = inheritedImports(frameworkConfig);
 
+  final Map<String, String> doors = mountedDoors(
+    globals.fs.directory(globals.project.sdk.path),
+    frameworkConfig,
+    Packages.load(),
+  );
+
   await globals.project.generated.sdk.create();
 
   await globals.project.generated.sdk.importMap.writeAsString(
@@ -66,6 +73,7 @@ Future<void> generateScribeConfig() async {
       frameworkRoot: asDirectory(globals.project.sdk.path),
       projectRoot: asDirectory(globals.project.lib.path),
       assetsRoot: asDirectory(globals.project.assets.path),
+      doors: doors,
     ),
   );
 
@@ -76,6 +84,7 @@ Future<void> generateScribeConfig() async {
       frameworkRoot: '/app/scribe/',
       projectRoot: '/app/lib/',
       assetsRoot: '/app/assets/',
+      doors: doors,
     ),
   );
 
