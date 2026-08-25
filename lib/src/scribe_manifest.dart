@@ -149,16 +149,25 @@ class ScribeManifest {
   /// name keeps working instead of failing at the first command with no way
   /// forward.
   ///
-  /// An entry is a name on its own for a package the checkout ships, or a name
-  /// carrying `path:` for one the project wrote or vendored. Both are mounted the
-  /// same way afterwards: a package nobody here wrote is reached exactly like a
-  /// package shipped with the framework.
+  /// An entry is a name on its own for a package the checkout ships, a name
+  /// carrying `sdk:` which says the same thing out loud, or a name carrying
+  /// `path:` for one the project wrote or vendored. All are mounted the same way
+  /// afterwards: a package nobody here wrote is reached exactly like a package
+  /// shipped with the framework.
+  ///
+  /// The source is written down and never searched for. A name that could mean
+  /// the checkout's package or the project's, depending on what happens to sit on
+  /// disk, is a name that means something different on another machine. Anything
+  /// that is neither `path:` nor `sdk:` is refused rather than read as a default,
+  /// because a mistyped key would otherwise quietly mount the wrong package.
   ///
   /// ```yaml
   /// packages:
   ///   - auth
   ///   - billing:
   ///       path: ../billing
+  ///   - realtime:
+  ///       sdk: scribe
   /// ```
   Map<String, String> get packageSources {
     Object? value = read(<String>['packages']);
@@ -170,8 +179,41 @@ class ScribeManifest {
       if (entry is Map && entry.length == 1) {
         final String name = entry.keys.first.toString().trim();
         final Object? source = entry.values.first;
-        final Object? path = source is Map ? source['path'] : null;
-        if (name.isNotEmpty) sources[name] = path?.toString().trim() ?? '';
+        if (name.isEmpty) continue;
+
+        if (source == null) {
+          sources[name] = '';
+          continue;
+        }
+
+        if (source is! Map) {
+          throwToolExit(
+            '${file.path}: "$name" carries $source, which says nothing about where it comes from.\n'
+            'Write the name on its own for a package this checkout ships, or give it a path:.',
+          );
+        }
+
+        final Object? path = source['path'];
+        final Object? sdk = source['sdk'];
+        final Iterable<String> unknown = source.keys
+            .map((Object? key) => key.toString())
+            .where((String key) => key != 'path' && key != 'sdk');
+
+        if (unknown.isNotEmpty) {
+          throwToolExit(
+            '${file.path}: "$name" is given ${unknown.join(', ')}, which is no source this knows.\n'
+            'A package comes from a path: or from sdk:, and a name on its own means the checkout.',
+          );
+        }
+
+        if (path != null && sdk != null) {
+          throwToolExit(
+            '${file.path}: "$name" is given both a path: and an sdk:, so where it comes from '
+            'depends on which one is read first.',
+          );
+        }
+
+        sources[name] = path?.toString().trim() ?? '';
         continue;
       }
 

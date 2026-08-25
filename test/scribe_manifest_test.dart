@@ -98,6 +98,49 @@ void main() {
     });
   });
 
+  test('a package given a path comes from there, one given a name from the checkout', () async {
+    await withEnvironment(const <String, String>{}, () {
+      final ScribeManifest manifest = manifestOf(
+        _minimal.replaceFirst('  - audience\n', '  - billing:\n      path: ../billing\n'),
+      );
+
+      expect(manifest.packageSources, <String, String>{'auth': '', 'billing': '../billing'});
+    });
+  });
+
+  test('a package given sdk comes from the checkout, the same as a name on its own', () async {
+    await withEnvironment(const <String, String>{}, () {
+      final ScribeManifest manifest = manifestOf(
+        _minimal.replaceFirst('  - audience\n', '  - audience:\n      sdk: scribe\n'),
+      );
+
+      expect(manifest.packageSources['audience'], '');
+    });
+  });
+
+  test('a source this does not know is refused, so a mistyped key mounts nothing', () async {
+    await withEnvironment(const <String, String>{}, () {
+      final ScribeManifest manifest = manifestOf(
+        _minimal.replaceFirst('  - audience\n', '  - billing:\n      paths: ../billing\n'),
+      );
+
+      expect(
+        () => manifest.packageSources,
+        throwsA(isA<Exception>().having((Exception e) => e.toString(), 'message', contains('paths'))),
+      );
+    });
+  });
+
+  test('a package given both a path and an sdk is refused rather than picked', () async {
+    await withEnvironment(const <String, String>{}, () {
+      final ScribeManifest manifest = manifestOf(
+        _minimal.replaceFirst('  - audience\n', '  - billing:\n      path: ../b\n      sdk: scribe\n'),
+      );
+
+      expect(() => manifest.packageSources, throwsA(isA<Exception>()));
+    });
+  });
+
   test('packages wins over dependencies when a manifest carries both', () async {
     await withEnvironment(const <String, String>{}, () {
       final ScribeManifest manifest = manifestOf('$_minimal\ndependencies:\n  - storage\n');
