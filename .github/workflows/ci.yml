@@ -32,19 +32,6 @@ jobs:
           path: scribe
           ssh-key: ${{ secrets.SCRIBE_DEPLOY_KEY }}
 
-      - name: Check out the packages submodule
-        working-directory: scribe
-        env:
-          PACKAGES_READ_KEY: ${{ secrets.PACKAGES_READ_KEY }}
-        run: |
-          set -eu
-          mkdir -p ~/.ssh
-          printf '%s\n' "$PACKAGES_READ_KEY" > ~/.ssh/packages
-          chmod 600 ~/.ssh/packages
-          ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
-          GIT_SSH_COMMAND="ssh -i ~/.ssh/packages -o IdentitiesOnly=yes" \
-            git submodule update --init --recursive
-
       - uses: dart-lang/setup-dart@v1
         with:
           sdk: ${{ env.DART_SDK }}
