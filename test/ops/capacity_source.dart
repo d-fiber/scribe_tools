@@ -37,22 +37,19 @@
 import 'package:file/file.dart';
 import 'package:file/local.dart';
 import 'package:path/path.dart' as p;
-import 'package:scribe_tools/src/dependencies.dart';
 import 'package:scribe_tools/src/ops/capacity.dart';
+import 'package:scribe_tools/src/packages.dart';
 
 /// The framework repository, checked out next to this one.
 const String repository = '../scribe';
 
 const FileSystem _fs = LocalFileSystem();
 
-/// Where the modules of the framework live, both roots.
+/// Where the mountable packages of the framework live.
 ///
-/// `engine/dependencies/` holds what the framework owns, `engine/packages/` the
-/// mounted packages. A render reads both, so a check on what ships has to.
-List<Directory> get modulesRoots => <Directory>[
-  _fs.directory(p.join(repository, 'engine/dependencies')),
-  _fs.directory(p.join(repository, 'engine/packages')),
-];
+/// One root and not two: the packages sit side by side under `packages/` at the
+/// checkout root, which is the only place a render looks for them.
+Directory get packagesRoot => _fs.directory(p.join(repository, 'packages'));
 
 /// The socle's own ops directory, which holds the `capacity.yaml` every project reads.
 Directory get socleOps => _fs.directory(p.join(repository, 'ops/docker'));
@@ -77,66 +74,66 @@ class CapacitySource {
 
 /// Every `capacity.yaml` of the framework and the compose it goes with.
 ///
-/// The socle comes first, then one per module, keyed the way a mismatch has to
+/// The socle comes first, then one per package, keyed the way a mismatch has to
 /// be reported for a reader to know which file to open.
 Map<String, CapacitySource> capacitySources() => <String, CapacitySource>{
   'ops/docker': CapacitySource(weights: socleOps, compose: socleComposeTemplates.childFile('docker-compose.yaml')),
-  for (final MapEntry<String, Directory> module in frameworkModules().entries)
-    for (final Directory subject in opsDirectories(module.value))
-      _sourceKey(module.key, module.value, subject): CapacitySource(
+  for (final MapEntry<String, Directory> package in frameworkPackages().entries)
+    for (final Directory subject in opsDirectories(package.value))
+      _sourceKey(package.key, package.value, subject): CapacitySource(
         weights: subject,
         compose: subject.childFile('docker-compose.yaml'),
       ),
 };
 
-/// The directories of [module] that may hold a `capacity.yaml`.
+/// The directories of [package] that may hold a `capacity.yaml`.
 ///
 /// A package groups its ops by subject, so the weights of the cache sit in
-/// `ops/valkery/` while a module that ships one container keeps them in `ops/`.
-List<Directory> opsDirectories(Directory module) {
-  final Directory ops = module.childDirectory('ops');
+/// `ops/valkery/` while a package that ships one container keeps them in `ops/`.
+List<Directory> opsDirectories(Directory package) {
+  final Directory ops = package.childDirectory('ops');
   if (!ops.existsSync()) return const <Directory>[];
 
   return <Directory>[if (ops.childFile(capacityFileName).existsSync()) ops, ...ops.listSync().whereType<Directory>()];
 }
 
 /// How a mismatch names the file to open.
-String _sourceKey(String module, Directory root, Directory subject) =>
-    subject.path == root.childDirectory('ops').path ? module : '$module/${p.basename(subject.path)}';
+String _sourceKey(String package, Directory root, Directory subject) =>
+    subject.path == root.childDirectory('ops').path ? package : '$package/${p.basename(subject.path)}';
 
-/// Every module of the framework, by module path.
+/// Every package of the framework, by name.
 ///
 /// Read through the CLI's own walk rather than by a rule copied here, so a
-/// module that stops being found is a failing test instead of two rules that
+/// package that stops being found is a failing test instead of two rules that
 /// disagree.
-Map<String, Directory> frameworkModules() => <String, Directory>{
-  for (final Dependency dependency in Dependencies.load(roots: modulesRoots).all) dependency.path: dependency.directory,
+Map<String, Directory> frameworkPackages() => <String, Directory>{
+  for (final Package package in Packages.load(root: packagesRoot).all) package.name: package.directory,
 };
 
-/// Every profile the framework's modules declare between them.
+/// Every profile the framework's packages declare between them.
 ///
 /// `worker` is not one of them. It belongs to the socle, and it is switched on
 /// by the project's own `worker:` key rather than by mounting anything.
-const Set<String> moduleProfiles = <String>{'ops', 'realtime', 'reco', 'search'};
+const Set<String> packageProfiles = <String>{'realtime', 'search'};
 
-/// The capacity the framework declares, socle and modules together.
+/// The capacity the framework declares, socle and packages together.
 ///
 /// This reads the files that ship rather than a fixture: a weight edited in the
 /// repository has to move these tests, which is the point of keeping them here.
-Capacity frameworkCapacity({Set<String> profiles = moduleProfiles}) =>
-    frameworkCapacityOf(frameworkModules().keys, profiles: profiles);
+Capacity frameworkCapacity({Set<String> profiles = packageProfiles}) =>
+    frameworkCapacityOf(frameworkPackages().keys, profiles: profiles);
 
-/// The capacity of the socle plus the modules named by [paths].
+/// The capacity of the socle plus the packages named by [names].
 ///
 /// The socle is always in, because its services are the ones no selection can
-/// drop. [paths] takes module addresses, the way `config.yaml` names them, and
+/// drop. [names] takes package names, the way `config.yaml` writes them, and
 /// [profiles] the Compose profiles that selection switches on.
-Capacity frameworkCapacityOf(Iterable<String> paths, {Set<String> profiles = moduleProfiles}) {
-  final Map<String, Directory> modules = frameworkModules();
+Capacity frameworkCapacityOf(Iterable<String> names, {Set<String> profiles = packageProfiles}) {
+  final Map<String, Directory> packages = frameworkPackages();
 
   return Capacity.read(
     _fs.directory(p.join(repository, 'ops/docker')),
-    paths.expand((String path) => opsDirectories(modules[path]!).map((Directory d) => d.childFile(capacityFileName))),
+    names.expand((String name) => opsDirectories(packages[name]!).map((Directory d) => d.childFile(capacityFileName))),
     profiles: profiles,
   );
 }

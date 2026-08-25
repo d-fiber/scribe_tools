@@ -36,8 +36,8 @@
 
 import 'package:file/file.dart';
 import 'package:scribe_tools/src/base/common.dart';
-import 'package:scribe_tools/src/dependencies.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
+import 'package:scribe_tools/src/packages.dart';
 import 'package:scribe_tools/src/project.dart';
 import 'package:yaml/yaml.dart';
 
@@ -47,9 +47,9 @@ const String capacityFileName = 'capacity.yaml';
 /// The memory sizes a capacity file may be written in.
 final RegExp _size = RegExp(r'^(\d+)(Mi|Gi)$');
 
-/// One service, as the module that owns it declares it.
+/// One service, as the package that owns it declares it.
 class ServiceCapacity {
-  /// Holds one service as its module declared it.
+  /// Holds one service as its package declared it.
   const ServiceCapacity({
     required this.name,
     required this.weight,
@@ -67,7 +67,7 @@ class ServiceCapacity {
   /// Its pull on the memory budget, relative to the other loaded services.
   ///
   /// The number means nothing on its own. It only becomes a share once divided
-  /// by [Capacity.total], which is why a module declares a weight rather than a
+  /// by [Capacity.total], which is why a package declares a weight rather than a
   /// percentage: a percentage would be wrong as soon as a neighbour is dropped.
   final int weight;
 
@@ -107,7 +107,7 @@ class ServiceCapacity {
   bool startsUnder(Set<String> profiles) => profile == null || profiles.contains(profile);
 }
 
-/// Every service the framework and its modules declare a cost for.
+/// Every service the framework and its packages declare a cost for.
 class Capacity {
   /// Gathers [services], budgeting only those that start under [profiles].
   Capacity(List<ServiceCapacity> services, {Set<String> profiles = const <String>{}})
@@ -126,38 +126,38 @@ class Capacity {
 
   /// The sum of the weights of the services that actually start.
   ///
-  /// Two things are excluded, for the same reason: a module the project did not
-  /// mount, and a service under a profile nobody switched on. Neither of them
-  /// takes memory, so neither of them may hold a share of it.
+  /// Two things are excluded, for the same reason: a package the project did
+  /// not mount, and a service under a profile nobody switched on. Neither of
+  /// them takes memory, so neither of them may hold a share of it.
   final int total;
 
   final Map<String, ServiceCapacity> _byKey;
 
-  /// The capacity of [project] and of [modules], the mounted ones by default.
+  /// The capacity of [project] and of [mounted], the mounted packages by default.
   ///
-  /// [modules] has to be the selection rather than every module found, and
+  /// [mounted] has to be the selection rather than every package found, and
   /// [profiles] the profiles that selection switches on: the weights are read
   /// against their own sum, so anything counted here takes a share of the
   /// machine whether or not a container of it ever starts.
-  static Capacity load({Project? project, List<Dependency>? modules, Set<String> profiles = const <String>{}}) {
+  static Capacity load({Project? project, List<Package>? mounted, Set<String> profiles = const <String>{}}) {
     final Project target = project ?? globals.project;
-    final List<Dependency> found = modules ?? Dependencies.load().active;
+    final List<Package> found = mounted ?? Packages.load().active;
 
     return read(
       target.sdk.ops.childDirectory('docker'),
-      found.expand((Dependency d) => d.fragments(capacityFileName)),
+      found.expand((Package package) => package.fragments(capacityFileName)),
       profiles: profiles,
     );
   }
 
-  /// The capacity declared in [socle] and in each of [moduleFiles].
+  /// The capacity declared in [socle] and in each of [packageFiles].
   ///
-  /// A module without a capacity file simply declares no service, which is the
-  /// case of every module that ships no container.
-  static Capacity read(Directory socle, Iterable<File> moduleFiles, {Set<String> profiles = const <String>{}}) =>
+  /// A package without a capacity file simply declares no service, which is the
+  /// case of every package that ships no container.
+  static Capacity read(Directory socle, Iterable<File> packageFiles, {Set<String> profiles = const <String>{}}) =>
       Capacity(<ServiceCapacity>[
         ..._readFile(socle.childFile(capacityFileName), required: true),
-        for (final File file in moduleFiles) ..._readFile(file, required: false),
+        for (final File file in packageFiles) ..._readFile(file, required: false),
       ], profiles: profiles);
 
   /// The service named [key], or null when nothing declares it.
@@ -166,7 +166,7 @@ class Capacity {
   /// The share of the memory budget [key] takes, against [total].
   ///
   /// The shares of the services that start therefore add up to one, and dropping
-  /// a module makes each remaining service bigger rather than leaving a hole. A
+  /// a package makes each remaining service bigger rather than leaving a hole. A
   /// service behind a profile that is off gets a share on paper, above one when
   /// summed with the rest, which nothing enforces because nothing runs.
   ///
@@ -176,7 +176,7 @@ class Capacity {
   double shareOf(String key) {
     final ServiceCapacity? service = _byKey[key];
     if (service == null) {
-      throwToolExit('No capacity.yaml gives $key a weight. Add it to the one of the module that owns it.');
+      throwToolExit('No capacity.yaml gives $key a weight. Add it to the one of the package that owns it.');
     }
 
     return service.weight / total;

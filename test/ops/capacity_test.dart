@@ -44,7 +44,7 @@ import 'capacity_source.dart';
 
 /// What a service's memory and cores may be translated into.
 ///
-/// Closed on purpose: a module declares what it is, not how it is tuned, so a
+/// Closed on purpose: a package declares what it is, not how it is tuned, so a
 /// runtime nobody implements has to fail here rather than silently mean
 /// "nothing to set".
 const Set<String> _runtimes = <String>{
@@ -171,11 +171,11 @@ void main() {
   });
 
   group('a weight read against what actually starts', () {
-    /// What `config.yaml` gets when it names no optional module.
+    /// What `config.yaml` gets when it names no optional package that ships a container.
     ///
     /// `foundation` is in it because a project cannot leave it out: it owns the
     /// database, the cache and the queue, which nothing else declares.
-    const List<String> defaultSelection = <String>['foundation', 'security/auth', 'security/rbac'];
+    const List<String> defaultSelection = <String>['foundation', 'auth', 'audience'];
 
     double spentBy(Capacity capacity, Set<String> profiles) => capacity.services
         .where((ServiceCapacity service) => service.startsUnder(profiles))
@@ -186,14 +186,14 @@ void main() {
       for (final List<String> selection in <List<String>>[
         const <String>[],
         defaultSelection,
-        frameworkModules().keys.toList(),
+        frameworkPackages().keys.toList(),
       ]) {
         final Capacity capacity = frameworkCapacityOf(selection);
 
         expect(
-          spentBy(capacity, moduleProfiles),
+          spentBy(capacity, packageProfiles),
           closeTo(1, 1e-9),
-          reason: 'nothing may be left holding a share of a machine on ${selection.length} module(s)',
+          reason: 'nothing may be left holding a share of a machine on ${selection.length} package(s)',
         );
       }
     });
@@ -202,11 +202,11 @@ void main() {
       expect(
         frameworkCapacityOf(defaultSelection).shareOf('db'),
         greaterThan(frameworkCapacity().shareOf('db')),
-        reason: 'the budget of a module that was dropped goes back to the services that run',
+        reason: 'the budget of a package that was dropped goes back to the services that run',
       );
     });
 
-    test('leaves a module the selection dropped unknown', () {
+    test('leaves a package the selection dropped unknown', () {
       expect(
         () => frameworkCapacityOf(defaultSelection).shareOf('opensearch'),
         throwsA(isA<ToolExit>()),
@@ -215,19 +215,19 @@ void main() {
     });
 
     test('grows again when a profile is switched off', () {
-      final Capacity withAdmins = frameworkCapacityOf(
-        <String>[...defaultSelection, 'security/vpn'],
-        profiles: <String>{'ops'},
+      final Capacity searching = frameworkCapacityOf(
+        <String>[...defaultSelection, 'search'],
+        profiles: <String>{'search'},
       );
-      final Capacity without = frameworkCapacityOf(<String>[...defaultSelection, 'security/vpn'], profiles: <String>{});
+      final Capacity without = frameworkCapacityOf(<String>[...defaultSelection, 'search'], profiles: <String>{});
 
       expect(
         without.shareOf('db'),
-        greaterThan(withAdmins.shareOf('db')),
-        reason: 'vpn-admins sits behind the ops profile, and takes nothing while it is off',
+        greaterThan(searching.shareOf('db')),
+        reason: 'opensearch sits behind the search profile, and takes nothing while it is off',
       );
       expect(
-        without.shareOf('vpn_admins'),
+        without.shareOf('opensearch'),
         greaterThan(0),
         reason: 'its limit is still written, because the compose document still declares it',
       );

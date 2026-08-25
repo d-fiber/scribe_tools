@@ -59,7 +59,7 @@ Future<T> _withContext<T>(FileSystem fs, Future<T> Function() body) =>
 
 /// Copies the parts of the real framework a render reads into [fs].
 ///
-/// The templates and the module fragments are the input of every assertion
+/// The templates and the package fragments are the input of every assertion
 /// below, so the test reads the ones that ship rather than a fixture: a
 /// fragment that stops matching its base has to fail here.
 void _vendorFramework(FileSystem fs, String root) {
@@ -68,20 +68,17 @@ void _vendorFramework(FileSystem fs, String root) {
   }
   _copy(fs, p.join(_repository, 'ops/docker', capacityFileName), p.join(root, 'ops/docker', capacityFileName));
 
-  for (final String source in <String>['engine/dependencies', 'engine/packages']) {
-    final io.Directory modules = io.Directory(p.join(_repository, source));
-    if (!modules.existsSync()) continue;
+  final io.Directory packages = io.Directory(p.join(_repository, 'packages'));
+  if (!packages.existsSync()) return;
 
-    for (final io.FileSystemEntity entity in modules.listSync(recursive: true)) {
-      if (entity is! io.File) continue;
+  for (final io.FileSystemEntity entity in packages.listSync(recursive: true)) {
+    if (entity is! io.File) continue;
 
-      final String relative = p.relative(entity.path, from: modules.path);
-      final List<String> segments = p.split(relative);
-      final bool wanted = segments.contains('ops') || segments.contains('protocol');
-      if (!wanted) continue;
+    final String relative = p.relative(entity.path, from: packages.path);
+    final List<String> segments = p.split(relative);
+    if (!segments.contains('ops') && !segments.contains('protocol')) continue;
 
-      _copy(fs, entity.path, p.join(root, source, relative));
-    }
+    _copy(fs, entity.path, p.join(root, 'packages', relative));
   }
 }
 
@@ -94,7 +91,7 @@ void _copy(FileSystem fs, String from, String to) {
 void main() {
   late MemoryFileSystem fs;
 
-  /// A project asking for [wanted], an empty list meaning every module.
+  /// A project mounting the packages named in [wanted].
   void project(List<String> wanted) {
     fs
         .file('/work/koko/config.yaml')
@@ -102,15 +99,15 @@ void main() {
           'name: "koko"\n'
           'url: "https://koko.example.com"\n'
           'email: "dev@koko.example.com"\n'
-          'dependencies:\n'
-          '${wanted.map((String path) => '  - $path\n').join()}',
+          'packages:\n'
+          '${wanted.map((String name) => '  - $name\n').join()}',
         );
   }
 
   setUp(() {
     fs = MemoryFileSystem.test();
     _vendorFramework(fs, '/work/koko/scribe');
-    project(<String>['security/auth', 'security/rbac']);
+    project(<String>['auth', 'audience']);
   });
 
   Future<ComposeDocuments> render() => _withContext(fs, () async {
@@ -155,12 +152,14 @@ void main() {
       }
     });
 
-    test('a module the project did not ask for contributes nothing', () async {
+    test('a package the project did not ask for contributes nothing', () async {
+      project(const <String>['storage']);
+
       final List<File> written = await renderFiles();
       final File compose = written.firstWhere((File file) => p.basename(file.path) == 'docker-compose.yaml');
       final YamlMap services = (loadYaml(compose.readAsStringSync()) as YamlMap)['services'] as YamlMap;
 
-      expect(services.keys, contains('auth'), reason: 'security/auth is in the selection');
+      expect(services.keys, contains('storage'), reason: 'storage is in the selection');
       expect(services.keys, isNot(contains('opensearch')), reason: 'search is not');
       expect(services.keys, isNot(contains('realtime')), reason: 'realtime is not either');
     });
@@ -173,13 +172,13 @@ void main() {
 
       expect(
         (limits['limits'] as YamlMap)['memory'],
-        '9.71g',
-        reason: 'db weighs 2122 against the 5597 this selection starts, not against the 9503 declared',
+        '10.11g',
+        reason: 'db weighs 2122 against the 5371 this selection starts, not against the 6032 declared',
       );
     });
 
-    test('switches on the profiles the mounted modules declare, and no others', () async {
-      expect((await render()).profiles, isEmpty, reason: 'neither auth nor rbac declares a profile');
+    test('switches on the profiles the mounted packages declare, and no others', () async {
+      expect((await render()).profiles, isEmpty, reason: 'neither auth nor audience declares a profile');
 
       project(const <String>['search', 'realtime']);
 
@@ -197,12 +196,12 @@ void main() {
     });
 
     test('names a profile once, whatever number of services sit behind it', () async {
-      project(const <String>['security/vpn']);
+      project(const <String>['realtime']);
 
-      expect((await render()).profiles, <String>['ops']);
+      expect((await render()).profiles, <String>['realtime'], reason: 'realtime and realtime-init both sit behind it');
     });
 
-    test('a project that names no module gets the socle and foundation alone', () async {
+    test('a project that names no package gets the socle and foundation alone', () async {
       project(const <String>[]);
 
       final List<File> written = await renderFiles();
@@ -210,32 +209,18 @@ void main() {
       final YamlMap services = (loadYaml(compose.readAsStringSync()) as YamlMap)['services'] as YamlMap;
 
       expect(services.keys, containsAll(<String>['db', 'redis', 'rest']), reason: 'foundation is not declinable');
-      expect(services.keys, isNot(contains('auth')), reason: 'security/auth is a module like any other');
+      expect(services.keys, isNot(contains('storage')), reason: 'storage is a package like any other');
       expect(services.keys, isNot(contains('opensearch')));
     });
 
-    test('a project that names every module still resolves', () async {
-      project(const <String>[
-        'audience',
-        'dynamic_links',
-        'features/devops',
-        'features/messagings',
-        'features/recommendation',
-        'geospatial',
-        'realtime',
-        'remote_configs',
-        'search',
-        'security/auth',
-        'security/rbac',
-        'security/vpn',
-        'storage',
-      ]);
+    test('a project that names every package still resolves', () async {
+      project(const <String>['audience', 'auth', 'dynamic_links', 'realtime', 'remote_configs', 'search', 'storage']);
 
       final List<File> written = await renderFiles();
       final File compose = written.firstWhere((File file) => p.basename(file.path) == 'docker-compose.yaml');
       final YamlMap services = (loadYaml(compose.readAsStringSync()) as YamlMap)['services'] as YamlMap;
 
-      expect(services.keys, containsAll(<String>['opensearch', 'realtime', 'gorse', 'storage']));
+      expect(services.keys, containsAll(<String>['opensearch', 'realtime', 'storage', 'imgproxy']));
       for (final File file in written) {
         expect(file.readAsStringSync(), isNot(matches(_placeholder)), reason: p.basename(file.path));
       }

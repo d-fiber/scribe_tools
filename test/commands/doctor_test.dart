@@ -63,9 +63,9 @@ name: "koko"
 url: "https://koko.example.com"
 email: "dev@koko.example.com"
 
-dependencies:
-  - security/auth
-  - security/rbac
+packages:
+  - auth
+  - audience
 
 api:
   config:
@@ -205,8 +205,8 @@ void main() {
       writeProject(manifest: 'name: "koko"\n');
 
       expect(await runScribe(<String>['doctor'], installed: everything), 0);
-      expect(logger.statusText, contains('Fill `url` in config.yaml.'));
       expect(logger.statusText, contains('Fill `email` in config.yaml.'));
+      expect(logger.statusText, contains('Fill `api.config.origins` in config.yaml.'));
     });
 
     test('a secrets file nobody holds the key for is a problem of its own', () async {
@@ -245,7 +245,7 @@ void main() {
 
       expect(await runScribe(<String>['doctor', '--rescue'], installed: everything), 0);
       expect(logger.statusText, contains('There is nothing --rescue can do from here.'));
-      expect(logger.statusText, contains('Fill `url` in config.yaml.'));
+      expect(logger.statusText, contains('Fill `email` in config.yaml.'));
     });
 
     test('a healthy machine is left alone', () async {

@@ -60,7 +60,7 @@ void main() {
     golden = jsonDecode(File('test/ops/fixtures/sizing_golden.json').readAsStringSync()) as Map<String, dynamic>;
   });
 
-  group('sizing a project that mounts every module', () {
+  group('sizing a project that mounts every package', () {
     for (final MapEntry<String, Hardware> shape in _shapes.entries) {
       test('resolves ${shape.key} to the values the golden holds', () {
         expect(

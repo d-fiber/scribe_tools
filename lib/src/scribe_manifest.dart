@@ -132,8 +132,17 @@ class ScribeManifest {
   /// The key the geocoding service is called with.
   String get geocodingApiKey => _string(<String>['integrations', 'geocoding_api_key']) ?? '';
 
-  /// The modules this project mounts, empty when it takes the default set.
-  List<String> get dependencies => _strings(<String>['dependencies']);
+  /// The packages this project mounts, empty when it names none.
+  ///
+  /// The key is `packages:`. A manifest that still spells it `dependencies:` is
+  /// read all the same, and only when `packages:` is absent: the file belongs to
+  /// the project rather than to the CLI, so a checkout written against the old
+  /// name keeps working instead of failing at the first command with no way
+  /// forward.
+  List<String> get packages {
+    final List<String> named = _strings(<String>['packages']);
+    return named.isEmpty ? _strings(<String>['dependencies']) : named;
+  }
 
   /// Whether this project runs its own code in a worker process of its own.
   ///

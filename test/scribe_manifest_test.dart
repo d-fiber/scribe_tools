@@ -47,9 +47,9 @@ name: "notes"
 url: "https://notes.example.com"
 email: "dev@notes.example.com"
 
-dependencies:
-  - security/auth
-  - security/rbac
+packages:
+  - auth
+  - audience
 
 api:
   config:
@@ -85,8 +85,24 @@ void main() {
       expect(manifest.problems, isEmpty);
       expect(manifest.isComplete, isTrue);
       expect(manifest.name, 'notes');
-      expect(manifest.dependencies, <String>['security/auth', 'security/rbac']);
+      expect(manifest.packages, <String>['auth', 'audience']);
       expect(manifest.allowedCountries, <String>['FR']);
+    });
+  });
+
+  test('a manifest that still spells the key dependencies mounts the same packages', () async {
+    await withEnvironment(const <String, String>{}, () {
+      final ScribeManifest manifest = manifestOf(_minimal.replaceFirst('packages:', 'dependencies:'));
+
+      expect(manifest.packages, <String>['auth', 'audience']);
+    });
+  });
+
+  test('packages wins over dependencies when a manifest carries both', () async {
+    await withEnvironment(const <String, String>{}, () {
+      final ScribeManifest manifest = manifestOf('$_minimal\ndependencies:\n  - storage\n');
+
+      expect(manifest.packages, <String>['auth', 'audience']);
     });
   });
 

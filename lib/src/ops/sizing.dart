@@ -39,12 +39,12 @@ import 'package:file/file.dart';
 import 'package:path/path.dart' as p;
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/base/template.dart';
-import 'package:scribe_tools/src/dependencies.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/ops/capacity.dart';
 import 'package:scribe_tools/src/ops/fragments.dart';
 import 'package:scribe_tools/src/ops/hardware.dart';
 import 'package:scribe_tools/src/ops/sizing_rules.dart';
+import 'package:scribe_tools/src/packages.dart';
 import 'package:scribe_tools/src/project.dart';
 
 /// The templates rendered on every run, in the order Compose reads them.
@@ -53,7 +53,7 @@ import 'package:scribe_tools/src/project.dart';
 /// base compose comes first and the sizing documents patch it.
 const List<String> composeTemplates = <String>[composeTemplate, 'resources.yaml', 'replicas.yaml', 'tuning.yaml'];
 
-/// The fragment a module uses to patch a service of the base, rather than to
+/// The fragment a package uses to patch a service of the base, rather than to
 /// declare one of its own.
 const String overlayTemplate = 'overlay.yaml';
 
@@ -62,12 +62,15 @@ const String overlayBase = 'name: "{{app_name_snake}}"\nservices:\n';
 
 /// The profile the project's own worker container starts under.
 ///
-/// No module declares it: the worker belongs to the socle, and whether it runs
+/// No package declares it: the worker belongs to the socle, and whether it runs
 /// is a project decision rather than a consequence of a selection.
 const String workerProfile = 'worker';
 
-/// The file name an overlay of [path] is written to.
-String overlayFileName(String path) => 'overlay.${path.replaceAll('/', '-')}.yaml';
+/// The file name an overlay labelled [label] is written to.
+///
+/// A label names the package and, when the fragment sits in a subject directory,
+/// the subject after it, so the slash it may carry becomes a dash here.
+String overlayFileName(String label) => 'overlay.${label.replaceAll('/', '-')}.yaml';
 
 /// What a render produces, which is more than files.
 ///
@@ -87,7 +90,7 @@ class ComposeDocuments {
 
 /// The compose documents of a project, rendered from the framework's templates.
 ///
-/// The framework's own tree is never written to: the templates and the module
+/// The framework's own tree is never written to: the templates and the package
 /// fragments are fixed, and everything this produces lands under the project's
 /// generated directory.
 class ComposeRender {
@@ -102,17 +105,15 @@ class ComposeRender {
     final Directory target = project.generated.ops;
     if (!target.existsSync()) target.createSync(recursive: true);
 
-    final Dependencies dependencies = Dependencies.load();
-    final List<Dependency> active = dependencies.active;
+    final Packages packages = Packages.load();
+    final List<Package> active = packages.active;
 
-    final List<String> profiles = <String>[
-      ...Dependencies.profilesOf(active),
-      if (project.manifest.worker) workerProfile,
-    ]..sort();
+    final List<String> profiles = <String>[...Packages.profilesOf(active), if (project.manifest.worker) workerProfile]
+      ..sort();
 
     final SizingRules rules = SizingRules(
       hardware,
-      Capacity.load(project: project, modules: active, profiles: profiles.toSet()),
+      Capacity.load(project: project, mounted: active, profiles: profiles.toSet()),
     );
     final Map<String, String> values = <String, String>{...rules.resolve(), ..._identity()};
 
@@ -127,19 +128,19 @@ class ComposeRender {
       globals.logger.printWarning('very small machine ($hardware), the stack may not start.');
     }
 
-    _reportSelection(dependencies, active, profiles);
+    _reportSelection(packages, active, profiles);
 
     final List<File> rendered = <File>[
       for (final String name in composeTemplates)
-        await _renderTemplate(name, values, target, dependencies.fragmentsFor(name, active)),
+        await _renderTemplate(name, values, target, packages.fragmentsFor(name, active)),
     ];
 
-    // One file per overlay, never one per module: two overlays that patch the
+    // One file per overlay, never one per package: two overlays that patch the
     // same socle service would produce two identical keys in one document, and
     // it is `docker compose` that knows how to combine them.
     int position = 1;
-    for (final Dependency dependency in active) {
-      for (final YamlFragment overlay in dependency.fragmentsFor(overlayTemplate)) {
+    for (final Package package in active) {
+      for (final YamlFragment overlay in package.fragmentsFor(overlayTemplate)) {
         rendered.insert(
           position++,
           await _write(overlayFileName(overlay.label), overlayBase, values, target, <YamlFragment>[overlay]),
@@ -164,16 +165,16 @@ class ComposeRender {
     };
   }
 
-  void _reportSelection(Dependencies dependencies, List<Dependency> active, List<String> profiles) {
+  void _reportSelection(Packages packages, List<Package> active, List<String> profiles) {
     final List<String> dropped = <String>[
-      for (final Dependency dependency in dependencies.all)
-        if (!active.contains(dependency)) dependency.path,
+      for (final Package package in packages.all)
+        if (!active.contains(package)) package.name,
     ];
 
     globals.logger.printStatus(
       dropped.isEmpty
-          ? '${active.length} dependency(ies) mounted: all of them'
-          : '${active.length} dependency(ies) mounted, dropped: ${dropped.join(', ')}',
+          ? '${active.length} package(s) mounted: all of them'
+          : '${active.length} package(s) mounted, dropped: ${dropped.join(', ')}',
     );
     globals.logger.printStatus('profiles: ${profiles.isEmpty ? 'none, the socle alone' : profiles.join(', ')}');
   }

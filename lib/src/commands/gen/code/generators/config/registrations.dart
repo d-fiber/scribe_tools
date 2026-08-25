@@ -34,29 +34,27 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
-import 'package:path/path.dart' as p;
 import 'package:scribe_tools/src/base/common.dart';
-import 'package:scribe_tools/src/dependencies.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
+import 'package:scribe_tools/src/packages.dart';
 
-/// Writes the imports that wire every mounted module into the host's ports.
+/// Writes the imports that wire every mounted package into the host's ports.
 ///
-/// A module carries a [registrationFile] only when it has something to hand
-/// over, so the list is usually shorter than the mounted one. A module without
+/// A package carries a [registrationFile] only when it has something to hand
+/// over, so the list is usually shorter than the mounted one. A package without
 /// it contributes containers, SQL or a client and nothing the host has to be
 /// told about.
 ///
-/// The specifier is built from where the module actually sits, which is why it
-/// survives the move to `engine/packages/`: the two roots render the same way
-/// under the `@scribe/engine/` alias.
+/// The specifier is the package's own alias, `@scribe/<name>/`, which is the one
+/// the import map this same command writes resolves to `packages/<name>/`. It is
+/// therefore the name and never a path, and moving the checkout moves both ends
+/// at once.
 Future<void> generateRegistrations() async {
-  final Dependencies dependencies = Dependencies.load();
-  final String engine = globals.project.sdk.engine.path;
+  final Packages packages = Packages.load();
 
   final List<String> specifiers = <String>[
-    for (final Dependency dependency in dependencies.active)
-      if (dependency.directory.childFile(registrationFile).existsSync())
-        '@scribe/engine/${p.url.joinAll(p.split(p.relative(dependency.directory.path, from: engine)))}/$registrationFile',
+    for (final Package package in packages.active)
+      if (package.directory.childFile(registrationFile).existsSync()) '@scribe/${package.name}/$registrationFile',
   ]..sort();
 
   await globals.project.generated.sdk.create();
@@ -69,7 +67,7 @@ Future<void> generateRegistrations() async {
   );
 
   globals.logger.printStatus(
-    '${specifiers.length} module registration(s), written to '
+    '${specifiers.length} package registration(s), written to '
     '${globals.project.generatedDirectoryName}/sdk/js/registrations.ts',
   );
 }

@@ -46,9 +46,9 @@ late MemoryFileSystem fs;
 Future<T> _run<T>(T Function() body) =>
     AppContext.current.run<T>(overrides: <Type, Generator>{FileSystem: () => fs, Logger: BufferLogger.new}, body: body);
 
-/// Writes a module at [path] under [root], with a `register.ts` when asked.
-void _module(String root, String path, {bool registers = true}) {
-  final Directory directory = fs.directory('/work/notes/scribe/engine/$root/$path')..createSync(recursive: true);
+/// Writes a package called [name] in the checkout, with a `register.ts` when asked.
+void _package(String name, {bool registers = true}) {
+  final Directory directory = fs.directory('/work/notes/scribe/packages/$name')..createSync(recursive: true);
   directory.childDirectory('protocol').createSync();
   if (registers) directory.childFile('register.ts').writeAsStringSync('');
 }
@@ -59,8 +59,8 @@ void _project(List<String> wanted) {
       .file('/work/notes/config.yaml')
       .writeAsStringSync(
         'name: "notes"\n'
-        'dependencies:\n'
-        '${wanted.map((String path) => '  - $path\n').join()}',
+        'packages:\n'
+        '${wanted.map((String name) => '  - $name\n').join()}',
       );
 }
 
@@ -74,31 +74,32 @@ void main() {
     _project(const <String>[]);
   });
 
-  test('a mounted module with a register.ts is imported for its effect', () async {
-    _module('dependencies', 'security/rbac');
-    _project(const <String>['security/rbac']);
+  test('a mounted package with a register.ts is imported for its effect', () async {
+    _package('audience');
+    _project(const <String>['audience']);
 
     await _run(generateRegistrations);
 
-    expect(_generated(), contains('import "@scribe/engine/dependencies/security/rbac/register.ts";'));
+    expect(_generated(), contains('import "@scribe/audience/register.ts";'));
   });
 
-  test('a module in the packages submodule renders under its own root', () async {
-    _module('packages', 'security/auth');
-    _project(const <String>['security/auth']);
+  test('the specifier is the package alias, so it holds no path into the checkout', () async {
+    _package('auth');
+    _project(const <String>['auth']);
 
     await _run(generateRegistrations);
 
-    expect(_generated(), contains('import "@scribe/engine/packages/security/auth/register.ts";'));
+    expect(_generated(), contains('import "@scribe/auth/register.ts";'));
+    expect(_generated(), isNot(contains('packages/')));
   });
 
-  test('a module without a register.ts contributes no import', () async {
-    _module('dependencies', 'features/searcher', registers: false);
-    _project(const <String>['features/searcher']);
+  test('a package without a register.ts contributes no import', () async {
+    _package('search', registers: false);
+    _project(const <String>['search']);
 
     await _run(generateRegistrations);
 
-    expect(_generated(), isNot(contains('searcher')));
+    expect(_generated(), isNot(contains('search')));
   });
 
   test('a project that mounts nothing still gets the file the host imports', () async {
@@ -108,17 +109,23 @@ void main() {
   });
 
   test('the imports are sorted, so the file does not churn between runs', () async {
-    _module('packages', 'security/auth');
-    _module('dependencies', 'database/storage');
-    _project(const <String>['security/auth', 'database/storage']);
+    _package('storage');
+    _package('auth');
+    _project(const <String>['storage', 'auth']);
 
     await _run(generateRegistrations);
 
     final List<String> lines = _generated().split('\n').where((String line) => line.startsWith('import')).toList();
 
-    expect(lines, <String>[
-      'import "@scribe/engine/dependencies/database/storage/register.ts";',
-      'import "@scribe/engine/packages/security/auth/register.ts";',
-    ]);
+    expect(lines, <String>['import "@scribe/auth/register.ts";', 'import "@scribe/storage/register.ts";']);
+  });
+
+  test('a manifest that still spells the key dependencies is read all the same', () async {
+    _package('audience');
+    fs.file('/work/notes/config.yaml').writeAsStringSync('name: "notes"\ndependencies:\n  - audience\n');
+
+    await _run(generateRegistrations);
+
+    expect(_generated(), contains('import "@scribe/audience/register.ts";'));
   });
 }

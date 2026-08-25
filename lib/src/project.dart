@@ -172,7 +172,10 @@ class Project {
   /// The business logic: the tables, the routes, the extensions.
   Directory get sources => lib.childDirectory('src');
 
-  /// The modules this project mounts.
+  /// The project's own local modules, under `lib/dependencies/`.
+  ///
+  /// Not what `config.yaml` mounts: the packages a project mounts come from the
+  /// checkout, and this directory holds code the project itself writes.
   Directory get dependencies => lib.childDirectory('dependencies');
 
   /// The public pages this project serves.
@@ -277,13 +280,13 @@ class GeneratedSdk {
   /// The country codes the firewall lets through, from `api.config.allowed_countries`.
   File get allowedCountries => directory.childFile('allowed_countries.ts');
 
-  /// The modules the project mounts, as the host reads them.
-  File get dependencies => directory.childFile('dependencies.ts');
+  /// The packages the project mounts, as the host reads them.
+  File get packages => directory.childFile('packages.ts');
 
-  /// The `register.ts` of every mounted module, imported for its effect.
+  /// The `register.ts` of every mounted package, imported for its effect.
   ///
   /// This is what hands the framework's ports their implementations. The host
-  /// imports this one file and names no module itself, so mounting a new one
+  /// imports this one file and names no package itself, so mounting a new one
   /// never edits the framework.
   File get registrations => directory.childFile('registrations.ts');
 
@@ -376,16 +379,13 @@ class ScribeSdk {
   /// The endpoints the framework serves on its own.
   Directory get engineApi => engine.childDirectory('api');
 
-  /// The modules the framework owns, one root of the walk that finds them.
-  Directory get engineDependencies => engine.childDirectory('dependencies');
-
-  /// The mountable packages, in the submodule that carries them.
+  /// The mountable packages, the one root the walk that finds them reads.
   ///
-  /// Same shape as [engineDependencies] and read the same way: the two are
-  /// searched together, and a module is addressed relative to whichever holds
-  /// it. Absent from a clone made without `--recurse-submodules`, which is why
-  /// nothing may assume it exists.
-  Directory get enginePackages => engine.childDirectory('packages');
+  /// It sits at the checkout root and not under `engine/`, next to the other
+  /// members of the Deno workspace, which is also where the import map the CLI
+  /// writes resolves `@scribe/<name>/` to. A package is addressed by the name of
+  /// its directory here, and by nothing else.
+  Directory get packages => directory.childDirectory('packages');
 
   /// The base schema, which is SQL and therefore sits beside the engine, not inside it.
   Directory get db => directory.childDirectory('db');

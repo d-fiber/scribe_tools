@@ -35,26 +35,26 @@
 // LICENSE file, the LICENSE file governs.
 
 import 'package:scribe_tools/src/base/common.dart';
-import 'package:scribe_tools/src/dependencies.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
+import 'package:scribe_tools/src/packages.dart';
 
-/// Writes the list of mounted modules the worker reads at startup.
-Future<void> generateDependencies() async {
-  final Dependencies dependencies = Dependencies.load();
-  final List<String> mounted = dependencies.active.map((Dependency d) => d.path).toList()..sort();
+/// Writes the list of mounted packages the worker reads at startup.
+Future<void> generatePackages() async {
+  final Packages packages = Packages.load();
+  final List<String> mounted = packages.active.map((Package package) => package.name).toList()..sort();
   const String bin = kToolName;
 
   await globals.project.generated.sdk.create();
-  await globals.project.generated.sdk.dependencies.writeAsString(
+  await globals.project.generated.sdk.packages.writeAsString(
     '// This file is auto-generated do not edit manually.\n'
     '// Run: $bin gen code\n'
     '\n'
-    'export const DEPENDENCIES: readonly string[] = '
-    '[${mounted.map((String path) => '"$path"').join(', ')}];\n',
+    'export const PACKAGES: readonly string[] = '
+    '[${mounted.map((String name) => '"$name"').join(', ')}];\n',
   );
 
   globals.logger.printStatus(
-    '${mounted.length} of ${dependencies.all.length} dependencies mounted, written to '
-    '${globals.project.generatedDirectoryName}/sdk/js/dependencies.ts',
+    '${mounted.length} of ${packages.all.length} packages mounted, written to '
+    '${globals.project.generatedDirectoryName}/sdk/js/packages.ts',
   );
 }

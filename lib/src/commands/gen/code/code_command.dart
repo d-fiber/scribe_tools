@@ -35,7 +35,7 @@
 // LICENSE file, the LICENSE file governs.
 
 import 'package:scribe_tools/src/commands/gen/code/generators/config/country_firewall.dart';
-import 'package:scribe_tools/src/commands/gen/code/generators/config/dependencies.dart';
+import 'package:scribe_tools/src/commands/gen/code/generators/config/packages.dart';
 import 'package:scribe_tools/src/commands/gen/code/generators/config/registrations.dart';
 import 'package:scribe_tools/src/commands/gen/code/generators/config/scribe_config.dart';
 import 'package:scribe_tools/src/commands/gen/code/generators/schema/enums.dart';
@@ -63,7 +63,7 @@ class GenCodeCommand extends ScribeCommand {
   Future<ScribeCommandResult> runCommand() async {
     await generateScribeConfig();
     await generateCountryFirewall();
-    await generateDependencies();
+    await generatePackages();
     await generateRegistrations();
     await generateTables(await generateEnums());
     await generateRelations();

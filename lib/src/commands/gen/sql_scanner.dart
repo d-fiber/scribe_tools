@@ -36,30 +36,30 @@
 
 import 'package:file/file.dart';
 
-import 'package:scribe_tools/src/dependencies.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
+import 'package:scribe_tools/src/packages.dart';
 
 /// Every directory of socle SQL, in the order it has to be applied.
 ///
-/// The socle comes first, the mounted modules next, sorted so the order does
+/// The socle comes first, the mounted packages next, sorted so the order does
 /// not depend on the file system, and the migrations last.
 List<Directory> kernelSqlRoots() => <Directory>[
   globals.project.sdk.dbInit,
-  ..._moduleSqlRoots(),
+  ..._packageSqlRoots(),
   globals.project.sdk.dbMigrations,
 ];
 
-List<Directory> _moduleSqlRoots() {
+List<Directory> _packageSqlRoots() {
   final List<Directory> roots = <Directory>[
-    for (final Dependency dependency in Dependencies.load().active)
-      if (dependency.sql case final Directory sql) sql,
+    for (final Package package in Packages.load().active)
+      if (package.sql case final Directory sql) sql,
   ]..sort((Directory a, Directory b) => a.path.compareTo(b.path));
   return roots;
 }
 
 /// Calls [visit] on every `.sql` under [dir], however deep.
 ///
-/// A directory that is not there is walked as an empty one, since a module may
+/// A directory that is not there is walked as an empty one, since a package may
 /// ship no SQL at all.
 Future<void> walkSqlFiles(Directory dir, Future<void> Function(File file) visit) async {
   if (!dir.existsSync()) return;
