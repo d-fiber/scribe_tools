@@ -46,15 +46,48 @@ import 'package:scribe_tools/src/globals.dart' as globals;
 /// party dependencies and their versions, is copied word for word, so that a
 /// version is declared in one place only.
 const Set<String> _frameworkPathAliases = <String>{
-  '@scribe/core/',
-  '@scribe/foundation/',
-  '@scribe/engine/',
+  '@scribe/alchemy',
+  '@scribe/alchemy/',
+  '@scribe/alchemy/body',
+  '@scribe/alchemy/http',
+  '@scribe/alchemy/observe',
+  '@scribe/alchemy/route',
+  '@scribe/alchemy/server',
+  '@scribe/alchemy/test',
   '@scribe/protocol/',
+  '@scribe/public/',
   '@scribe/sdk',
   '@scribe/sdk/',
   '@app/',
   '@assets/',
 };
+
+/// The layers a project may name, each one a directory under `engine/`.
+///
+/// They are aliases and not files because a project reaches into a layer by path,
+/// the way the framework's own members do. The checkout keeps each layer's own
+/// visibility to itself: those declarations say which layer may reach which, and
+/// a project is outside that graph, so it gets all of them.
+const List<String> _layers = <String>[
+  'contracts',
+  'runtime',
+  'kernel',
+  'embedder',
+  'testing',
+  'shell',
+];
+
+/// The packages the framework carries, reached by name like the layers.
+const List<String> _packages = <String>[
+  'audience',
+  'auth',
+  'dynamic_links',
+  'foundation',
+  'realtime',
+  'remote_configs',
+  'search',
+  'storage',
+];
 
 /// The third party imports of [frameworkConfig], its own path aliases removed.
 Map<String, String> inheritedImports(Map<String, dynamic> frameworkConfig) {
@@ -83,23 +116,30 @@ String renderImportMap(
   required String projectRoot,
   required String assetsRoot,
 }) {
-  final String above = p.dirname(frameworkRoot);
+  final String engine = '${frameworkRoot}engine/';
 
   final Map<String, dynamic> document = <String, dynamic>{
     'imports': <String, String>{
       ...inherited,
-      '@scribe/core/': '${frameworkRoot}core/',
-      '@scribe/foundation/': '${frameworkRoot}packages/foundation/',
-      '@scribe/engine/': frameworkRoot,
-      '@scribe/protocol/': '$above/protocol/',
-      '@scribe/sdk': '$above/sdk/js/mod.ts',
-      '@scribe/sdk/': '$above/sdk/js/',
+      '@scribe/alchemy': '${engine}alchemy/mod.ts',
+      '@scribe/alchemy/': '${engine}alchemy/',
+      '@scribe/alchemy/body': '${engine}alchemy/api/body/mod.ts',
+      '@scribe/alchemy/http': '${engine}alchemy/http/mod.ts',
+      '@scribe/alchemy/observe': '${engine}alchemy/observe/mod.ts',
+      '@scribe/alchemy/route': '${engine}alchemy/api/route/mod.ts',
+      '@scribe/alchemy/server': '${engine}alchemy/api/server/mod.ts',
+      '@scribe/alchemy/test': '${engine}alchemy/test/mod.ts',
+      for (final String layer in _layers) '@scribe/$layer/': '$engine$layer/',
+      for (final String package in _packages) '@scribe/$package/': '${frameworkRoot}packages/$package/',
+      '@scribe/protocol/': '${frameworkRoot}protocol/',
+      '@scribe/public/': '${frameworkRoot}public/',
+      '@scribe/sdk': '${frameworkRoot}sdk/js/mod.ts',
+      '@scribe/sdk/': '${frameworkRoot}sdk/js/',
       '@app/': projectRoot,
       '@assets/': assetsRoot,
       globals.project.generatedAlias: './',
       '@generated/': './',
     },
-    'lock': false,
     if (frameworkConfig['compilerOptions'] != null) 'compilerOptions': frameworkConfig['compilerOptions'],
     if (frameworkConfig['fmt'] != null) 'fmt': frameworkConfig['fmt'],
   };

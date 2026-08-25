@@ -364,8 +364,14 @@ class ScribeSdk {
   /// The process that serves the API.
   Directory get engine => directory.childDirectory('engine');
 
-  /// The engine's Deno configuration, which its import map is merged into.
-  File get engineDenoJson => engine.childFile('deno.json');
+  /// The checkout's own Deno configuration, which its import map is merged into.
+  ///
+  /// It sits at the root and not under `engine/`, because scribe is one Deno
+  /// project: the root is the workspace, and it is the only place that names a
+  /// version and pins what is outside the framework. Each layer under `engine/`
+  /// carries a configuration of its own, but those name only the layers they may
+  /// reach and are of no use to a project.
+  File get denoJson => directory.childFile('deno.json');
 
   /// The endpoints the framework serves on its own.
   Directory get engineApi => engine.childDirectory('api');

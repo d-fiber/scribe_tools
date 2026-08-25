@@ -54,7 +54,7 @@ import 'package:scribe_tools/src/globals.dart' as globals;
 /// should give away what the framework is implemented with.
 Future<void> generateScribeConfig() async {
   final Map<String, dynamic> frameworkConfig =
-      jsonDecode(await globals.project.sdk.engineDenoJson.readAsString()) as Map<String, dynamic>;
+      jsonDecode(await globals.project.sdk.denoJson.readAsString()) as Map<String, dynamic>;
   final Map<String, String> inherited = inheritedImports(frameworkConfig);
 
   await globals.project.generated.sdk.create();
@@ -63,7 +63,7 @@ Future<void> generateScribeConfig() async {
     renderImportMap(
       frameworkConfig,
       inherited,
-      frameworkRoot: asDirectory(globals.project.sdk.engine.path),
+      frameworkRoot: asDirectory(globals.project.sdk.path),
       projectRoot: asDirectory(globals.project.lib.path),
       assetsRoot: asDirectory(globals.project.assets.path),
     ),
@@ -73,7 +73,7 @@ Future<void> generateScribeConfig() async {
     renderImportMap(
       frameworkConfig,
       inherited,
-      frameworkRoot: '/app/scribe/engine/',
+      frameworkRoot: '/app/scribe/',
       projectRoot: '/app/lib/',
       assetsRoot: '/app/assets/',
     ),
