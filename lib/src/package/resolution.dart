@@ -153,17 +153,47 @@ const String kPackagesDirectory = 'packages';
 
 /// The specifiers a package named [name] at [directory] is reached through.
 ///
-/// Four surfaces and no fifth: the door, the harness another suite stands it up
-/// with, the settings that harness installs at import, and the stack its
-/// end-to-end suites share. There is deliberately no entry ending in a slash,
-/// because one would let a caller import any file under the package and make the
-/// door a suggestion. A package reaches its own files that way, and only its own.
-Map<String, String> _doorsOf(String name, String directory) => <String, String>{
-  '@scribe/$name': Uri.file(p.absolute(p.join(directory, entryOf(name)))).toString(),
-  '@scribe/$name/testing': Uri.file(p.absolute(p.join(directory, kHarnessEntry))).toString(),
-  '@scribe/$name/testing/settings': Uri.file(p.absolute(p.join(directory, kHarnessSettings))).toString(),
-  '@scribe/$name/e2e': Uri.file(p.absolute(p.join(directory, kE2eStack))).toString(),
-};
+/// They are read from the package's own map, not invented here. A package that
+/// opens a door says so in its `deno.json`, and a tool that made up the list
+/// instead would hand a caller fewer doors than the package publishes. That is
+/// not a small difference: every subject door of a dependency was missing, so
+/// nothing that imported one could be type checked.
+///
+/// The four the layout guarantees are added when the map does not name them,
+/// which keeps a package written before the map carried them resolvable.
+Map<String, String> _doorsOf(String name, String directory) {
+  final Map<String, String> doors = <String, String>{};
+
+  void open(String specifier, String at) => doors[specifier] = specifier.endsWith('/')
+      ? Uri.directory(p.absolute(at)).toString()
+      : Uri.file(p.absolute(at)).toString();
+
+  final File map = globals.fs.file(p.join(directory, kSdkImportMapFile));
+  if (map.existsSync()) {
+    final Object? document = jsonDecode(map.readAsStringSync());
+    final Object? own = document is Map<String, Object?> ? document['imports'] : null;
+    if (own is Map<String, Object?>) {
+      for (final MapEntry<String, Object?> entry in own.entries) {
+        if (entry.key != '@scribe/$name' && !entry.key.startsWith('@scribe/$name/')) continue;
+
+        final Object? target = entry.value;
+        if (target is! String || !target.startsWith('./')) continue;
+
+        open(entry.key, p.join(directory, target.substring(2)));
+      }
+    }
+  }
+
+  doors
+    ..putIfAbsent('@scribe/$name', () => Uri.file(p.absolute(p.join(directory, entryOf(name)))).toString())
+    ..putIfAbsent('@scribe/$name/testing', () => Uri.file(p.absolute(p.join(directory, kHarnessEntry))).toString())
+    ..putIfAbsent(
+      '@scribe/$name/testing/settings',
+      () => Uri.file(p.absolute(p.join(directory, kHarnessSettings))).toString(),
+    )
+    ..putIfAbsent('@scribe/$name/e2e', () => Uri.file(p.absolute(p.join(directory, kE2eStack))).toString());
+  return doors;
+}
 
 /// What a package asked for and could not be given, in the sentence a caller prints.
 class Unresolved {
