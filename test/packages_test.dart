@@ -153,13 +153,13 @@ void main() {
     });
 
     test('a project gets foundation on top of what it named', () {
-      expect(_namesOf(found.selected(const <String>['auth'])), <String>['auth', 'foundation']);
+      expect(_namesOf(found.selected(const <String>['auth'])), <String>['foundation', 'auth']);
     });
 
     test('naming a package never drags a neighbour in with it', () {
       expect(
         _namesOf(found.selected(const <String>['audience'])),
-        <String>['audience', 'foundation'],
+        <String>['foundation', 'audience'],
         reason: 'audience is written against auth, and says so at the endpoint rather than here',
       );
     });

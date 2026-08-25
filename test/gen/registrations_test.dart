@@ -74,50 +74,59 @@ void main() {
     _project(const <String>[]);
   });
 
-  test('a mounted package with a register.ts is imported for its effect', () async {
+  test('a mounted package carries its lifecycle into the file the host reads', () async {
     _package('audience');
     _project(const <String>['audience']);
 
     await _run(generateRegistrations);
 
-    expect(_generated(), contains('import "@scribe/audience/register.ts";'));
+    expect(_generated(), contains('import { scribe as _audience } from "@scribe/audience";'));
+    expect(_generated(), contains('{ name: "audience", steps: _audience },'));
   });
 
-  test('the specifier is the package alias, so it holds no path into the checkout', () async {
+  test('the specifier is the package door, so it holds no path into the checkout', () async {
     _package('auth');
     _project(const <String>['auth']);
 
     await _run(generateRegistrations);
 
-    expect(_generated(), contains('import "@scribe/auth/register.ts";'));
+    expect(_generated(), contains('from "@scribe/auth";'));
     expect(_generated(), isNot(contains('packages/')));
   });
 
-  test('a package without a register.ts contributes no import', () async {
-    _package('search', registers: false);
-    _project(const <String>['search']);
+  test('a package that runs at no moment is listed all the same', () async {
+    _package('audience', registers: false);
+    _project(const <String>['audience']);
 
     await _run(generateRegistrations);
 
-    expect(_generated(), isNot(contains('search')));
+    expect(
+      _generated(),
+      contains('{ name: "audience", steps: _audience },'),
+      reason: 'whether it runs is read off its door, not guessed from the tree',
+    );
   });
 
-  test('a project that mounts nothing still gets the file the host imports', () async {
+  test('a project that mounts nothing still gets the list the host reads', () async {
     await _run(generateRegistrations);
 
+    expect(_generated(), contains('export const mounted = ['));
     expect(_generated(), isNot(contains('import')));
   });
 
-  test('the imports are sorted, so the file does not churn between runs', () async {
+  test('the order is the one the manifest wrote, since it decides who fills a port first', () async {
     _package('storage');
     _package('auth');
     _project(const <String>['storage', 'auth']);
 
     await _run(generateRegistrations);
 
-    final List<String> lines = _generated().split('\n').where((String line) => line.startsWith('import')).toList();
+    final List<String> named = _generated()
+        .split('\n')
+        .where((String line) => line.trimLeft().startsWith('{ name:'))
+        .toList();
 
-    expect(lines, <String>['import "@scribe/auth/register.ts";', 'import "@scribe/storage/register.ts";']);
+    expect(named, <String>['  { name: "storage", steps: _storage },', '  { name: "auth", steps: _auth },']);
   });
 
   test('a manifest that still spells the key dependencies is read all the same', () async {
@@ -126,6 +135,6 @@ void main() {
 
     await _run(generateRegistrations);
 
-    expect(_generated(), contains('import "@scribe/audience/register.ts";'));
+    expect(_generated(), contains('from "@scribe/audience";'));
   });
 }

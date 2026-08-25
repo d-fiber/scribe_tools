@@ -51,23 +51,23 @@ import 'package:scribe_tools/src/packages.dart';
 /// at once.
 Future<void> generateRegistrations() async {
   final Packages packages = Packages.load();
-
-  final List<String> specifiers = <String>[
-    for (final Package package in packages.active)
-      if (package.directory.childFile(registrationFile).existsSync()) '@scribe/${package.name}/$registrationFile',
-  ]..sort();
+  final List<String> names = <String>[for (final Package package in packages.active) package.name];
 
   await globals.project.generated.sdk.create();
   await globals.project.generated.sdk.registrations.writeAsString(
     '// This file is auto-generated do not edit manually.\n'
     '// Run: $kToolName gen code\n'
     '\n'
-    '${specifiers.map((String specifier) => 'import "$specifier";').join('\n')}'
-    '${specifiers.isEmpty ? '' : '\n'}',
+    '${names.map((String name) => 'import { scribe as _$name } from "@scribe/$name";').join('\n')}'
+    '${names.isEmpty ? '' : '\n'}'
+    '\n'
+    'export const mounted = [\n'
+    '${names.map((String name) => '  { name: "$name", steps: _$name },\n').join()}'
+    '];\n',
   );
 
   globals.logger.printStatus(
-    '${specifiers.length} package registration(s), written to '
+    '${names.length} package(s) mounted, written to '
     '${globals.project.generatedDirectoryName}/sdk/js/registrations.ts',
   );
 }

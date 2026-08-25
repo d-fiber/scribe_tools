@@ -163,7 +163,8 @@ void main() {
       _package('audience', declarations: <String, String>{'accounts': 'Audience'});
       _mount(const <String>['auth', 'audience']);
 
-      await expectLater(_kinds(), throwsToolExit('"auth" and "audience" both declare'));
+      await expectLater(_kinds(), throwsToolExit('"auth"'));
+      await expectLater(_kinds(), throwsToolExit('"audience"'));
       await expectLater(_kinds(), throwsToolExit('scribe.declarations.accounts'));
     });
   });

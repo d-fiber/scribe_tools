@@ -240,6 +240,11 @@ class Packages {
   /// asks for at the endpoint that needs it, where the project can be told
   /// what is missing rather than silently given it.
   ///
+  /// They come back in the order [wanted] names them, with [foundationName]
+  /// first because everything else stands on it. The order is not decoration: a
+  /// package fills a port only when nothing has, so the first to answer wins, and
+  /// a project that names its own package ahead of a shipped one gets its driver.
+  ///
   /// Throws a [ToolExit] naming the known packages when [wanted] holds a name
   /// that is not one.
   List<Package> selected(List<String> wanted) {
@@ -252,8 +257,11 @@ class Packages {
       }
     }
 
-    final Set<String> keep = <String>{foundationName, ...wanted};
-    return all.where((Package package) => keep.contains(package.name)).toList();
+    final List<String> order = <String>[foundationName, ...wanted.where((String name) => name != foundationName)];
+    return <Package>[
+      for (final String name in order)
+        if (byName(name) != null) byName(name)!,
+    ];
   }
 
   /// The slices of [template] declared by [active], in the order they are given.

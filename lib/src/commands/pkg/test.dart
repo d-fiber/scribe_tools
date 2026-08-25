@@ -67,13 +67,17 @@ class PkgTestCommand extends ScribeCommand {
 
   /// What a package's tests are allowed to reach, and nothing beyond it.
   ///
-  /// The three are what the framework grants its own suite, and they are all
-  /// read-only. Reading the environment is what an npm dependency does the moment
-  /// it loads, reading the system is what a runtime probe does, and reading files
-  /// is what the runtime does to reach the package at all. Nothing here reaches
-  /// the network: a test that needs the stack up is an end-to-end test, and those
-  /// are run against a stack rather than from here.
-  static const List<String> kTestPermissions = <String>['--allow-env', '--allow-sys', '--allow-read'];
+  /// The four are what the framework grants its own suite. Reading the environment
+  /// is what an npm dependency does the moment it loads, reading the system is
+  /// what a runtime probe does, and reading files is what the runtime does to
+  /// reach the package at all. Writing is what a driver that puts a file on disk
+  /// does, and withholding it meant the tool could not test the packages that
+  /// have one: eighteen of foundation's tests failed on a temporary directory,
+  /// with no service involved.
+  ///
+  /// Nothing here reaches the network: a test that needs the stack up is an
+  /// end-to-end test, and those are run against a stack rather than from here.
+  static const List<String> kTestPermissions = <String>['--allow-env', '--allow-sys', '--allow-read', '--allow-write'];
 
   @override
   Future<ScribeCommandResult> runCommand() async {
