@@ -139,9 +139,46 @@ class ScribeManifest {
   /// the project rather than to the CLI, so a checkout written against the old
   /// name keeps working instead of failing at the first command with no way
   /// forward.
-  List<String> get packages {
-    final List<String> named = _strings(<String>['packages']);
-    return named.isEmpty ? _strings(<String>['dependencies']) : named;
+  List<String> get packages => packageSources.keys.toList();
+
+  /// Where each package this project mounts comes from, empty for one the checkout carries.
+  ///
+  /// The key is `packages:`. A manifest that still spells it `dependencies:` is
+  /// read all the same, and only when `packages:` is absent: the file belongs to
+  /// the project rather than to the CLI, so a checkout written against the old
+  /// name keeps working instead of failing at the first command with no way
+  /// forward.
+  ///
+  /// An entry is a name on its own for a package the checkout ships, or a name
+  /// carrying `path:` for one the project wrote or vendored. Both are mounted the
+  /// same way afterwards: a package nobody here wrote is reached exactly like a
+  /// package shipped with the framework.
+  ///
+  /// ```yaml
+  /// packages:
+  ///   - auth
+  ///   - billing:
+  ///       path: ../billing
+  /// ```
+  Map<String, String> get packageSources {
+    Object? value = read(<String>['packages']);
+    value ??= read(<String>['dependencies']);
+    if (value is! List) return const <String, String>{};
+
+    final Map<String, String> sources = <String, String>{};
+    for (final Object? entry in value) {
+      if (entry is Map && entry.length == 1) {
+        final String name = entry.keys.first.toString().trim();
+        final Object? source = entry.values.first;
+        final Object? path = source is Map ? source['path'] : null;
+        if (name.isNotEmpty) sources[name] = path?.toString().trim() ?? '';
+        continue;
+      }
+
+      final String name = entry.toString().trim();
+      if (name.isNotEmpty) sources[name] = '';
+    }
+    return sources;
   }
 
   /// Whether this project runs its own code in a worker process of its own.

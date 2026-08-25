@@ -169,6 +169,14 @@ class Packages {
   ///
   /// A root that does not exist yields nothing rather than failing, since a
   /// project can be read before its framework is vendored in.
+  /// Every package a project may mount: what the checkout carries, plus what the
+  /// manifest points at with a `path:`.
+  ///
+  /// A package the project wrote wins over one of the same name in the checkout,
+  /// so a project may put its own in front of a shipped one without renaming it.
+  ///
+  /// Naming a [root] asks a different question: what sits in that directory. The
+  /// manifest is not read then, because the caller is not standing in a project.
   static Packages load({Directory? root}) {
     final Directory searched = root ?? globals.fs.directory(globals.project.sdk.packages.path);
     final List<Package> found = <Package>[];
@@ -179,6 +187,19 @@ class Packages {
           found.add(Package(name: p.basename(child.path), directory: child));
         }
       }
+    }
+
+    if (root != null) return Packages(found..sort((Package a, Package b) => a.name.compareTo(b.name)));
+
+    for (final MapEntry<String, String> source in globals.project.manifest.packageSources.entries) {
+      if (source.value.isEmpty) continue;
+
+      final Directory at = globals.fs.directory(p.normalize(p.join(globals.project.directory.path, source.value)));
+      if (!at.existsSync() || !_isPackage(at)) continue;
+
+      found
+        ..removeWhere((Package carried) => carried.name == source.key)
+        ..add(Package(name: source.key, directory: at));
     }
 
     found.sort((Package a, Package b) => a.name.compareTo(b.name));
