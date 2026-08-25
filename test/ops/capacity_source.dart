@@ -52,7 +52,7 @@ const FileSystem _fs = LocalFileSystem();
 Directory get packagesRoot => _fs.directory(p.join(repository, 'packages'));
 
 /// The socle's own ops directory, which holds the `capacity.yaml` every project reads.
-Directory get socleOps => _fs.directory(p.join(repository, 'ops/docker'));
+Directory get socleOps => _fs.directory(p.join(repository, 'provisioning/ops/docker'));
 
 /// Where the socle's compose templates live, which is this package rather than the framework.
 Directory get socleComposeTemplates => _fs.directory('templates/ops/docker');
@@ -133,7 +133,7 @@ Capacity frameworkCapacityOf(Iterable<String> names, {Set<String> profiles = pac
   final Map<String, Directory> packages = frameworkPackages();
 
   return Capacity.read(
-    _fs.directory(p.join(repository, 'ops/docker')),
+    _fs.directory(p.join(repository, 'provisioning/ops/docker')),
     names.expand((String name) => opsDirectories(packages[name]!).map((Directory d) => d.childFile(capacityFileName))),
     profiles: profiles,
   );

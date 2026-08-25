@@ -78,7 +78,11 @@ void _vendorFramework(FileSystem fs, String root) {
   for (final String name in composeTemplates) {
     _copy(fs, p.join('templates/ops/docker', '$name.tmpl'), p.join(_toolRoot, 'templates/ops/docker', '$name.tmpl'));
   }
-  _copy(fs, p.join(_repository, 'ops/docker', capacityFileName), p.join(root, 'ops/docker', capacityFileName));
+  _copy(
+    fs,
+    p.join(_repository, 'provisioning/ops/docker', capacityFileName),
+    p.join(root, 'provisioning/ops/docker', capacityFileName),
+  );
 
   final io.Directory packages = io.Directory(p.join(_repository, 'packages'));
   if (!packages.existsSync()) return;

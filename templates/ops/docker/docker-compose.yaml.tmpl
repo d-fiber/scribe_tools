@@ -11,7 +11,7 @@ services:
       - "443:443"
       - "443:443/udp"
     volumes:
-      - "{{sdk_root}}/ops/proxy/caddy:/etc/caddy:z"
+      - "{{sdk_root}}/provisioning/ops/proxy/caddy:/etc/caddy:z"
       - "caddy_data:/data"
       - "caddy_config:/config"
       - "{{sdk_root}}/web/dashboard:/srv/dashboard:ro"
@@ -39,7 +39,7 @@ services:
     restart: "unless-stopped"
     volumes:
       - "./{{alchemy_dir}}/ops/gateway/kong.yml:/home/kong/temp.yml:ro,z"
-      - "{{sdk_root}}/ops/gateway/kong-entrypoint.sh:/home/kong/kong-entrypoint.sh:ro,z"
+      - "{{sdk_root}}/provisioning/ops/gateway/kong-entrypoint.sh:/home/kong/kong-entrypoint.sh:ro,z"
     environment:
       KONG_DATABASE: "off"
       KONG_DECLARATIVE_CONFIG: "/usr/local/kong/kong.yml"
@@ -88,7 +88,7 @@ services:
   functions:
     container_name: "supabase-edge-functions"
     build:
-      context: "{{sdk_root}}/ops/docker"
+      context: "{{sdk_root}}/provisioning/ops/docker"
       dockerfile: "Dockerfile.functions"
     restart: "unless-stopped"
     volumes:
@@ -181,7 +181,7 @@ services:
         max-file: "3"
   api:
     build:
-      context: "{{sdk_root}}/ops/docker"
+      context: "{{sdk_root}}/provisioning/ops/docker"
       dockerfile: "Dockerfile.api"
     restart: "unless-stopped"
     volumes:
@@ -290,7 +290,7 @@ services:
     profiles: ["worker"]
     container_name: "worker"
     build:
-      context: "{{sdk_root}}/ops/docker"
+      context: "{{sdk_root}}/provisioning/ops/docker"
       dockerfile: "Dockerfile.api"
     restart: "unless-stopped"
     volumes:

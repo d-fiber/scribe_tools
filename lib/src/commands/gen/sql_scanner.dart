@@ -41,13 +41,9 @@ import 'package:scribe_tools/src/packages.dart';
 
 /// Every directory of socle SQL, in the order it has to be applied.
 ///
-/// The socle comes first, the mounted packages next, sorted so the order does
-/// not depend on the file system, and the migrations last.
-List<Directory> kernelSqlRoots() => <Directory>[
-  globals.project.sdk.dbInit,
-  ..._packageSqlRoots(),
-  globals.project.sdk.dbMigrations,
-];
+/// What the framework provisions comes first, the mounted packages next, sorted
+/// so the order does not depend on the file system.
+List<Directory> kernelSqlRoots() => <Directory>[globals.project.sdk.db, ..._packageSqlRoots()];
 
 List<Directory> _packageSqlRoots() {
   final List<Directory> roots = <Directory>[

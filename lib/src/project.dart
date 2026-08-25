@@ -388,24 +388,28 @@ class ScribeSdk {
   /// its directory here, and by nothing else.
   Directory get packages => directory.childDirectory('packages');
 
-  /// The base schema, which is SQL and therefore sits beside the engine, not inside it.
-  Directory get db => directory.childDirectory('db');
+  /// Everything that must exist before a project can run, in one place.
+  ///
+  /// A project is mounted, built or started against a stack that does not exist
+  /// yet, so what lives here runs first. A package declares the same two
+  /// directories of its own and so does a project, and the three are read in
+  /// that order.
+  Directory get provisioning => directory.childDirectory('provisioning');
 
-  /// The SQL run once on an empty database.
-  Directory get dbInit => db.childDirectory('init');
-
-  /// The SQL run in order on a database that already holds data.
-  Directory get dbMigrations => db.childDirectory('migrations');
-
-  /// The SQL that creates the roles and the grants.
-  Directory get dbProvisioning => db.childDirectory('provisioning');
+  /// The SQL that creates the roles, the grants and the hook plumbing.
+  ///
+  /// It runs in the cluster's own initialisation, as superuser, before the
+  /// server accepts a connection, which is the only moment a role can be
+  /// created. The framework declares no table of its own: a table comes from a
+  /// mounted package or from the project.
+  Directory get db => provisioning.childDirectory('db');
 
   /// What the stack mounts or builds as it is, from Dockerfiles to the Caddyfile.
   ///
   /// Nothing here carries a placeholder. Everything that does is a template, and
   /// templates ship with the tool rather than with the framework, so a file read
   /// from this directory is always a file Docker can use directly.
-  Directory get ops => directory.childDirectory('ops');
+  Directory get ops => provisioning.childDirectory('ops');
 
   /// The `.proto` files of the host-to-worker contract.
   Directory get protocol => directory.childDirectory('protocol');
