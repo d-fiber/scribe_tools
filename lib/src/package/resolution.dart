@@ -151,6 +151,20 @@ const Map<String, String> kAlwaysResolved = <String, String>{'@std/assert': 'jsr
 /// The directory, inside a checkout, holding the packages it carries.
 const String kPackagesDirectory = 'packages';
 
+/// The specifiers a package named [name] at [directory] is reached through.
+///
+/// Four surfaces and no fifth: the door, the harness another suite stands it up
+/// with, the settings that harness installs at import, and the stack its
+/// end-to-end suites share. There is deliberately no entry ending in a slash,
+/// because one would let a caller import any file under the package and make the
+/// door a suggestion. A package reaches its own files that way, and only its own.
+Map<String, String> _doorsOf(String name, String directory) => <String, String>{
+  '@scribe/$name': Uri.file(p.absolute(p.join(directory, entryOf(name)))).toString(),
+  '@scribe/$name/testing': Uri.file(p.absolute(p.join(directory, kHarnessEntry))).toString(),
+  '@scribe/$name/testing/settings': Uri.file(p.absolute(p.join(directory, kHarnessSettings))).toString(),
+  '@scribe/$name/e2e': Uri.file(p.absolute(p.join(directory, kE2eStack))).toString(),
+};
+
 /// What a package asked for and could not be given, in the sentence a caller prints.
 class Unresolved {
   /// Records that [name] could not be answered, for [reason].
@@ -358,6 +372,7 @@ bool isResolved(String package, Sdk sdk) {
 /// it would report a different set.
 ///
 /// Throws a [ToolExit] when [problems] is not empty.
+
 void _refuseUnresolved(List<Unresolved> problems, Manifest manifest, String directory) {
   if (problems.isEmpty) return;
 
@@ -412,11 +427,8 @@ Resolution resolve(String directory, Sdk sdk) {
     ...kAlwaysResolved,
     ...languageImports(sdk),
     ...externalImports(external, sdk, pinned, problems),
-    for (final MapEntry<String, String> held in reached.entries) ...<String, String>{
-      '@scribe/${held.key}': Uri.file(p.absolute(p.join(held.value, entryOf(held.key)))).toString(),
-      '@scribe/${held.key}/': Uri.directory(p.absolute(held.value)).toString(),
-    },
-    '@scribe/${manifest.name}': Uri.file(p.absolute(p.join(directory, entryOf(manifest.name)))).toString(),
+    for (final MapEntry<String, String> held in reached.entries) ..._doorsOf(held.key, held.value),
+    ..._doorsOf(manifest.name, directory),
     '@scribe/${manifest.name}/': Uri.directory(p.absolute(directory)).toString(),
   };
 

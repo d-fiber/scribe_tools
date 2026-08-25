@@ -69,6 +69,22 @@ const String kTestSuffix = '.test.ts';
 /// somewhere else would only be a chance for the two to disagree.
 String entryOf(String name) => '$kLibraryDirectory/$name.ts';
 
+/// The one file a suite of another package reaches this one's harness through.
+///
+/// A `tests/` directory is written to be thrown away and rewritten, so nothing
+/// outside the package imports a file inside it directly. The path is fixed the
+/// way [entryOf] is fixed, and for the same reason.
+const String kHarnessEntry = '$kTestsDirectory/$kTestingDirectory/$kTestingDirectory.ts';
+
+/// The settings a harness installs when it is imported.
+///
+/// It is named on its own because a suite imports it for its effect rather than
+/// for anything it exports, and an effect does not travel through a re-export.
+const String kHarnessSettings = '$kTestsDirectory/$kTestingDirectory/settings.ts';
+
+/// The stack the end-to-end suites of a package share.
+const String kE2eStack = '$kTestsDirectory/$kE2eDirectory/support/stack.ts';
+
 /// What [directory] is missing to be a package called [name], empty when nothing.
 List<String> layoutProblems(String directory, String name) {
   final List<String> missing = <String>[];

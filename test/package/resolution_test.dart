@@ -354,7 +354,15 @@ void main() {
         importsOf(at)['@scribe/audiences'],
         Uri.file(p.join(root.path, 'audiences', 'lib', 'audiences.ts')).toString(),
       );
-      expect(importsOf(at)['@scribe/audiences/'], Uri.directory(p.join(root.path, 'audiences')).toString());
+      expect(
+        importsOf(at)['@scribe/audiences/testing'],
+        Uri.file(p.join(root.path, 'audiences', 'tests', 'testing', 'testing.ts')).toString(),
+      );
+      expect(
+        importsOf(at)['@scribe/audiences/'],
+        isNull,
+        reason: 'a specifier ending in a slash would let any file under the package be imported',
+      );
     });
 
     resolving('what its dependency depends on is reached too', () {
@@ -374,8 +382,8 @@ void main() {
       resolve(at, sdkOfCheckout());
 
       expect(
-        importsOf(at)['@scribe/audiences/'],
-        Uri.directory(p.join(checkout.path, kPackagesDirectory, 'audiences')).toString(),
+        importsOf(at)['@scribe/audiences'],
+        Uri.file(p.join(checkout.path, kPackagesDirectory, 'audiences', 'lib', 'audiences.ts')).toString(),
       );
     });
 
@@ -387,8 +395,8 @@ void main() {
       resolve(at, sdkOfCheckout());
 
       expect(
-        importsOf(at)['@scribe/audiences/'],
-        Uri.directory(p.join(root.path, 'audiences')).toString(),
+        importsOf(at)['@scribe/audiences'],
+        Uri.file(p.join(root.path, 'audiences', 'lib', 'audiences.ts')).toString(),
         reason: 'the copy the checkout was last given won over the tree being edited',
       );
     });
