@@ -161,7 +161,12 @@ const String kPackagesDirectory = 'packages';
 ///
 /// The four the layout guarantees are added when the map does not name them,
 /// which keeps a package written before the map carried them resolvable.
-Map<String, String> _doorsOf(String name, String directory) {
+///
+/// The one entry never handed over is the package's own `@scribe/<name>/`. A
+/// package reaches its own files through it, and passing it to a dependent would
+/// open every file under that package to a caller, which is the door being a
+/// suggestion again. [own] says which side of that line the caller is on.
+Map<String, String> _doorsOf(String name, String directory, {required bool own}) {
   final Map<String, String> doors = <String, String>{};
 
   void open(String specifier, String at) => doors[specifier] = specifier.endsWith('/')
@@ -171,10 +176,11 @@ Map<String, String> _doorsOf(String name, String directory) {
   final File map = globals.fs.file(p.join(directory, kSdkImportMapFile));
   if (map.existsSync()) {
     final Object? document = jsonDecode(map.readAsStringSync());
-    final Object? own = document is Map<String, Object?> ? document['imports'] : null;
-    if (own is Map<String, Object?>) {
-      for (final MapEntry<String, Object?> entry in own.entries) {
+    final Object? published = document is Map<String, Object?> ? document['imports'] : null;
+    if (published is Map<String, Object?>) {
+      for (final MapEntry<String, Object?> entry in published.entries) {
         if (entry.key != '@scribe/$name' && !entry.key.startsWith('@scribe/$name/')) continue;
+        if (!own && entry.key == '@scribe/$name/') continue;
 
         final Object? target = entry.value;
         if (target is! String || !target.startsWith('./')) continue;
@@ -457,8 +463,8 @@ Resolution resolve(String directory, Sdk sdk) {
     ...kAlwaysResolved,
     ...languageImports(sdk),
     ...externalImports(external, sdk, pinned, problems),
-    for (final MapEntry<String, String> held in reached.entries) ..._doorsOf(held.key, held.value),
-    ..._doorsOf(manifest.name, directory),
+    for (final MapEntry<String, String> held in reached.entries) ..._doorsOf(held.key, held.value, own: false),
+    ..._doorsOf(manifest.name, directory, own: true),
     '@scribe/${manifest.name}/': Uri.directory(p.absolute(directory)).toString(),
   };
 
