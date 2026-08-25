@@ -228,6 +228,11 @@ class ScribeManifest {
   /// False by default, and false is the ordinary case: the host loads the
   /// project in its own process, and the `worker` container would be a second
   /// Deno nobody talks to. Saying true starts it and gives it a memory budget.
+  ///
+  /// Anything that is not a boolean is refused by [problems] rather than read
+  /// here, because `worker: "true"` and `worker: yes` both used to come back
+  /// false and drop the worker profile from the rendered stack, with nothing
+  /// said at any point.
   bool get worker => read(<String>['worker']) == true;
 
   /// The origins allowed to call the API.
@@ -284,6 +289,7 @@ class ScribeManifest {
   /// everything that is left rather than the first thing that failed.
   List<ManifestProblem> get problems => <ManifestProblem>[
     ..._committedSecrets(),
+    ..._flagProblems(),
     ..._missingRequiredFields(),
     ..._sdkProblems(),
     ..._originProblems(),
@@ -386,6 +392,21 @@ class ScribeManifest {
           ManifestProblem(
             'api.config.origins',
             '"$entry" must be scheme and host only, with no path and no trailing slash',
+          ),
+    ];
+  }
+
+  /// The keys whose value has to be a boolean, and what each one decides.
+  static const Map<String, String> _flags = <String, String>{'worker': 'whether a worker process is started'};
+
+  List<ManifestProblem> _flagProblems() {
+    return <ManifestProblem>[
+      for (final MapEntry<String, String> flag in _flags.entries)
+        if (read(<String>[flag.key]) case final Object value when value is! bool)
+          ManifestProblem(
+            flag.key,
+            'holds "$value", which is not true or false. It decides ${flag.value}, and anything else '
+            'reads as false: "true" in quotes is text, and yes is a boolean in YAML 1.1 and not here',
           ),
     ];
   }

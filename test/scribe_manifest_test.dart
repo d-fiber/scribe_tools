@@ -98,6 +98,28 @@ void main() {
     });
   });
 
+  test('a flag that is not a boolean is refused, since anything else reads as false', () async {
+    await withEnvironment(const <String, String>{}, () {
+      for (final String written in <String>['"true"', 'yes', 'maybe', '1']) {
+        final ScribeManifest manifest = manifestOf('$_minimal\nworker: $written\n');
+
+        expect(
+          manifest.problems.map((ManifestProblem problem) => problem.field),
+          contains('worker'),
+          reason: 'worker: $written would otherwise drop the worker profile from the rendered stack',
+        );
+      }
+    });
+  });
+
+  test('a flag written as a boolean is read, and says nothing', () async {
+    await withEnvironment(const <String, String>{}, () {
+      expect(manifestOf('$_minimal\nworker: true\n').worker, isTrue);
+      expect(manifestOf('$_minimal\nworker: false\n').worker, isFalse);
+      expect(manifestOf(_minimal).problems, isEmpty);
+    });
+  });
+
   test('a package given a path comes from there, one given a name from the checkout', () async {
     await withEnvironment(const <String, String>{}, () {
       final ScribeManifest manifest = manifestOf(
