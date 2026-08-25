@@ -53,6 +53,17 @@ const String kProjectTemplatesDirectoryName = 'project';
 /// The layer of [kTemplatesDirectoryName] holding what the stack is rendered from.
 const String kOpsTemplatesDirectoryName = 'ops';
 
+/// The suffix every file under [kTemplatesDirectoryName] carries, and what it buys.
+///
+/// It is what keeps a formatter, an analyser or a linter from touching a file
+/// full of `{{placeholders}}`. `deno fmt` reads `{{name}}` as a nested flow
+/// mapping and writes back `{ { name } }`, which no longer renders; the Dart
+/// analyser makes a context root out of a `pubspec.yaml` that names no real
+/// package. Under this suffix none of them recognises the file at all.
+///
+/// A file without it is not a template, and nothing copies it.
+const String kTemplateSuffix = '.tmpl';
+
 /// The variable that names the tool's root, and wins over working it out.
 ///
 /// It is there for the two cases the entrypoint cannot answer: a binary reached

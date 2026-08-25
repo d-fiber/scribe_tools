@@ -107,20 +107,20 @@ void writeFramework({
 
   for (final String layer in templates) {
     if (layer == 'common') {
-      fs.file('/tools/templates/project/common/gitignore')
+      fs.file('/tools/templates/project/common/.gitignore.tmpl')
         ..createSync(recursive: true)
         ..writeAsStringSync('/{{name}}.log\n');
-      fs.file('/tools/templates/project/common/config.yaml')
+      fs.file('/tools/templates/project/common/config.yaml.tmpl')
         ..createSync(recursive: true)
         ..writeAsStringSync('name: {{name}}\nhost: {{host}}\nsdk: {{sdk}}\n');
-      fs.file('/tools/templates/project/common/lib/main.txt')
+      fs.file('/tools/templates/project/common/lib/main.txt.tmpl')
         ..createSync(recursive: true)
         ..writeAsStringSync('the shared entrypoint\n');
-      fs.file('/tools/templates/project/common/tests/.gitkeep').createSync(recursive: true);
+      fs.file('/tools/templates/project/common/tests/.gitkeep.tmpl').createSync(recursive: true);
       continue;
     }
 
-    fs.file('/tools/templates/project/$layer/lib/main.txt')
+    fs.file('/tools/templates/project/$layer/lib/main.txt.tmpl')
       ..createSync(recursive: true)
       ..writeAsStringSync('the $layer entrypoint of {{name}}\n');
   }

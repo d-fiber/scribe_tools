@@ -189,7 +189,7 @@ class ComposeRender {
     final File source = globals.templatePaths
         .directoryInPackage(kOpsTemplatesDirectoryName, globals.fs)
         .childDirectory('docker')
-        .childFile(name);
+        .childFile('$name$kTemplateSuffix');
     if (!source.existsSync()) {
       throwToolExit('No template at ${source.path}');
     }

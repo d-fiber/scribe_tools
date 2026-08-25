@@ -75,19 +75,19 @@ void _framework() {
   fs.directory('/fw/sdk/go').createSync(recursive: true);
   _write('/fw/sdk/test/whatever.ts', 'export {};');
 
-  _write('/tools/templates/project/common/gitignore', '.env\n.{{name}}/\n');
+  _write('/tools/templates/project/common/.gitignore.tmpl', '.env\n.{{name}}/\n');
   _write(
-    '/tools/templates/project/common/config.yaml',
+    '/tools/templates/project/common/config.yaml.tmpl',
     'name: "{{name}}"\nsdk: "{{sdk}}"\nurl: "https://{{host}}.example.com"\n',
   );
-  _write('/tools/templates/project/common/init/.gitkeep');
-  _write('/tools/templates/project/common/lib/hostings/.gitkeep');
-  _write('/tools/templates/project/js/lib/main.ts', 'import "@{{name}}/routes.ts";\n');
-  _write('/tools/templates/project/js/lib/src/app/_middleware.ts', 'export class AppBrowsing {}\n');
-  _write('/tools/templates/project/dart/lib/main.dart', 'void main() {}\n');
-  _write('/tools/templates/project/dart/lib/src/app/_middleware.dart', 'class AppBrowsing {}\n');
-  _write('/tools/templates/project/dart/pubspec.yaml', 'name: {{name}}\n');
-  _write('/tools/templates/project/dart/gitignore', '.env\n.{{name}}/\n.dart_tool/\n');
+  _write('/tools/templates/project/common/init/.gitkeep.tmpl');
+  _write('/tools/templates/project/common/lib/hostings/.gitkeep.tmpl');
+  _write('/tools/templates/project/js/lib/main.ts.tmpl', 'import "@{{name}}/routes.ts";\n');
+  _write('/tools/templates/project/js/lib/src/app/_middleware.ts.tmpl', 'export class AppBrowsing {}\n');
+  _write('/tools/templates/project/dart/lib/main.dart.tmpl', 'void main() {}\n');
+  _write('/tools/templates/project/dart/lib/src/app/_middleware.dart.tmpl', 'class AppBrowsing {}\n');
+  _write('/tools/templates/project/dart/pubspec.yaml.tmpl', 'name: {{name}}\n');
+  _write('/tools/templates/project/dart/.gitignore.tmpl', '.env\n.{{name}}/\n.dart_tool/\n');
 }
 
 void main() {
@@ -185,15 +185,31 @@ void main() {
         final TemplateFile ignore = templates
             .filesFor('dart')
             .firstWhere((TemplateFile f) => f.destination == '.gitignore');
-        expect(ignore.source.path, '/tools/templates/project/dart/gitignore');
+        expect(ignore.source.path, '/tools/templates/project/dart/.gitignore.tmpl');
       });
     });
 
-    test('a template named gitignore lands as .gitignore', () async {
+    test('the suffix is stripped, so .gitignore.tmpl lands as .gitignore', () async {
       await withFileSystem(() {
         final ProjectTemplates templates = ProjectTemplates.find()!;
 
         expect(templates.filesFor('js').map((TemplateFile f) => f.destination), contains('.gitignore'));
+      });
+    });
+
+    test('a file without the suffix is not a template, and is not copied', () async {
+      await withFileSystem(() {
+        _write('/tools/templates/project/common/.DS_Store', 'noise');
+        _write('/tools/templates/project/js/notes.md', 'not a template');
+
+        final List<String> destinations = ProjectTemplates.find()!
+            .filesFor('js')
+            .map((TemplateFile f) => f.destination)
+            .toList();
+
+        expect(destinations, isNot(contains('.DS_Store')));
+        expect(destinations, isNot(contains('notes.md')));
+        expect(destinations, contains('lib/main.ts'));
       });
     });
 

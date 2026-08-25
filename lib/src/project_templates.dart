@@ -43,12 +43,6 @@ import 'package:scribe_tools/src/templates.dart';
 /// The layer every project gets, whatever SDK it targets.
 const String kSharedTemplateName = 'common';
 
-/// The name a `.gitignore` is stored under, its dot removed.
-///
-/// A `.gitignore` inside the templates would apply to the tool's own
-/// checkout, so the file is kept dotless and the dot is put back on the way out.
-const String kGitignoreTemplateName = 'gitignore';
-
 /// One file of a template, and where it lands in a new project.
 class TemplateFile {
   /// Copies [source] to [destination] of the new project.
@@ -130,11 +124,17 @@ class ProjectTemplates {
     return files;
   }
 
+  /// Every [kTemplateSuffix] file under [source], and nothing else.
+  ///
+  /// A file without the suffix is passed over rather than refused, which is what
+  /// keeps a `.DS_Store` from stopping a scaffold. The cost is that a template
+  /// added without it goes missing from created projects without a word.
   List<TemplateFile> _read(Directory source) {
     final List<TemplateFile> found = <TemplateFile>[];
 
     for (final FileSystemEntity entity in source.listSync(recursive: true, followLinks: false)) {
       if (entity is! File) continue;
+      if (!entity.path.endsWith(kTemplateSuffix)) continue;
 
       final String relative = p.relative(entity.path, from: source.path);
       found.add(TemplateFile(destination: _destinationOf(relative), source: entity));
@@ -143,14 +143,8 @@ class ProjectTemplates {
     return found;
   }
 
-  static String _destinationOf(String relative) {
-    final List<String> segments = p.split(relative);
-    if (segments.last == kGitignoreTemplateName) {
-      segments[segments.length - 1] = '.$kGitignoreTemplateName';
-    }
-
-    return p.posix.joinAll(segments);
-  }
+  static String _destinationOf(String relative) =>
+      p.posix.joinAll(p.split(relative.substring(0, relative.length - kTemplateSuffix.length)));
 
   /// [file] read and filled in from [values].
   ///

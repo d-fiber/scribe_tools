@@ -78,7 +78,7 @@ class CapacitySource {
 /// The socle comes first, then one per package, keyed the way a mismatch has to
 /// be reported for a reader to know which file to open.
 Map<String, CapacitySource> capacitySources() => <String, CapacitySource>{
-  'ops/docker': CapacitySource(weights: socleOps, compose: socleComposeTemplates.childFile('docker-compose.yaml')),
+  'ops/docker': CapacitySource(weights: socleOps, compose: socleComposeTemplates.childFile('docker-compose.yaml.tmpl')),
   for (final MapEntry<String, Directory> package in frameworkPackages().entries)
     for (final Directory subject in opsDirectories(package.value))
       _sourceKey(package.key, package.value, subject): CapacitySource(

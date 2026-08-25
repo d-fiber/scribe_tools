@@ -76,7 +76,7 @@ Future<T> _withContext<T>(FileSystem fs, Future<T> Function() body) => AppContex
 /// everything else from the framework checked out next door.
 void _vendorFramework(FileSystem fs, String root) {
   for (final String name in composeTemplates) {
-    _copy(fs, p.join('templates/ops/docker', name), p.join(_toolRoot, 'templates/ops/docker', name));
+    _copy(fs, p.join('templates/ops/docker', '$name.tmpl'), p.join(_toolRoot, 'templates/ops/docker', '$name.tmpl'));
   }
   _copy(fs, p.join(_repository, 'ops/docker', capacityFileName), p.join(root, 'ops/docker', capacityFileName));
 
