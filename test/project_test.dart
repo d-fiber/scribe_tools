@@ -117,7 +117,7 @@ void main() {
       expect(project.init.path, '/work/notes/init');
       expect(project.migrations.path, '/work/notes/migrations');
       expect(project.tests.path, '/work/notes/tests');
-      expect(project.sdk.engineDbInit.path, '/work/notes/scribe/engine/core/db/init');
+      expect(project.sdk.dbInit.path, '/work/notes/scribe/db/init');
     });
   });
 }

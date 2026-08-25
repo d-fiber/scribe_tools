@@ -367,9 +367,6 @@ class ScribeSdk {
   /// The engine's Deno configuration, which its import map is merged into.
   File get engineDenoJson => engine.childFile('deno.json');
 
-  /// The environment variables the engine reads, and their types.
-  File get engineEnv => engine.childFile('env.ts');
-
   /// The endpoints the framework serves on its own.
   Directory get engineApi => engine.childDirectory('api');
 
@@ -384,17 +381,17 @@ class ScribeSdk {
   /// nothing may assume it exists.
   Directory get enginePackages => engine.childDirectory('packages');
 
-  /// The primitive package, `@scribe/core`.
-  Directory get engineCore => engine.childDirectory('core');
+  /// The base schema, which is SQL and therefore sits beside the engine, not inside it.
+  Directory get db => directory.childDirectory('db');
 
   /// The SQL run once on an empty database.
-  Directory get engineDbInit => engineCore.childDirectory('db').childDirectory('init');
+  Directory get dbInit => db.childDirectory('init');
 
   /// The SQL run in order on a database that already holds data.
-  Directory get engineDbMigrations => engineCore.childDirectory('db').childDirectory('migrations');
+  Directory get dbMigrations => db.childDirectory('migrations');
 
   /// The SQL that creates the roles and the grants.
-  Directory get engineDbProvisioning => engineCore.childDirectory('db').childDirectory('provisioning');
+  Directory get dbProvisioning => db.childDirectory('provisioning');
 
   /// What the stack mounts or builds as it is, from Dockerfiles to the Caddyfile.
   ///
