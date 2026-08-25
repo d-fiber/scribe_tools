@@ -277,12 +277,6 @@ class GeneratedSdk {
   /// The enum types mirrored from the SQL schema.
   File get enums => directory.childFile('enums.ts');
 
-  /// The country codes the firewall lets through, from `api.config.allowed_countries`.
-  File get allowedCountries => directory.childFile('allowed_countries.ts');
-
-  /// The packages the project mounts, as the host reads them.
-  File get packages => directory.childFile('packages.ts');
-
   /// The `register.ts` of every mounted package, imported for its effect.
   ///
   /// This is what hands the framework's ports their implementations. The host
