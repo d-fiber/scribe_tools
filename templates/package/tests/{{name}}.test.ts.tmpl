@@ -1,0 +1,6 @@
+import { assertExists } from "@std/assert";
+import * as {{name}} from "../lib/{{name}}.ts";
+
+Deno.test("{{name}} can be reached through its entry", () => {
+  assertExists({{name}}, "the entry did not load");
+});

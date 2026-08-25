@@ -34,8 +34,11 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
+import 'dart:io' as io;
+
 import 'package:file/file.dart';
 import 'package:file/memory.dart';
+import 'package:path/path.dart' as p;
 import 'package:scribe_tools/runner.dart' as runner;
 import 'package:scribe_tools/src/base/context.dart';
 import 'package:scribe_tools/src/base/io.dart';
@@ -45,6 +48,7 @@ import 'package:scribe_tools/src/base/process.dart';
 import 'package:scribe_tools/src/commands/pkg.dart';
 import 'package:scribe_tools/src/package/sdk.dart';
 import 'package:scribe_tools/src/runner/scribe_command.dart';
+import 'package:scribe_tools/src/templates.dart';
 
 /// The directory a package is written into by the tests below.
 const String kWorkDirectory = '/work';
@@ -57,6 +61,9 @@ const String kHomeDirectory = '/home/someone';
 
 /// Where the executables this fake machine carries are written.
 const String kBinDirectory = '/usr/bin';
+
+/// The root the templates are vendored under, standing in for an installed tool.
+const String kToolRootDirectory = '/tools';
 
 /// The file system, the buffer and the runner a test reads back what happened from.
 ///
@@ -73,6 +80,7 @@ class PkgHarness {
 
     fs.directory(kWorkDirectory).createSync(recursive: true);
     writeCheckout();
+    _vendorTemplates();
   }
 
   /// The file system everything this run reads and writes lives in.
@@ -106,6 +114,24 @@ class PkgHarness {
       ..writeAsStringSync('export {};\n');
   }
 
+  /// Copies the templates that ship into [fs], under [kToolRootDirectory].
+  ///
+  /// The ones on disk rather than a fixture, so that a template edited in this
+  /// package moves these tests: what `pkg create` writes is exactly what a user
+  /// gets.
+  void _vendorTemplates() {
+    const String source = 'templates/package';
+
+    for (final io.FileSystemEntity entity in io.Directory(source).listSync(recursive: true)) {
+      if (entity is! io.File) continue;
+
+      final String relative = p.relative(entity.path, from: source);
+      fs.file(p.join(kToolRootDirectory, 'templates/package', relative))
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(entity.readAsStringSync());
+    }
+  }
+
   /// Runs `scribe` with [args] against this machine, and answers the status it left with.
   Future<int> run(List<String> args) => runner.run(
     args,
@@ -116,6 +142,7 @@ class PkgHarness {
       Logger: () => logger,
       Stdio: FakeStdio.new,
       ProcessRunner: () => processRunner,
+      TemplatePathProvider: () => FixedTemplatePathProvider(fs.directory(kToolRootDirectory)),
       Platform: () => const FakePlatform(
         environment: <String, String>{
           'PATH': kBinDirectory,

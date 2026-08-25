@@ -177,64 +177,7 @@ class Manifest {
   /// block would be a claim it does; commented out, it says what the keys are and
   /// what the paths could be, for whoever comes to fill one in, the way a fresh
   /// pubspec does. Every line of it is in [_artefacts].
-  static String skeleton(String name, String scribe) =>
-      'name: $name\n'
-      'description: $kDefaultDescription\n'
-      'version: 1.0.0\n'
-      '\n'
-      'environment:\n'
-      '  $kEnvironmentKey: "^$scribe"\n'
-      '\n'
-      'dependencies:\n'
-      '\n'
-      '$kDevDependenciesKey:\n'
-      '\n'
-      '$_artefacts';
 }
-
-const String _artefacts =
-    """
-# $kArtefactsKey:
-#   # What a package hands the stack, and the only place it says so. Leave the
-#   # block out and it hands over nothing: no path here falls back on a default.
-#   #
-#   # The keys are ours. The paths are yours: name the directories what you like
-#   # and put them where you like inside the package. What follows is the layout
-#   # most packages settle on, not a requirement.
-#   #
-#   # A path is a directory, harvested whole, subdirectories included. The files
-#   # are played in the order their paths sort in, which is what a numeric prefix
-#   # on a directory is for.
-#   db:
-#     # Played once, when the database container is built.
-#     init: ./db/init/
-#     # Played at every start, one pass per file the migrator has not seen.
-#     migrations: ./db/migrations/
-#     # Played before anything else: the roles, the extensions, the schemas.
-#     provisioning: ./db/provisioning/
-#   # The directory holding the .proto files this package speaks to a worker.
-#   # protoc is handed the root of the repository, so this path decides where the
-#   # generated stubs land.
-#   protocol: ./protocol/
-#   # One entry per service, each the directory holding that service's fragments:
-#   # docker-compose.yaml, capacity.yaml, resources.yaml, tuning.yaml,
-#   # replicas.yaml, overlay.yaml. Those names belong to the framework and a
-#   # package never repeats them here, since a fragment's name is what pairs it
-#   # with the template it completes. Everything else a service needs, a
-#   # Dockerfile or a script, is reached through a path written inside a fragment,
-#   # so its name is yours and nothing has to declare it.
-#   ops:
-#     - ./ops/database/
-#     - ./ops/queue/
-#   # One entry per kind of declaration this package lets a project write. The
-#   # key names the function the generated loader exports, and the value names the
-#   # symbol a project file imports from this package's door to declare one: the
-#   # CLI walks lib/, finds the files importing it, and writes them down. Leave it
-#   # out and a project declares nothing of yours. Two mounted packages cannot
-#   # open the same key, since one file would then be loaded for two meanings.
-#   $kDeclarationsKey:
-#     queues: Queue
-""";
 
 final RegExp _release = RegExp(r'^\d+\.\d+\.\d+$');
 

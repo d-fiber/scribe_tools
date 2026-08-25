@@ -43,24 +43,6 @@ import 'package:scribe_tools/src/templates.dart';
 /// The layer every project gets, whatever SDK it targets.
 const String kSharedTemplateName = 'common';
 
-/// One file of a template, and where it lands in a new project.
-class TemplateFile {
-  /// Copies [source] to [destination] of the new project.
-  const TemplateFile({required this.destination, required this.source});
-
-  /// Where this file goes, relative to the project root, with POSIX separators.
-  final String destination;
-
-  /// The file it is copied from.
-  final File source;
-
-  /// Whether this file is only there to carry an otherwise empty directory.
-  bool get isEmptyKeeper => p.basename(destination) == '.gitkeep';
-
-  @override
-  String toString() => destination;
-}
-
 /// The templates a new project is scaffolded from.
 ///
 /// They are two layers deep: [kSharedTemplateName] holds what every project
@@ -113,7 +95,7 @@ class ProjectTemplates {
       final Directory source = directory.childDirectory(layer);
       if (!source.existsSync()) continue;
 
-      for (final TemplateFile file in _read(source)) {
+      for (final TemplateFile file in readTemplates(source)) {
         merged[file.destination] = file;
       }
     }
@@ -122,40 +104,5 @@ class ProjectTemplates {
       ..sort((TemplateFile a, TemplateFile b) => a.destination.compareTo(b.destination));
 
     return files;
-  }
-
-  /// Every [kTemplateSuffix] file under [source], and nothing else.
-  ///
-  /// A file without the suffix is passed over rather than refused, which is what
-  /// keeps a `.DS_Store` from stopping a scaffold. The cost is that a template
-  /// added without it goes missing from created projects without a word.
-  List<TemplateFile> _read(Directory source) {
-    final List<TemplateFile> found = <TemplateFile>[];
-
-    for (final FileSystemEntity entity in source.listSync(recursive: true, followLinks: false)) {
-      if (entity is! File) continue;
-      if (!entity.path.endsWith(kTemplateSuffix)) continue;
-
-      final String relative = p.relative(entity.path, from: source.path);
-      found.add(TemplateFile(destination: _destinationOf(relative), source: entity));
-    }
-
-    return found;
-  }
-
-  static String _destinationOf(String relative) =>
-      p.posix.joinAll(p.split(relative.substring(0, relative.length - kTemplateSuffix.length)));
-
-  /// [file] read and filled in from [values].
-  ///
-  /// An empty file comes back empty rather than through the renderer, so a
-  /// `.gitkeep` costs nothing.
-  ///
-  /// Throws a `ToolExit` listing every placeholder [values] has no entry for.
-  String render(TemplateFile file, Map<String, String> values) {
-    final String body = file.source.readAsStringSync();
-    if (body.isEmpty) return body;
-
-    return globals.templateRenderer.renderString(file.destination, body, values);
   }
 }

@@ -40,6 +40,7 @@ import 'package:path/path.dart' as p;
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/project_templates.dart';
 import 'package:scribe_tools/src/sdk_target.dart';
+import 'package:scribe_tools/src/templates.dart';
 
 /// The tree `create` writes, and everything that decides what goes in it.
 class ProjectScaffold {
@@ -68,19 +69,20 @@ class ProjectScaffold {
   /// The project name as a host name, where an underscore is not allowed.
   String get hostName => name.replaceAll('_', '-');
 
+  /// The values every template of this scaffold is filled in from.
+  Map<String, String> get values => <String, String>{'name': name, 'sdk': target.name, 'host': hostName};
+
   /// Every path this scaffold writes, relative to [root].
-  List<String> get files => <String>[for (final TemplateFile file in _files) file.destination];
+  List<String> get files => <String>[for (final TemplateFile file in _files) file.destinationFor(values)];
 
   /// Writes the whole tree, directories first, then every rendered file.
   Future<void> write() async {
-    final Map<String, String> values = <String, String>{'name': name, 'sdk': target.name, 'host': hostName};
-
     for (final String directory in _generated) {
       await _directory(p.join(root.path, generatedDirectory, directory));
     }
 
     for (final TemplateFile file in _files) {
-      await _write(file.destination, file.isEmptyKeeper ? '' : templates.render(file, values));
+      await _write(file.destinationFor(values), file.isEmptyKeeper ? '' : file.render(values));
     }
   }
 

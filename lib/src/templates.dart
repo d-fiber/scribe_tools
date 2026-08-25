@@ -35,6 +35,7 @@
 // LICENSE file, the LICENSE file governs.
 
 import 'package:file/file.dart';
+import 'package:path/path.dart' as p;
 
 import 'package:scribe_tools/src/base/platform.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
@@ -49,6 +50,9 @@ const String kTemplatesDirectoryName = 'templates';
 /// that level, and `templates/ops/` would otherwise answer as an SDK called
 /// `ops`.
 const String kProjectTemplatesDirectoryName = 'project';
+
+/// The layer of [kTemplatesDirectoryName] holding what `pkg create` copies.
+const String kPackageTemplatesDirectoryName = 'package';
 
 /// The layer of [kTemplatesDirectoryName] holding what the stack is rendered from.
 const String kOpsTemplatesDirectoryName = 'ops';
@@ -66,57 +70,64 @@ const String kTemplateSuffix = '.tmpl';
 
 /// The variable that names the tool's root, and wins over working it out.
 ///
-/// It is there for the two cases the entrypoint cannot answer: a binary reached
-/// through a wrapper script, and a checkout whose templates are being tried
-/// without reinstalling.
+/// It is there for the two cases the walk cannot answer: a binary reached through
+/// a wrapper script, and a checkout whose templates are being tried without
+/// reinstalling.
 const String kToolRootEnvironmentVariableName = 'SCRIBE_TOOLS_ROOT';
-
-/// The directory of this package holding its entrypoints.
-const String _binDirectoryName = 'bin';
 
 /// The root of the tool, which is the directory [kTemplatesDirectoryName] sits in.
 ///
-/// Five cases, tried in this order:
+/// It is the nearest directory at or above the entrypoint that carries one, and
+/// that single rule covers every way the tool is started: an installed binary
+/// sits next to its templates, `dart run bin/scribe.dart` sits one level below
+/// them, and `dart test` runs a snapshot from a temporary directory that carries
+/// nothing at all.
 ///
-///   1. [kToolRootEnvironmentVariableName], when it is set.
-///   2. A `data:` entrypoint, which is a test run: the current directory, since
-///      a test is run from the root of the package.
-///   3. A `package:` entrypoint: the two parents of the `package_config.json`
-///      it resolves through, which is `<root>/.dart_tool/package_config.json`.
-///   4. A `file:` entrypoint, which is either `<root>/bin/scribe.dart` under
-///      `dart run`, or the compiled binary itself. The name of the parent
-///      directory is what tells them apart, and an installed binary sits next
-///      to the templates rather than one level above them.
-///   5. The current directory, when the entrypoint carries a scheme none of the
-///      above knows.
+/// That last case is why the current directory is tried next. A test is run from
+/// the root of the package, so the walk finds the templates that ship. The only
+/// other time it is reached is an installation whose templates were never
+/// unpacked, and there the answer is the entrypoint's own directory, so that the
+/// refusal names where they were expected rather than where they were looked for
+/// last.
+///
+/// [kToolRootEnvironmentVariableName] wins over all of it.
 String defaultToolRoot({required Platform platform, required FileSystem fileSystem}) {
-  String normalize(String path) => fileSystem.path.normalize(fileSystem.path.absolute(path));
-
   final String? named = platform.environment[kToolRootEnvironmentVariableName];
-  if (named != null && named.isNotEmpty) return normalize(named);
+  if (named != null && named.isNotEmpty) return _absolute(named, fileSystem);
 
-  final Uri script = platform.script;
+  final String entrypoint = _entrypointDirectory(platform, fileSystem);
 
-  if (script.scheme == 'package') {
-    final String? configuration = platform.packageConfig;
-    if (configuration != null) {
-      final String path = Uri.parse(configuration).toFilePath(windows: platform.isWindows);
-      return normalize(fileSystem.path.dirname(fileSystem.path.dirname(path)));
-    }
-  }
-
-  if (script.scheme == 'file') {
-    final String path = script.toFilePath(windows: platform.isWindows);
-    final String parent = fileSystem.path.dirname(path);
-
-    if (fileSystem.path.basename(parent) == _binDirectoryName) {
-      return normalize(fileSystem.path.dirname(parent));
-    }
-    return normalize(parent);
-  }
-
-  return normalize('.');
+  return _carryingTemplates(entrypoint, fileSystem) ??
+      _carryingTemplates(fileSystem.currentDirectory.path, fileSystem) ??
+      entrypoint;
 }
+
+/// The directory the entrypoint of this process sits in.
+///
+/// A `file:` entrypoint is either the compiled binary or the `.dart` that was
+/// run; anything else is a scheme this cannot turn into a path, and the current
+/// directory is the only honest answer.
+String _entrypointDirectory(Platform platform, FileSystem fileSystem) {
+  final Uri script = platform.script;
+  if (script.scheme != 'file') return _absolute('.', fileSystem);
+
+  return _absolute(fileSystem.path.dirname(script.toFilePath(windows: platform.isWindows)), fileSystem);
+}
+
+/// The nearest directory at or above [start] holding [kTemplatesDirectoryName], or null.
+String? _carryingTemplates(String start, FileSystem fileSystem) {
+  Directory candidate = fileSystem.directory(_absolute(start, fileSystem));
+
+  while (true) {
+    if (candidate.childDirectory(kTemplatesDirectoryName).existsSync()) return candidate.path;
+
+    final Directory parent = candidate.parent;
+    if (parent.path == candidate.path) return null;
+    candidate = parent;
+  }
+}
+
+String _absolute(String path, FileSystem fileSystem) => fileSystem.path.normalize(fileSystem.path.absolute(path));
 
 /// Provides the path where the templates the tool renders are stored.
 ///
@@ -149,4 +160,73 @@ class FixedTemplatePathProvider extends TemplatePathProvider {
 
   @override
   Directory root(FileSystem fileSystem) => fileSystem.directory(directory.path);
+}
+
+/// One file of a template, and where it lands in what is written.
+class TemplateFile {
+  /// Copies [source] to [destination] of the tree being written.
+  const TemplateFile({required this.destination, required this.source});
+
+  /// Where this file goes, relative to the root written into, with POSIX separators.
+  ///
+  /// It may still carry `{{placeholders}}`, since a file whose name depends on
+  /// what is being written spells that in its path. [destinationFor] fills them
+  /// in, and until then this is the key two layers are merged on.
+  final String destination;
+
+  /// The file it is copied from.
+  final File source;
+
+  /// Whether this file is only there to carry an otherwise empty directory.
+  bool get isEmptyKeeper => p.basename(destination) == '.gitkeep';
+
+  /// This file read and filled in from [values].
+  ///
+  /// An empty file comes back empty rather than through the renderer, so a
+  /// `.gitkeep` costs nothing.
+  ///
+  /// Throws a `ToolExit` listing every placeholder [values] has no entry for.
+  String render(Map<String, String> values) {
+    final String body = source.readAsStringSync();
+    if (body.isEmpty) return body;
+
+    return globals.templateRenderer.renderString(destination, body, values);
+  }
+
+  /// The path this file lands at, its `{{placeholders}}` filled in from [values].
+  ///
+  /// A package writes its entry as `lib/{{name}}.ts`, so the name has to reach
+  /// the path and not only the contents. A path without a placeholder comes back
+  /// unchanged.
+  ///
+  /// Throws a `ToolExit` listing every placeholder [values] has no entry for.
+  String destinationFor(Map<String, String> values) =>
+      globals.templateRenderer.renderString(destination, destination, values);
+
+  @override
+  String toString() => destination;
+}
+
+/// Every [kTemplateSuffix] file under [source], sorted by destination.
+///
+/// A file without the suffix is passed over rather than refused, which is what
+/// keeps a `.DS_Store` from stopping a scaffold. The cost is that a template
+/// added without it goes missing from what is written, without a word.
+List<TemplateFile> readTemplates(Directory source) {
+  final List<TemplateFile> found = <TemplateFile>[];
+
+  for (final FileSystemEntity entity in source.listSync(recursive: true, followLinks: false)) {
+    if (entity is! File) continue;
+    if (!entity.path.endsWith(kTemplateSuffix)) continue;
+
+    final String relative = p.relative(entity.path, from: source.path);
+    found.add(
+      TemplateFile(
+        destination: p.posix.joinAll(p.split(relative.substring(0, relative.length - kTemplateSuffix.length))),
+        source: entity,
+      ),
+    );
+  }
+
+  return found..sort((TemplateFile a, TemplateFile b) => a.destination.compareTo(b.destination));
 }
