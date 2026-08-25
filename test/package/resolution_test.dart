@@ -59,8 +59,12 @@ void main() {
     checkout = Directory.systemTemp.createTempSync('scribe_sdk_');
     writeCheckout(
       checkout,
-      languageExports: const <String, String>{'.': './mod.ts', './http': './src/http/mod.ts'},
-      imports: '{"imports":{"@scribe/core/":"./core/","croner":"npm:croner@8"}}',
+      imports: const <String, String>{
+        '@scribe/alchemy': './alchemy/mod.ts',
+        '@scribe/alchemy/http': './alchemy/src/http/mod.ts',
+        '@scribe/core/': './core/',
+        'croner': 'npm:croner@8',
+      },
     );
   });
 
@@ -81,6 +85,23 @@ void main() {
   Map<String, Object?> importsOf(String package) => resolutionOf(package)['reaches']! as Map<String, Object?>;
 
   Map<String, Object?> runtimeConfigOf(String package) => decoded(p.join(runtimeHomeOf(package), kRuntimeConfigFile));
+
+  String packageAt(String parent, String name, String blocks, {String version = '1.0.0'}) {
+    final CreatedPackage created = createPackage(parent, name, sdkOfCheckout());
+    File(p.join(created.directory, kManifestFile)).writeAsStringSync(
+      'name: $name\nversion: $version\n\nenvironment:\n  $kEnvironmentKey: "^3.0.0"\n\n$blocks',
+    );
+
+    return created.directory;
+  }
+
+  String packageDeclaring(String blocks, {String name = 'notifications'}) => packageAt(root.path, name, blocks);
+
+  String carriedByCheckout(String name, String blocks, {String version = '1.0.0'}) =>
+      packageAt(p.join(checkout.path, kPackagesDirectory), name, blocks, version: version);
+
+  Matcher refuses(Object saying) =>
+      throwsA(isA<ToolExit>().having((ToolExit error) => error.message, 'message', saying));
 
   resolving('a checkout is recognised by the entry of the language it carries', () {
     final Sdk found = sdkOfCheckout();
@@ -127,17 +148,26 @@ void main() {
     );
   });
 
-  resolving('what the checkout pins is carried into what the package reaches', () {
-    final CreatedPackage created = createPackage(root.path, 'notifications', sdkOfCheckout());
-    resolve(created.directory, sdkOfCheckout());
+  resolving('what the checkout pins answers the specifiers the package declared', () {
+    final String at = packageDeclaring('dependencies:\n  croner: any\n  "@scribe/core/": any\n');
+    resolve(at, sdkOfCheckout());
 
-    final Map<String, Object?> imports = importsOf(created.directory);
+    final Map<String, Object?> imports = importsOf(at);
     expect(imports['croner'], 'npm:croner@8', reason: 'a registry pin did not survive');
     expect(
       imports['@scribe/core/'],
       Uri.directory(p.join(checkout.path, 'engine', 'core')).toString(),
       reason: 'a path of the checkout was carried over as it was written, so it means nothing here',
     );
+  });
+
+  resolving('what the checkout pins and the package never named is out of reach', () {
+    final CreatedPackage created = createPackage(root.path, 'notifications', sdkOfCheckout());
+    resolve(created.directory, sdkOfCheckout());
+
+    final Map<String, Object?> imports = importsOf(created.directory);
+    expect(imports.containsKey('croner'), isFalse, reason: 'a package reaches what it never declared');
+    expect(imports.containsKey('@scribe/core/'), isFalse, reason: 'a package reaches what it never declared');
   });
 
   resolving('a package reaches its own files under the name it declared', () {
@@ -311,5 +341,143 @@ void main() {
     File(p.join(created.directory, kResolutionDirectory, kResolutionFile)).writeAsStringSync('half a file');
 
     expect(isResolved(created.directory, sdkOfCheckout()), isFalse);
+  });
+
+  group('what a package reaches is what it declared', () {
+    resolving('a package it depends on is reached under its own name', () {
+      packageDeclaring('dependencies:\n', name: 'audiences');
+      final String at = packageDeclaring('dependencies:\n  audiences: ^1.0.0\n');
+
+      resolve(at, sdkOfCheckout());
+
+      expect(
+        importsOf(at)['@scribe/audiences'],
+        Uri.file(p.join(root.path, 'audiences', 'lib', 'audiences.ts')).toString(),
+      );
+      expect(importsOf(at)['@scribe/audiences/'], Uri.directory(p.join(root.path, 'audiences')).toString());
+    });
+
+    resolving('what its dependency depends on is reached too', () {
+      packageDeclaring('dependencies:\n', name: 'sessions');
+      packageDeclaring('dependencies:\n  sessions: ^1.0.0\n', name: 'audiences');
+      final String at = packageDeclaring('dependencies:\n  audiences: ^1.0.0\n');
+
+      resolve(at, sdkOfCheckout());
+
+      expect(importsOf(at)['@scribe/sessions'], isNotNull, reason: 'a dependency of a dependency was left out');
+    });
+
+    resolving('a package the checkout carries answers when nothing sits beside the one resolved', () {
+      carriedByCheckout('audiences', 'dependencies:\n');
+      final String at = packageDeclaring('dependencies:\n  audiences: ^1.0.0\n');
+
+      resolve(at, sdkOfCheckout());
+
+      expect(
+        importsOf(at)['@scribe/audiences/'],
+        Uri.directory(p.join(checkout.path, kPackagesDirectory, 'audiences')).toString(),
+      );
+    });
+
+    resolving('a package beside the one resolved wins over the copy the checkout carries', () {
+      carriedByCheckout('audiences', 'dependencies:\n', version: '1.5.0');
+      packageDeclaring('dependencies:\n', name: 'audiences');
+      final String at = packageDeclaring('dependencies:\n  audiences: ^1.0.0\n');
+
+      resolve(at, sdkOfCheckout());
+
+      expect(
+        importsOf(at)['@scribe/audiences/'],
+        Uri.directory(p.join(root.path, 'audiences')).toString(),
+        reason: 'the copy the checkout was last given won over the tree being edited',
+      );
+    });
+
+    resolving('a directory whose manifest calls itself something else does not answer for the name', () {
+      packageAt(root.path, 'audiences', 'dependencies:\n');
+      File(p.join(root.path, 'audiences', kManifestFile)).writeAsStringSync(
+        'name: sessions\nversion: 1.0.0\n\nenvironment:\n  $kEnvironmentKey: "^3.0.0"\n\ndependencies:\n',
+      );
+      final String at = packageDeclaring('dependencies:\n  audiences: ^1.0.0\n');
+
+      expect(() => resolve(at, sdkOfCheckout()), refuses(contains('audiences')));
+    });
+
+    resolving('two packages that depend on each other resolve rather than running forever', () {
+      packageDeclaring('dependencies:\n  notifications: ^1.0.0\n', name: 'audiences');
+      final String at = packageDeclaring('dependencies:\n  audiences: ^1.0.0\n');
+
+      resolve(at, sdkOfCheckout());
+
+      expect(importsOf(at)['@scribe/audiences'], isNotNull);
+    });
+
+    resolving('what a package needs to run its own suite is reached', () {
+      packageDeclaring('dependencies:\n', name: 'audiences');
+      final String at = packageDeclaring('dependencies:\n\ndev_dependencies:\n  audiences: ^1.0.0\n');
+
+      resolve(at, sdkOfCheckout());
+
+      expect(importsOf(at)['@scribe/audiences'], isNotNull);
+    });
+
+    resolving('what a dependency needed to run its suite does not travel', () {
+      packageDeclaring('dependencies:\n', name: 'sessions');
+      packageDeclaring('dependencies:\n\ndev_dependencies:\n  sessions: ^1.0.0\n', name: 'audiences');
+      final String at = packageDeclaring('dependencies:\n  audiences: ^1.0.0\n');
+
+      resolve(at, sdkOfCheckout());
+
+      expect(
+        importsOf(at).containsKey('@scribe/sessions'),
+        isFalse,
+        reason: "a consumer was handed what somebody else's suite needed",
+      );
+    });
+
+    resolving('a specifier a dependency declared is in the map, not only the ones this package wrote', () {
+      packageDeclaring('dependencies:\n  croner: any\n', name: 'audiences');
+      final String at = packageDeclaring('dependencies:\n  audiences: ^1.0.0\n');
+
+      resolve(at, sdkOfCheckout());
+
+      expect(
+        importsOf(at)['croner'],
+        'npm:croner@8',
+        reason: 'a file of the dependency is compiled with the package that reached it',
+      );
+    });
+  });
+
+  group('what cannot be answered is reported, and nothing is written', () {
+    resolving('a package nobody wrote', () {
+      final String at = packageDeclaring('dependencies:\n  audiences: ^1.0.0\n');
+
+      expect(() => resolve(at, sdkOfCheckout()), refuses(allOf(contains('audiences'), contains(kPackagesDirectory))));
+      expect(Directory(p.join(at, kResolutionDirectory)).existsSync(), isFalse);
+    });
+
+    resolving('a package whose version the constraint refuses', () {
+      packageAt(root.path, 'audiences', 'dependencies:\n', version: '2.0.0');
+      final String at = packageDeclaring('dependencies:\n  audiences: ^1.0.0\n');
+
+      expect(() => resolve(at, sdkOfCheckout()), refuses(allOf(contains('^1.0.0'), contains('2.0.0'))));
+    });
+
+    resolving('a specifier the checkout does not pin', () {
+      final String at = packageDeclaring('dependencies:\n  ioredis: any\n');
+
+      expect(() => resolve(at, sdkOfCheckout()), refuses(allOf(contains('ioredis'), contains(kSdkImportMapFile))));
+      expect(Directory(p.join(at, kResolutionDirectory)).existsSync(), isFalse);
+    });
+
+    resolving('everything that could not be answered, in one refusal', () {
+      final String at = packageDeclaring('dependencies:\n  audiences: ^1.0.0\n  ioredis: any\n');
+
+      expect(
+        () => resolve(at, sdkOfCheckout()),
+        refuses(allOf(contains('2 things'), contains('audiences'), contains('ioredis'))),
+      );
+    });
   });
 }

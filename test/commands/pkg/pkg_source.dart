@@ -87,8 +87,8 @@ class PkgHarness {
   /// Writes a checkout at [kCheckoutDirectory] publishing [version].
   ///
   /// It carries the three directories a checkout is recognised by, the `VERSION`
-  /// the version is read from, the language's own manifest, and the import map
-  /// everything outside the framework is pinned in.
+  /// the version is read from, and the import map that says what it carries: the
+  /// language, the framework's own directories, and every version outside it.
   void writeCheckout({String version = '3.0.1'}) {
     for (final String directory in <String>['sdk', 'engine', 'protocol']) {
       fs.directory('$kCheckoutDirectory/$directory').createSync(recursive: true);
@@ -97,12 +97,11 @@ class PkgHarness {
     fs.file('$kCheckoutDirectory/$kSdkVersionFile').writeAsStringSync('$version\n');
     fs.file('$kCheckoutDirectory/$kSdkImportMapFile')
       ..createSync(recursive: true)
-      ..writeAsStringSync('{"imports":{"@scribe/core/":"./core/"}}\n');
+      ..writeAsStringSync('{"imports":{"@scribe/alchemy":"./alchemy/mod.ts","@scribe/core/":"./core/"}}\n');
 
     fs.file('$kCheckoutDirectory/engine/alchemy/mod.ts')
       ..createSync(recursive: true)
       ..writeAsStringSync('export {};\n');
-    fs.file('$kCheckoutDirectory/engine/alchemy/deno.json').writeAsStringSync('{"exports":{".":"./mod.ts"}}\n');
   }
 
   /// Runs `scribe` with [args] against this machine, and answers the status it left with.

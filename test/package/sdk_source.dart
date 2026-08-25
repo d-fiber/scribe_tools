@@ -42,39 +42,50 @@ import 'package:scribe_tools/src/base/context.dart';
 import 'package:scribe_tools/src/base/platform.dart';
 import 'package:scribe_tools/src/package/sdk.dart';
 
+/// What a checkout publishes when a test does not care what it publishes.
+///
+/// It carries the language and the one directory of the framework a package
+/// reaches by path, which is the least a package can be resolved against.
+const Map<String, String> kCheckoutImports = <String, String>{
+  '@scribe/alchemy': './alchemy/mod.ts',
+  '@scribe/core/': './core/',
+};
+
 /// Writes a checkout at [root] publishing [version], enough for a package to resolve against.
 ///
 /// It carries the three directories a checkout is recognised by, the `VERSION`
-/// file the version is read from, the language's own manifest, and the import map
-/// everything outside the framework is pinned in. [languageExports] is what the
-/// language publishes, from the specifier a package writes to the file inside
-/// `engine/alchemy/` that answers it.
+/// file the version is read from, and the import map [imports] is written into.
+/// That map is the whole of what a checkout says it carries: the language, the
+/// framework's own directories, and every version outside the framework.
+///
+/// Every entry answering a path inside the checkout gets a file written for it,
+/// so that a test reading back what a package reaches finds something behind it.
 void writeCheckout(
   Directory root, {
   String version = '3.0.1',
-  Map<String, String> languageExports = const <String, String>{'.': './mod.ts'},
-  String imports = '{"imports":{"@scribe/core/":"./core/"}}',
+  Map<String, String> imports = kCheckoutImports,
 }) {
   for (final String directory in <String>['sdk', 'engine', 'protocol']) {
     Directory(p.join(root.path, directory)).createSync(recursive: true);
   }
 
   File(p.join(root.path, kSdkVersionFile)).writeAsStringSync('$version\n');
-  File(p.join(root.path, p.joinAll(p.posix.split(kSdkImportMapFile))))
-    ..parent.createSync(recursive: true)
-    ..writeAsStringSync('$imports\n');
 
-  final String alchemy = p.join(root.path, 'engine', 'alchemy');
-  for (final String file in languageExports.values) {
-    File(p.join(alchemy, p.joinAll(p.posix.split(file))))
+  final String engine = p.join(root.path, 'engine');
+  for (final String answer in imports.values) {
+    if (!answer.startsWith('./') || !answer.endsWith('.ts')) continue;
+
+    File(p.join(engine, p.joinAll(p.posix.split(answer))))
       ..createSync(recursive: true)
       ..writeAsStringSync('export {};\n');
   }
 
-  final String exports = languageExports.entries
+  final String written = imports.entries
       .map((MapEntry<String, String> entry) => '"${entry.key}":"${entry.value}"')
       .join(',');
-  File(p.join(alchemy, 'deno.json')).writeAsStringSync('{"exports":{$exports}}\n');
+  File(p.join(root.path, p.joinAll(p.posix.split(kSdkImportMapFile))))
+    ..parent.createSync(recursive: true)
+    ..writeAsStringSync('{"imports":{$written}}\n');
 }
 
 /// Runs [body] with [home] as the home directory the tool writes under.

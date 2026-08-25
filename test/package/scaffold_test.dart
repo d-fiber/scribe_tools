@@ -39,6 +39,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/package/checks.dart';
+import 'package:scribe_tools/src/package/manifest.dart';
 import 'package:scribe_tools/src/package/scaffold.dart';
 import 'package:scribe_tools/src/package/sdk.dart';
 import 'package:scribe_tools/src/package/workspace.dart';
@@ -108,13 +109,15 @@ void main() {
     expect(() => createPackage(root.path, 'audiences', sdk), throwsA(isA<ToolExit>()));
   });
 
-  test('the manifest it writes carries a dependencies block even when empty', () {
+  test('the manifest it writes carries both dependency blocks even when empty', () {
     createPackage(root.path, 'audiences', sdk);
+    final String manifest = File(p.join(root.path, 'audiences', 'package.yaml')).readAsStringSync();
 
+    expect(manifest, contains('\ndependencies:\n'), reason: 'a package that depends on nothing does not say so');
     expect(
-      File(p.join(root.path, 'audiences', 'package.yaml')).readAsStringSync(),
-      contains('\ndependencies:\n'),
-      reason: 'a package that depends on nothing does not say so',
+      manifest,
+      contains('\n$kDevDependenciesKey:\n'),
+      reason: 'a block nothing writes is a block nobody finds',
     );
   });
 }

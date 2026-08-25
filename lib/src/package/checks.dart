@@ -119,21 +119,39 @@ List<Problem> _misplaced(DiscoveredPackage found) {
   ];
 }
 
+/// Everything [found] asked another package for that the tree cannot answer.
+///
+/// What a package needs to run its own suite is held to the same rule as what it
+/// depends on: it names a package or it names nothing, and a suite written
+/// against a package nobody wrote fails the same way a consumer would.
+///
+/// An entry written [kAny] is skipped, because it names a specifier the checkout
+/// pins rather than a package. Looking one up here would report every redis
+/// client a package plainly imports as a package nobody wrote.
 List<Problem> _dependencies(DiscoveredPackage found, Map<String, DiscoveredPackage> known) {
   final List<Problem> problems = <Problem>[];
+  final Map<String, String> asked = <String, String>{
+    ...found.manifest.dependencies,
+    ...found.manifest.devDependencies,
+  };
 
-  found.manifest.dependencies.forEach((String name, String constraint) {
-    final DiscoveredPackage? target = known[name];
+  for (final MapEntry<String, String> entry in asked.entries) {
+    if (entry.value == kAny) continue;
+
+    final DiscoveredPackage? target = known[entry.key];
     if (target == null) {
-      problems.add(Problem(found.name, 'it depends on "$name", and no package of that name exists.'));
-      return;
+      problems.add(Problem(found.name, 'it depends on "${entry.key}", and no package of that name exists.'));
+      continue;
     }
 
-    if (allows(constraint, target.manifest.version)) return;
+    if (allows(entry.value, target.manifest.version)) continue;
     problems.add(
-      Problem(found.name, 'it depends on "$name" $constraint, and the copy on hand is ${target.manifest.version}.'),
+      Problem(
+        found.name,
+        'it depends on "${entry.key}" ${entry.value}, and the copy on hand is ${target.manifest.version}.',
+      ),
     );
-  });
+  }
 
   return problems;
 }

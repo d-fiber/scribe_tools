@@ -42,15 +42,25 @@
 /// that needs one is a package the framework has already let drift.
 final RegExp _accepted = RegExp(r'^\^?\d+\.\d+\.\d+$');
 
+/// The constraint a package writes against something it does not version itself.
+///
+/// It is what a dependency on a third party is written as, because the checkout
+/// pins every one of those in its own map and a package naming a second version
+/// would be a second place for the two to disagree. It is also what tells a
+/// resolver which of the two kinds of dependency it is reading: a name carrying a
+/// version is a package, a name carrying this is a specifier the checkout answers.
+const String kAny = 'any';
+
 /// What is wrong with [constraint], in the sentence a caller prints, or null.
 ///
 /// The sentence is built here rather than at each call site so that the rule and
 /// its wording move together, the way a name's does in `name.dart`.
 String? constraintProblem(String constraint) {
-  if (_accepted.hasMatch(constraint)) return null;
+  if (constraint == kAny || _accepted.hasMatch(constraint)) return null;
 
   return '"$constraint" is not a constraint. Write a caret and three numbers to accept everything '
-      'up to the next breaking version, as in "^1.2.0", or three numbers alone to accept that one.';
+      'up to the next breaking version, as in "^1.2.0", three numbers alone to accept that one, or '
+      '"$kAny" for something the checkout pins.';
 }
 
 /// Whether [constraint] accepts [version], the two written as a package writes them.
@@ -60,6 +70,7 @@ String? constraintProblem(String constraint) {
 /// that. Anything the manifest would have refused answers false rather than
 /// throwing: a caller that skipped the check gets a refusal, not a crash.
 bool allows(String constraint, String version) {
+  if (constraint == kAny) return true;
   if (constraintProblem(constraint) != null) return false;
 
   final List<int>? held = _numbers(version);

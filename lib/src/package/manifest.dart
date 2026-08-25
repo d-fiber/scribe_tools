@@ -60,8 +60,12 @@ const List<String> kManifestKeys = <String>[
   'version',
   'environment',
   'dependencies',
+  'dev_dependencies',
   kArtefactsKey,
 ];
+
+/// The key holding what a package needs to run its own suite and nothing else.
+const String kDevDependenciesKey = 'dev_dependencies';
 
 /// The key, inside `environment:`, naming the framework a package is written against.
 const String kEnvironmentKey = 'scribe';
@@ -75,6 +79,7 @@ class Manifest {
     required this.version,
     required this.scribe,
     required this.dependencies,
+    required this.devDependencies,
     required this.artefacts,
   });
 
@@ -94,8 +99,24 @@ class Manifest {
   /// hand and fail at type check, where nothing points back at the version.
   final String scribe;
 
-  /// The packages this one may import, from a name to the constraint it accepts.
+  /// What this package may import, from a name to the constraint it accepts.
+  ///
+  /// Two kinds share the block, the way they do in a `pubspec.yaml`, and the
+  /// constraint says which is which. A name carrying a version is another package,
+  /// checked against the copy on hand. A name carrying [kAny] is a specifier the
+  /// checkout pins, and the package names it without naming a version because the
+  /// checkout is the one place a version of anything outside the framework lives.
+  ///
+  /// Nothing outside this block resolves. A package that imports what it did not
+  /// declare fails to resolve, which is the whole reason the block is read at all.
   final Map<String, String> dependencies;
+
+  /// What the package's own suite may import, on top of [dependencies].
+  ///
+  /// It does not travel: a package that depends on this one gets [dependencies]
+  /// and never what was written here, because a consumer does not run somebody
+  /// else's tests.
+  final Map<String, String> devDependencies;
 
   /// What this package hands the stack: its SQL, its `.proto` files, its ops.
   ///
@@ -133,7 +154,8 @@ class Manifest {
       description: _optionalText(document, 'description', where) ?? kDefaultDescription,
       version: _version(document, where),
       scribe: _environment(document, where),
-      dependencies: _dependencies(document, where),
+      dependencies: _dependencies(document, 'dependencies', where),
+      devDependencies: _dependencies(document, kDevDependenciesKey, where),
       artefacts: Artefacts.parse(document[kArtefactsKey], where),
     );
   }
@@ -164,6 +186,8 @@ class Manifest {
       '  $kEnvironmentKey: "^$scribe"\n'
       '\n'
       'dependencies:\n'
+      '\n'
+      '$kDevDependenciesKey:\n'
       '\n'
       '$_artefacts';
 }
@@ -285,26 +309,35 @@ String? _optionalText(Map<Object?, Object?> document, String key, String where) 
   throwToolExit('$where holds "$key:" as something other than a word.');
 }
 
-Map<String, String> _dependencies(Map<Object?, Object?> document, String where) {
-  final Object? value = document['dependencies'];
+/// The block at [key], read as a name against the constraint it accepts.
+///
+/// A name is only held to the rules of a package name when it carries a version,
+/// because that is the entry that names a package. An entry written [kAny] names a
+/// specifier the checkout pins, and a specifier is whatever an import map may
+/// hold: a scope, a slash, a registry prefix. Refusing those here would mean a
+/// package could not declare the redis client it plainly imports.
+Map<String, String> _dependencies(Map<Object?, Object?> document, String key, String where) {
+  final Object? value = document[key];
   if (value == null) return const <String, String>{};
   if (value is! Map) {
-    throwToolExit('$where holds "dependencies:" as something other than a block of names and versions.');
+    throwToolExit('$where holds "$key:" as something other than a block of names and versions.');
   }
 
   final Map<String, String> asked = <String, String>{};
   for (final MapEntry<Object?, Object?> entry in value.entries) {
     final Object? constraint = entry.value;
     if (constraint is! String) {
-      throwToolExit('$where holds "dependencies.${entry.key}:" as something other than a word.');
+      throwToolExit('$where holds "$key.${entry.key}:" as something other than a word.');
     }
 
     final String name = '${entry.key}';
-    final String? named = packageNameProblem(name);
-    if (named != null) throwToolExit('$where: $named');
-
     final String? written = constraintProblem(constraint);
-    if (written != null) throwToolExit('$where, at "dependencies.$name:": $written');
+    if (written != null) throwToolExit('$where, at "$key.$name:": $written');
+
+    if (constraint != kAny) {
+      final String? named = packageNameProblem(name);
+      if (named != null) throwToolExit('$where, at "$key.$name:": $named');
+    }
 
     asked[name] = constraint;
   }

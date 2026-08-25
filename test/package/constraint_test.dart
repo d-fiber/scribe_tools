@@ -98,4 +98,17 @@ void main() {
   test('a version that is not three numbers is accepted by nothing', () {
     expect(allows('^1.2.0', 'unknown'), isFalse);
   });
+
+  test('the word the checkout answers for is a constraint', () {
+    expect(constraintProblem(kAny), isNull);
+  });
+
+  test('the word the checkout answers for accepts every version', () {
+    expect(allows(kAny, '0.0.1'), isTrue);
+    expect(allows(kAny, '9.9.9'), isTrue);
+  });
+
+  test('the refusal names the word the checkout answers for, so a reader knows it exists', () {
+    expect(constraintProblem('latest'), contains('"$kAny"'));
+  });
 }

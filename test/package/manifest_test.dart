@@ -35,6 +35,7 @@
 // LICENSE file, the LICENSE file governs.
 
 import 'package:scribe_tools/src/base/common.dart';
+import 'package:scribe_tools/src/package/constraint.dart';
 import 'package:scribe_tools/src/package/manifest.dart';
 import 'package:test/test.dart';
 
@@ -144,6 +145,50 @@ void main() {
         where,
       ),
       throwsToolExit('at "dependencies.audiences:"'),
+    );
+  });
+
+  test('what a package needs to run its suite is read apart from what it depends on', () {
+    final Manifest manifest = Manifest.parse(
+      'name: realtime\nversion: 1.0.0\n${environment}dependencies:\n  audiences: "^1.0.0"\n'
+      'dev_dependencies:\n  sessions: "^2.0.0"\n',
+      where,
+    );
+
+    expect(manifest.dependencies.keys, <String>['audiences']);
+    expect(manifest.devDependencies['sessions'], '^2.0.0');
+  });
+
+  test('a manifest that names nothing for its suite declares nothing', () {
+    expect(Manifest.parse('name: realtime\nversion: 1.0.0\n$environment', where).devDependencies, isEmpty);
+  });
+
+  test('a specifier the checkout pins is declared by name alone', () {
+    final Manifest manifest = Manifest.parse(
+      'name: realtime\nversion: 1.0.0\n${environment}dependencies:\n  ioredis: any\n',
+      where,
+    );
+
+    expect(manifest.dependencies['ioredis'], kAny);
+  });
+
+  test('a specifier is not held to the rules a package name follows', () {
+    final Manifest manifest = Manifest.parse(
+      'name: realtime\nversion: 1.0.0\n${environment}dependencies:\n  "@scribe/core/": any\n'
+      '  "@std/testing/time": any\n',
+      where,
+    );
+
+    expect(manifest.dependencies.keys, <String>['@scribe/core/', '@std/testing/time']);
+  });
+
+  test('a dependency of the suite asked for with a range instead of a constraint is refused', () {
+    expect(
+      () => Manifest.parse(
+        'name: realtime\nversion: 1.0.0\n${environment}dev_dependencies:\n  sessions: ">=1.0.0 <2.0.0"\n',
+        where,
+      ),
+      throwsToolExit('at "dev_dependencies.sessions:"'),
     );
   });
 }

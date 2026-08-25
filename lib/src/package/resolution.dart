@@ -148,6 +148,167 @@ const String kEditorEnableSetting = 'deno.enable';
 /// assert with.
 const Map<String, String> kAlwaysResolved = <String, String>{'@std/assert': 'jsr:@std/assert@1'};
 
+/// The directory, inside a checkout, holding the packages it carries.
+const String kPackagesDirectory = 'packages';
+
+/// What a package asked for and could not be given, in the sentence a caller prints.
+class Unresolved {
+  /// Records that [name] could not be answered, for [reason].
+  const Unresolved(this.name, this.reason);
+
+  /// The name the manifest wrote.
+  final String name;
+
+  /// Why nothing could be put behind it.
+  final String reason;
+
+  @override
+  String toString() => '"$name": $reason';
+}
+
+/// Where a package called [name] is, or null when nowhere holds one.
+///
+/// Two places are tried, in this order: beside [directory], which is the workspace
+/// the package being resolved is written in, and the checkout's own
+/// [kPackagesDirectory]. The neighbour comes first so that two packages edited
+/// together see each other's working tree rather than the copy a checkout was last
+/// given, which is what a workspace is for.
+///
+/// A directory whose manifest calls itself something else is not a match. The name
+/// a package is reached under is the one it declares, and answering the directory
+/// would put a package behind a specifier that names another.
+String? directoryOfPackage(String name, String directory, Sdk sdk) {
+  final List<String> tried = <String>[
+    p.join(p.dirname(p.absolute(directory)), name),
+    p.join(sdk.root, kPackagesDirectory, name),
+  ];
+
+  for (final String held in tried) {
+    final File manifest = globals.fs.file(p.join(held, kManifestFile));
+    if (!manifest.existsSync()) continue;
+    if (Manifest.parse(manifest.readAsStringSync(), manifest.path).name != name) continue;
+
+    return held;
+  }
+
+  return null;
+}
+
+/// Every package [manifest] reaches, its dependencies' own dependencies included.
+///
+/// The walk is breadth first over what each manifest declares, and a name already
+/// answered is not walked twice, so a diamond costs one visit and a cycle
+/// terminates. What comes back is keyed by name because that is what a specifier
+/// carries; two directories claiming one name is a problem [problems] reports
+/// rather than a pick this makes quietly.
+///
+/// What a manifest's dev dependencies hold is walked for the package being resolved
+/// and for nothing else. A consumer does not run somebody else's suite, so what
+/// that suite needed stops at the package that wrote it.
+///
+/// [external] comes back holding every specifier the walk met, the ones declared by
+/// the packages reached included. A map answers one graph and not one package: a
+/// file of a dependency is compiled with the package that reached it, so a
+/// specifier only that dependency names still has to be in the map, or the check
+/// fails inside a package whose own manifest was right all along.
+Map<String, String> packageClosure(
+  Manifest manifest,
+  String directory,
+  Sdk sdk,
+  Map<String, String> external,
+  List<Unresolved> problems,
+) {
+  final Map<String, String> found = <String, String>{};
+  final List<MapEntry<Manifest, String>> pending = <MapEntry<Manifest, String>>[
+    MapEntry<Manifest, String>(manifest, p.absolute(directory)),
+  ];
+
+  bool first = true;
+  while (pending.isNotEmpty) {
+    final MapEntry<Manifest, String> held = pending.removeAt(0);
+    final Map<String, String> asked = <String, String>{
+      ...held.key.dependencies,
+      if (first) ...held.key.devDependencies,
+    };
+    first = false;
+
+    asked.forEach((String name, String constraint) {
+      if (constraint == kAny) {
+        external.putIfAbsent(name, () => constraint);
+        return;
+      }
+      if (found.containsKey(name) || name == manifest.name) return;
+
+      final String? at = directoryOfPackage(name, held.value, sdk);
+      if (at == null) {
+        problems.add(
+          Unresolved(
+            name,
+            '${held.key.name} depends on it, and no package of that name sits beside '
+            '${p.dirname(held.value)} or in ${p.join(sdk.root, kPackagesDirectory)}.',
+          ),
+        );
+        return;
+      }
+
+      final Manifest reached = loadManifest(at);
+      if (!allows(constraint, reached.version)) {
+        problems.add(
+          Unresolved(
+            name,
+            '${held.key.name} accepts $constraint, and the copy at $at publishes ${reached.version}.',
+          ),
+        );
+        return;
+      }
+
+      found[name] = at;
+      pending.add(MapEntry<Manifest, String>(reached, at));
+    });
+  }
+
+  return found;
+}
+
+/// What every specifier [asked] names answers to, taken from what the checkout pins.
+///
+/// A package writes the name and never the version, so this is a lookup and not a
+/// solve: the checkout's map is the one place a version of anything outside the
+/// framework is decided, and a package naming a second one would be a second place
+/// for the two to disagree.
+///
+/// A specifier the checkout does not pin is reported rather than dropped. Dropping
+/// it would leave the package to fail at type check, where nothing points back at
+/// the line that asked for it.
+Map<String, String> externalImports(
+  Map<String, String> asked,
+  Sdk sdk,
+  Map<String, String> pinned,
+  List<Unresolved> problems,
+) {
+  final Map<String, String> imports = <String, String>{};
+
+  asked.forEach((String specifier, String constraint) {
+    if (constraint != kAny) return;
+
+    final String? answer = pinned[specifier];
+    if (answer == null) {
+      problems.add(
+        Unresolved(
+          specifier,
+          'nothing in ${p.join(sdk.root, kSdkImportMapFile)} answers it, so the checkout does not carry it. '
+          'Add it there first, where its version is pinned for everybody.',
+        ),
+      );
+      return;
+    }
+
+    imports[specifier] = answer;
+  });
+
+  return imports;
+}
+
 /// What resolving a package left behind.
 class Resolution {
   /// Records that [directory] was resolved against [sdk], writing [imports].
@@ -189,12 +350,42 @@ bool isResolved(String package, Sdk sdk) {
   }
 }
 
+/// Stops the run when anything the manifest asked for could not be answered.
+///
+/// They are reported together rather than one at a time, because a manifest that
+/// names three things the checkout does not carry is three lines to fix, and a
+/// command that stops at the first turns one pass into three.
+///
+/// Nothing is written when this throws. A map missing what the package declared
+/// would type check against whatever the last run left behind, and the run after
+/// it would report a different set.
+///
+/// Throws a [ToolExit] when [problems] is not empty.
+void _refuseUnresolved(List<Unresolved> problems, Manifest manifest, String directory) {
+  if (problems.isEmpty) return;
+
+  final StringBuffer said = StringBuffer(
+    '${manifest.name} declares ${problems.length == 1 ? 'something' : '${problems.length} things'} '
+    'that cannot be resolved, so nothing was written.\n',
+  );
+  for (final Unresolved problem in problems) {
+    said.writeln('  $problem');
+  }
+  said.write('They are declared in ${p.join(directory, kManifestFile)}.');
+
+  throwToolExit('$said');
+}
+
 /// Resolves the package in [directory] against [sdk], and answers what it left.
 ///
-/// What the package reaches is the checkout's own map, with the package's own
-/// directory swapped in for the copy the checkout carries. That way a version of
-/// anything outside the framework is pinned in one place, and a package being
-/// written outside a checkout reaches exactly what it would reach inside one.
+/// What the package reaches is what its manifest declares and nothing besides: the
+/// language, the packages it depends on and theirs in turn, and the specifiers the
+/// checkout pins that it asked for by name. A package that imports what it never
+/// declared does not resolve, which is the point of reading the manifest at all.
+///
+/// The versions of everything outside the framework are the checkout's, so two
+/// packages cannot disagree on which redis client they got, and a package written
+/// outside a checkout reaches exactly what it would reach inside one.
 ///
 /// The manifest is read for three reasons: it refuses a directory that is not a
 /// package before anything is written, it gives the name the package reaches its
@@ -202,26 +393,37 @@ bool isResolved(String package, Sdk sdk) {
 /// does rather than by counting directories, and it names the framework versions
 /// the package accepts.
 ///
-/// That last one is checked here and nowhere else, because this is the one place
-/// a package and a checkout meet. A checkout the package refuses would otherwise
+/// That last one is checked here and nowhere else, because this is the one place a
+/// package and a checkout meet. A checkout the package refuses would otherwise
 /// resolve, and the run would end in a hundred type errors that name files rather
 /// than the version that caused them.
 ///
 /// Throws a [ToolExit] when [directory] carries no manifest, when it carries one
-/// that cannot be read, when the package fails its own checks, and when [sdk] is
-/// not a checkout the package accepts.
+/// that cannot be read, when the package fails its own checks, when [sdk] is not a
+/// checkout the package accepts, and when anything it declared cannot be answered.
 Resolution resolve(String directory, Sdk sdk) {
   final Manifest manifest = loadManifest(directory);
   _refuseBroken(manifest, directory);
   _refuseMismatch(manifest, sdk, directory);
 
+  final List<Unresolved> problems = <Unresolved>[];
+  final Map<String, String> pinned = sdkImports(sdk);
+  final Map<String, String> external = <String, String>{};
+  final Map<String, String> reached = packageClosure(manifest, directory, sdk, external, problems);
+
   final Map<String, String> imports = <String, String>{
     ...kAlwaysResolved,
-    ...sdkImports(sdk),
     ...languageImports(sdk),
+    ...externalImports(external, sdk, pinned, problems),
+    for (final MapEntry<String, String> held in reached.entries) ...<String, String>{
+      '@scribe/${held.key}': Uri.file(p.absolute(p.join(held.value, entryOf(held.key)))).toString(),
+      '@scribe/${held.key}/': Uri.directory(p.absolute(held.value)).toString(),
+    },
     '@scribe/${manifest.name}': Uri.file(p.absolute(p.join(directory, entryOf(manifest.name)))).toString(),
     '@scribe/${manifest.name}/': Uri.directory(p.absolute(directory)).toString(),
   };
+
+  _refuseUnresolved(problems, manifest, directory);
 
   final Directory held = globals.fs.directory(p.join(directory, kResolutionDirectory))..createSync(recursive: true);
   final Directory runtime = globals.fs.directory(runtimeHomeOf(directory))..createSync(recursive: true);
@@ -299,33 +501,28 @@ Map<String, Object?> _settingsIn(File settings) {
 
 /// Every entry the language publishes, from the specifier to the file it answers.
 ///
-/// The list is read from the language's own manifest rather than written here,
-/// because a package reaches what the language publishes and only the language
-/// knows what that is. Writing one entry and leaving the rest out is what made
-/// six of its seven unreachable, so a package that imported one of them failed to
-/// resolve while the command line reported nothing.
+/// They are read out of the checkout's own map rather than a manifest of the
+/// language's own, because the language is a plain directory of the tree and
+/// carries none. The checkout is the one place that says what it publishes, which
+/// is also where every other version is pinned.
 ///
-/// Throws a [ToolExit] when the checkout carries no manifest for the language, or
-/// one that names no exports.
+/// Writing one entry and leaving the rest out is what made six of its seven
+/// unreachable, so a package that imported one of them failed to resolve while the
+/// command line reported nothing.
+///
+/// Throws a [ToolExit] when the checkout's map names no entry for the language.
 Map<String, String> languageImports(Sdk sdk) {
-  final File manifest = globals.fs.file(p.join(sdk.alchemyRoot, 'deno.json'));
-  if (!manifest.existsSync()) {
-    throwToolExit('The checkout at ${sdk.root} carries no ${manifest.path}, so $kLanguage cannot be resolved.');
-  }
+  final Map<String, String> held = sdkImports(sdk);
+  final Map<String, String> imports = <String, String>{
+    for (final MapEntry<String, String> entry in held.entries)
+      if (entry.key == kLanguage || entry.key.startsWith('$kLanguage/')) entry.key: entry.value,
+  };
 
-  final Object? document = jsonDecode(manifest.readAsStringSync());
-  final Object? exports = document is Map<String, Object?> ? document['exports'] : null;
-  if (exports is! Map<String, Object?>) {
-    throwToolExit('${manifest.path} names no "exports", so $kLanguage publishes nothing to resolve.');
-  }
-
-  final Map<String, String> imports = <String, String>{};
-  for (final MapEntry<String, Object?> entry in exports.entries) {
-    final Object? file = entry.value;
-    if (file is! String) continue;
-
-    final String specifier = entry.key == '.' ? kLanguage : '$kLanguage/${entry.key.substring(2)}';
-    imports[specifier] = Uri.file(p.normalize(p.join(sdk.alchemyRoot, file))).toString();
+  if (imports.isEmpty) {
+    throwToolExit(
+      'The map at ${p.join(sdk.root, kSdkImportMapFile)} names no "$kLanguage", so the language cannot be resolved.\n'
+      'A checkout publishes the language through its own import map, one entry per surface a package may import.',
+    );
   }
 
   return imports;
