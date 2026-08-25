@@ -93,6 +93,13 @@ void main() {
     });
   });
 
+  test('a specifier ending in a slash keeps one, since Deno nulls a target without it', () async {
+    _package('foundation', opens: <String, String>{'@scribe/foundation/': './'});
+    _project(const <String>['foundation']);
+
+    expect((await _doors())['@scribe/foundation/'], 'packages/foundation/');
+  });
+
   test('a package the checkout does not carry opens its doors the same way', () async {
     _package('billing', at: '/work/billing');
     _project(const <String>['billing'], from: const <String, String>{'billing': '../billing/billing'});

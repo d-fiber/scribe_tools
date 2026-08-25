@@ -114,7 +114,8 @@ Map<String, String> mountedDoors(Directory checkout, Map<String, dynamic> framew
       if (target is! String || !target.startsWith('./')) continue;
 
       final String file = p.join(package.directory.path, target.substring(2));
-      doors[entry.key] = p.isWithin(checkout.path, file) ? p.relative(file, from: checkout.path) : file;
+      final String at = p.isWithin(checkout.path, file) ? p.relative(file, from: checkout.path) : file;
+      doors[entry.key] = entry.key.endsWith('/') ? asDirectory(at) : at;
     }
   }
 
@@ -144,7 +145,8 @@ String renderImportMap(
   final Map<String, dynamic> document = <String, dynamic>{
     'imports': <String, String>{
       ...inherited,
-      for (final MapEntry<String, String> door in doors.entries) door.key: '$frameworkRoot${door.value}',
+      for (final MapEntry<String, String> door in doors.entries)
+        door.key: p.isAbsolute(door.value) ? door.value : '$frameworkRoot${door.value}',
       for (final String layer in _layers) '@scribe/$layer/': '$engine$layer/',
       '@scribe/protocol/': '${frameworkRoot}protocol/',
       '@scribe/public/': '${frameworkRoot}public/',
