@@ -124,7 +124,7 @@ void writeCheckout({String version = '0.1.5'}) {
     fs.directory('$checkoutDirectory/$directory').createSync(recursive: true);
   }
 
-  fs.file('$checkoutDirectory/VERSION').writeAsStringSync('$version\n');
+  fs.file('$checkoutDirectory/deno.json').writeAsStringSync('{"version":"$version"}\n');
   fs.currentDirectory = checkoutDirectory;
 }
 
@@ -182,7 +182,7 @@ void main() {
     test('a newer framework is said once, under what the command printed', () async {
       writeCheckout();
 
-      await runScribe(<String>['work'], processes: RecordingProcessRunner(outputs: <String, String>{'show': '0.2.0'}));
+      await runScribe(<String>['work'], processes: RecordingProcessRunner(outputs: <String, String>{'show': '{"version":"0.2.0"}'}));
 
       expect(logger.statusText, contains('working\n'));
       expect(logger.statusText, contains('A new version of scribe is available: 0.2.0'));
@@ -193,13 +193,13 @@ void main() {
     test('a checkout that is already current says nothing at all', () async {
       writeCheckout();
 
-      await runScribe(<String>['work'], processes: RecordingProcessRunner(outputs: <String, String>{'show': '0.1.5'}));
+      await runScribe(<String>['work'], processes: RecordingProcessRunner(outputs: <String, String>{'show': '{"version":"0.1.5"}'}));
 
       expect(logger.statusText, 'working\n');
     });
 
     test('outside a checkout there is no version to compare, and no git is run', () async {
-      final RecordingProcessRunner processes = RecordingProcessRunner(outputs: <String, String>{'show': '0.2.0'});
+      final RecordingProcessRunner processes = RecordingProcessRunner(outputs: <String, String>{'show': '{"version":"0.2.0"}'});
 
       await runScribe(<String>['work'], processes: processes);
 
@@ -212,7 +212,7 @@ void main() {
 
       await runScribe(<String>[
         'doctor',
-      ], processes: RecordingProcessRunner(outputs: <String, String>{'show': '0.2.0'}));
+      ], processes: RecordingProcessRunner(outputs: <String, String>{'show': '{"version":"0.2.0"}'}));
 
       expect(logger.statusText, contains('scribe 0.1.5, 0.2.0 is available'));
       expect(logger.statusText, contains('Run `scribe upgrade` to get it.'));
@@ -224,7 +224,7 @@ void main() {
 
       await runScribe(<String>[
         'doctor',
-      ], processes: RecordingProcessRunner(outputs: <String, String>{'show': '0.1.5'}));
+      ], processes: RecordingProcessRunner(outputs: <String, String>{'show': '{"version":"0.1.5"}'}));
 
       expect(logger.statusText, contains('✓ scribe 0.1.5'));
     });

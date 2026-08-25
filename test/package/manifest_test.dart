@@ -174,12 +174,12 @@ void main() {
 
   test('a specifier is not held to the rules a package name follows', () {
     final Manifest manifest = Manifest.parse(
-      'name: realtime\nversion: 1.0.0\n${environment}dependencies:\n  "@scribe/core/": any\n'
+      'name: realtime\nversion: 1.0.0\n${environment}dependencies:\n  "@scribe/contracts/": any\n'
       '  "@std/testing/time": any\n',
       where,
     );
 
-    expect(manifest.dependencies.keys, <String>['@scribe/core/', '@std/testing/time']);
+    expect(manifest.dependencies.keys, <String>['@scribe/contracts/', '@std/testing/time']);
   });
 
   test('a dependency of the suite asked for with a range instead of a constraint is refused', () {

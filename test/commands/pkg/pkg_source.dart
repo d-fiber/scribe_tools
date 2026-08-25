@@ -94,10 +94,12 @@ class PkgHarness {
       fs.directory('$kCheckoutDirectory/$directory').createSync(recursive: true);
     }
 
-    fs.file('$kCheckoutDirectory/$kSdkVersionFile').writeAsStringSync('$version\n');
     fs.file('$kCheckoutDirectory/$kSdkImportMapFile')
       ..createSync(recursive: true)
-      ..writeAsStringSync('{"imports":{"@scribe/alchemy":"./alchemy/mod.ts","@scribe/core/":"./core/"}}\n');
+      ..writeAsStringSync(
+        '{"version":"$version","imports":{"@scribe/alchemy":"./engine/alchemy/mod.ts",'
+        '"@scribe/contracts/":"./engine/contracts/"}}\n',
+      );
 
     fs.file('$kCheckoutDirectory/engine/alchemy/mod.ts')
       ..createSync(recursive: true)

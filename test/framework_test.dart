@@ -50,33 +50,19 @@ late BufferLogger logger;
 /// The checkout every test here runs against.
 const String checkoutDirectory = '/framework';
 
-/// A `git log --patch -- VERSION` as git writes it, newest commit first.
-const String versionLog = '''
-commit 9f8e7d6c5b4a39281706f5e4d3c2b1a09f8e7d6c 2026-08-16T09:12:44+02:00
-diff --git a/VERSION b/VERSION
-index 1234567..89abcde 100644
---- a/VERSION
-+++ b/VERSION
-@@ -1 +1 @@
--0.1.4
-+0.1.5
-commit 1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d 2026-08-15T18:03:10+02:00
-diff --git a/VERSION b/VERSION
-index 0123456..1234567 100644
---- a/VERSION
-+++ b/VERSION
-@@ -1 +1 @@
--0.1.3
-+0.1.4
-commit cafebabedeadbeef0123456789abcdefcafebabe 2026-08-14T11:41:02+02:00
-diff --git a/VERSION b/VERSION
-new file mode 100644
-index 0000000..0123456
---- /dev/null
-+++ b/VERSION
-@@ -0,0 +1 @@
-+0.1.3
+/// The tags a checkout carries, newest version first, as `git tag --list` writes them.
+const String versionTags = '''
+v0.1.5
+v0.1.4
+v0.1.3
 ''';
+
+/// What `git log -1` answers for each of those tags.
+const Map<String, String> taggedCommits = <String, String>{
+  'v0.1.5': '9f8e7d6c5b4a39281706f5e4d3c2b1a09f8e7d6c 2026-08-16T09:12:44+02:00',
+  'v0.1.4': '1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d 2026-08-15T18:03:10+02:00',
+  'v0.1.3': 'cafebabedeadbeef0123456789abcdefcafebabe 2026-08-14T11:41:02+02:00',
+};
 
 /// Writes a checkout carrying [version], a clone unless told otherwise.
 void writeCheckout({String version = '0.1.5', bool cloned = true}) {
@@ -84,7 +70,7 @@ void writeCheckout({String version = '0.1.5', bool cloned = true}) {
     fs.directory('$checkoutDirectory/$directory').createSync(recursive: true);
   }
 
-  fs.file('$checkoutDirectory/VERSION').writeAsStringSync('$version\n');
+  fs.file('$checkoutDirectory/deno.json').writeAsStringSync('{"version":"$version"}\n');
   if (cloned) fs.directory('$checkoutDirectory/.git').createSync(recursive: true);
 }
 
@@ -112,9 +98,9 @@ void main() {
       });
     });
 
-    test('a directory with no VERSION is not a checkout', () async {
+    test('a directory with no deno.json is not a checkout', () async {
       writeCheckout();
-      fs.file('$checkoutDirectory/VERSION').deleteSync();
+      fs.file('$checkoutDirectory/deno.json').deleteSync();
       fs.currentDirectory = checkoutDirectory;
 
       await withProcesses(RecordingProcessRunner(), () async {
@@ -132,12 +118,12 @@ void main() {
     });
   });
 
-  group('the history of VERSION', () {
-    test('every commit that wrote it becomes a release, newest first', () async {
+  group('the history the tags carry', () {
+    test('every tag becomes a release, newest first', () async {
       writeCheckout();
       fs.currentDirectory = checkoutDirectory;
 
-      await withProcesses(RecordingProcessRunner(outputs: <String, String>{'log': versionLog}), () async {
+      await withProcesses(RecordingProcessRunner(outputs: <String, String>{...taggedCommits, 'tag': versionTags}), () async {
         final List<Release> history = await Framework.locate()!.history();
 
         expect(history.map((Release release) => '${release.version}'), <String>['0.1.5', '0.1.4', '0.1.3']);
@@ -146,11 +132,11 @@ void main() {
       });
     });
 
-    test('the first commit, which added the file, is a release like the others', () async {
+    test('the oldest tag is a release like the others', () async {
       writeCheckout();
       fs.currentDirectory = checkoutDirectory;
 
-      await withProcesses(RecordingProcessRunner(outputs: <String, String>{'log': versionLog}), () async {
+      await withProcesses(RecordingProcessRunner(outputs: <String, String>{...taggedCommits, 'tag': versionTags}), () async {
         final Release first = (await Framework.locate()!.history()).last;
 
         expect(first.version, const Version(0, 1, 3));
@@ -193,7 +179,7 @@ void main() {
       writeCheckout();
       fs.currentDirectory = checkoutDirectory;
 
-      await withProcesses(RecordingProcessRunner(outputs: <String, String>{'show': '0.2.0\n'}), () async {
+      await withProcesses(RecordingProcessRunner(outputs: <String, String>{'show': '{"version":"0.2.0"}\n'}), () async {
         expect(await pendingUpdate(Framework.locate()!), const Version(0, 2, 0));
       });
     });
@@ -202,11 +188,11 @@ void main() {
       writeCheckout();
       fs.currentDirectory = checkoutDirectory;
 
-      await withProcesses(RecordingProcessRunner(outputs: <String, String>{'show': '0.1.5\n'}), () async {
+      await withProcesses(RecordingProcessRunner(outputs: <String, String>{'show': '{"version":"0.1.5"}\n'}), () async {
         expect(await pendingUpdate(Framework.locate()!), isNull);
       });
 
-      await withProcesses(RecordingProcessRunner(outputs: <String, String>{'show': '0.1.4\n'}), () async {
+      await withProcesses(RecordingProcessRunner(outputs: <String, String>{'show': '{"version":"0.1.4"}\n'}), () async {
         expect(await pendingUpdate(Framework.locate()!), isNull);
       });
     });

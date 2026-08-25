@@ -47,8 +47,8 @@ import 'package:scribe_tools/src/package/sdk.dart';
 /// It carries the language and the one directory of the framework a package
 /// reaches by path, which is the least a package can be resolved against.
 const Map<String, String> kCheckoutImports = <String, String>{
-  '@scribe/alchemy': './alchemy/mod.ts',
-  '@scribe/core/': './core/',
+  '@scribe/alchemy': './engine/alchemy/mod.ts',
+  '@scribe/contracts/': './engine/contracts/',
 };
 
 /// Writes a checkout at [root] publishing [version], enough for a package to resolve against.
@@ -69,13 +69,10 @@ void writeCheckout(
     Directory(p.join(root.path, directory)).createSync(recursive: true);
   }
 
-  File(p.join(root.path, kSdkVersionFile)).writeAsStringSync('$version\n');
-
-  final String engine = p.join(root.path, 'engine');
   for (final String answer in imports.values) {
     if (!answer.startsWith('./') || !answer.endsWith('.ts')) continue;
 
-    File(p.join(engine, p.joinAll(p.posix.split(answer))))
+    File(p.join(root.path, p.joinAll(p.posix.split(answer))))
       ..createSync(recursive: true)
       ..writeAsStringSync('export {};\n');
   }
@@ -85,7 +82,7 @@ void writeCheckout(
       .join(',');
   File(p.join(root.path, p.joinAll(p.posix.split(kSdkImportMapFile))))
     ..parent.createSync(recursive: true)
-    ..writeAsStringSync('{"imports":{$written}}\n');
+    ..writeAsStringSync('{"version":"$version","imports":{$written}}\n');
 }
 
 /// Runs [body] with [home] as the home directory the tool writes under.

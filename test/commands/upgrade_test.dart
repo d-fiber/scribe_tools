@@ -56,25 +56,21 @@ const String checkoutDirectory = '/framework';
 /// Where the executables this fake machine carries are written.
 const String binDirectory = '/usr/bin';
 
-/// The history of `VERSION`, as `git log --patch` writes it.
-const String versionLog = '''
-commit 9f8e7d6c5b4a39281706f5e4d3c2b1a09f8e7d6c 2026-08-16T09:12:44+02:00
---- a/VERSION
-+++ b/VERSION
--0.1.4
-+0.1.5
-commit 1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d 2026-08-15T18:03:10+02:00
---- a/VERSION
-+++ b/VERSION
--0.1.3
-+0.1.4
-commit cafebabedeadbeef0123456789abcdefcafebabe 2026-08-14T11:41:02+02:00
---- /dev/null
-+++ b/VERSION
-+0.1.3
+/// The tags a checkout carries, newest version first.
+const String versionTags = '''
+v0.1.5
+v0.1.4
+v0.1.3
 ''';
 
-/// A git that writes [becomes] into `VERSION` the moment a merge is asked for.
+/// What `git log -1` answers for each of those tags.
+const Map<String, String> taggedCommits = <String, String>{
+  'v0.1.3': '0000000000000000000000000000000000000abc 2026-08-14T10:00:00+02:00',
+  'v0.1.4': '0000000000000000000000000000000000000abd 2026-08-15T10:00:00+02:00',
+  'v0.1.5': '0000000000000000000000000000000000000abe 2026-08-16T10:00:00+02:00',
+};
+
+/// A git that writes [becomes] into the configuration the moment a merge is asked for.
 ///
 /// It is what makes an upgrade visible to a test: the real git moves the
 /// working tree, and the command reads the file again afterwards.
@@ -86,7 +82,9 @@ class MergingProcessRunner extends RecordingProcessRunner {
 
   @override
   Future<int> run(List<String> command, {String? workingDirectory}) async {
-    if (command.contains('merge')) fs.file('$checkoutDirectory/VERSION').writeAsStringSync('$becomes\n');
+    if (command.contains('merge')) {
+      fs.file('$checkoutDirectory/deno.json').writeAsStringSync('{"version":"$becomes"}\n');
+    }
 
     return super.run(command, workingDirectory: workingDirectory);
   }
@@ -98,7 +96,7 @@ void writeCheckout({String version = '0.1.5', bool cloned = true}) {
     fs.directory('$checkoutDirectory/$directory').createSync(recursive: true);
   }
 
-  fs.file('$checkoutDirectory/VERSION').writeAsStringSync('$version\n');
+  fs.file('$checkoutDirectory/deno.json').writeAsStringSync('{"version":"$version"}\n');
   if (cloned) fs.directory('$checkoutDirectory/.git').createSync(recursive: true);
 }
 
@@ -188,19 +186,19 @@ void main() {
 
   group('downgrade', () {
     test('a version it is given is checked out by its commit', () async {
-      final RecordingProcessRunner processes = RecordingProcessRunner(outputs: <String, String>{'log': versionLog});
+      final RecordingProcessRunner processes = RecordingProcessRunner(outputs: <String, String>{...taggedCommits, 'tag': versionTags});
 
       expect(await runScribe(<String>['downgrade', '0.1.3'], processes), 0);
       expect(
         processes.commands.map((List<String> command) => command.join(' ')),
-        contains('git -c advice.detachedHead=false checkout cafebabedeadbeef0123456789abcdefcafebabe'),
+        contains('git -c advice.detachedHead=false checkout 0000000000000000000000000000000000000abc'),
       );
       expect(logger.statusText, contains('scribe is now at 0.1.3, down from 0.1.5.'));
       expect(logger.statusText, contains('off any branch'));
     });
 
     test('the version it is on, and anything above it, are not offered', () async {
-      final RecordingProcessRunner processes = RecordingProcessRunner(outputs: <String, String>{'log': versionLog});
+      final RecordingProcessRunner processes = RecordingProcessRunner(outputs: <String, String>{...taggedCommits, 'tag': versionTags});
 
       expect(await runScribe(<String>['downgrade', '0.1.5'], processes), 64);
       expect(logger.errorText, contains('"0.1.5" is not a version this checkout can go back to.'));
@@ -208,7 +206,7 @@ void main() {
     });
 
     test('without a terminal it names the version to type instead of hanging', () async {
-      final RecordingProcessRunner processes = RecordingProcessRunner(outputs: <String, String>{'log': versionLog});
+      final RecordingProcessRunner processes = RecordingProcessRunner(outputs: <String, String>{...taggedCommits, 'tag': versionTags});
 
       expect(await runScribe(<String>['downgrade'], processes), 1);
       expect(logger.errorText, contains('scribe downgrade 0.1.4'));
@@ -224,7 +222,7 @@ void main() {
 
     test('work that is not committed stops it too', () async {
       final RecordingProcessRunner processes = RecordingProcessRunner(
-        outputs: <String, String>{'status': ' M host/api.ts\n', 'log': versionLog},
+        outputs: <String, String>{'status': ' M host/api.ts\n', ...taggedCommits, 'tag': versionTags},
       );
 
       expect(await runScribe(<String>['downgrade', '0.1.3'], processes), 1);

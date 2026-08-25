@@ -34,6 +34,8 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
+import 'dart:convert';
+
 import 'package:file/file.dart';
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
@@ -89,7 +91,7 @@ class Release {
   /// Holds the [version] written by [commit], authored on [date] when git said so.
   const Release({required this.version, required this.commit, this.date});
 
-  /// The version this commit put in `VERSION`.
+  /// The version this commit was named with.
   final Version version;
 
   /// The commit, in full.
@@ -130,11 +132,11 @@ class Framework {
   /// The root of the checkout.
   final Directory root;
 
-  /// The file the version is written in.
-  File get versionFile => root.childFile('VERSION');
+  /// The file the version is written in, which is the project's own configuration.
+  File get versionFile => root.childFile('deno.json');
 
-  /// The version this checkout is on, null when `VERSION` says something else.
-  Version? get version => Version.tryParse(versionFile.readAsStringSync());
+  /// The version this checkout is on, null when the configuration says something else.
+  Version? get version => _versionIn(versionFile.readAsStringSync());
 
   /// Whether this checkout is a git clone, and can therefore be moved.
   bool get isClone => root.childDirectory('.git').existsSync();
@@ -144,8 +146,8 @@ class Framework {
   /// Nothing is fetched here: it reads what the last fetch left behind, which
   /// is why it costs no network. `scheduleFetch` is what keeps it current.
   Future<Version?> versionOnOrigin() async {
-    final String raw = await _capture(<String>['show', '$kOrigin/$kReleaseBranch:VERSION']);
-    return raw.isEmpty ? null : Version.tryParse(raw);
+    final String raw = await _capture(<String>['show', '$kOrigin/$kReleaseBranch:deno.json']);
+    return raw.isEmpty ? null : _versionIn(raw);
   }
 
   /// Whether nothing is modified, added or removed in the checkout.
@@ -156,35 +158,50 @@ class Framework {
 
   /// Every version this checkout's history knows, newest first.
   ///
-  /// It is read from the log of `VERSION` itself rather than from tags: the
-  /// repository has none, and `bump.py` writes that file on every release. One
-  /// `git log -p` answers the whole list, so the cost does not grow with it.
+  /// It is read from the tags, one per version, which the release names as the
+  /// version moves. Reading the log of the configuration file instead would work
+  /// too, but it would have to parse a patch to find the one added line, and it
+  /// would answer a version that was written and then taken back.
+  ///
+  /// A tag nobody can resolve is skipped rather than refused: a shallow clone has
+  /// the names without the commits, and a checkout that can only offer some of its
+  /// history is more useful than one that offers none.
   Future<List<Release>> history() async {
-    final String log = await _capture(<String>['log', '--format=$_commitMark%H %aI', '--patch', '--', 'VERSION']);
+    final String named = await _capture(<String>['tag', '--list', 'v*', '--sort=-v:refname']);
 
     final List<Release> releases = <Release>[];
-    String? commit;
-    DateTime? date;
+    for (final String line in named.split('\n')) {
+      final String tag = line.trim();
+      if (tag.isEmpty) continue;
 
-    for (final String line in log.split('\n')) {
-      if (line.startsWith(_commitMark)) {
-        final List<String> parts = line.substring(_commitMark.length).split(' ');
-        commit = parts.first;
-        date = parts.length > 1 ? DateTime.tryParse(parts[1]) : null;
-        continue;
-      }
+      final Version? version = Version.tryParse(tag.substring(1));
+      if (version == null) continue;
 
-      // The one added line of the diff is the version that commit introduced.
-      if (!line.startsWith('+') || line.startsWith('+++')) continue;
-      if (commit == null) continue;
+      final String held = (await _capture(<String>['log', '-1', '--format=%H %aI', tag])).trim();
+      if (held.isEmpty) continue;
 
-      if (Version.tryParse(line.substring(1)) case final Version version) {
-        releases.add(Release(version: version, commit: commit, date: date));
-        commit = null;
-      }
+      final List<String> parts = held.split(' ');
+      releases.add(Release(
+        version: version,
+        commit: parts.first,
+        date: parts.length > 1 ? DateTime.tryParse(parts[1]) : null,
+      ));
     }
 
     return releases;
+  }
+
+  /// The version `document` declares, null when it declares none that parses.
+  static Version? _versionIn(String document) {
+    try {
+      final Object? held = jsonDecode(document);
+      if (held is! Map<String, Object?>) return null;
+
+      final Object? version = held['version'];
+      return version is String ? Version.tryParse(version) : null;
+    } on FormatException {
+      return null;
+    }
   }
 
   /// Brings the remote's state in, and returns whether it worked.
@@ -215,7 +232,6 @@ class Framework {
   Future<bool> checkout(Release release) async =>
       await _run(<String>['-c', 'advice.detachedHead=false', 'checkout', release.commit]) == 0;
 
-  static const String _commitMark = 'commit ';
 
   Future<int> _run(List<String> arguments) =>
       globals.processRunner.run(<String>['git', ...arguments], workingDirectory: root.path);

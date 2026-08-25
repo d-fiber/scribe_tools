@@ -60,9 +60,9 @@ void main() {
     writeCheckout(
       checkout,
       imports: const <String, String>{
-        '@scribe/alchemy': './alchemy/mod.ts',
-        '@scribe/alchemy/http': './alchemy/src/http/mod.ts',
-        '@scribe/core/': './core/',
+        '@scribe/alchemy': './engine/alchemy/mod.ts',
+        '@scribe/alchemy/http': './engine/alchemy/src/http/mod.ts',
+        '@scribe/contracts/': './engine/contracts/',
         'croner': 'npm:croner@8',
       },
     );
@@ -149,14 +149,14 @@ void main() {
   });
 
   resolving('what the checkout pins answers the specifiers the package declared', () {
-    final String at = packageDeclaring('dependencies:\n  croner: any\n  "@scribe/core/": any\n');
+    final String at = packageDeclaring('dependencies:\n  croner: any\n  "@scribe/contracts/": any\n');
     resolve(at, sdkOfCheckout());
 
     final Map<String, Object?> imports = importsOf(at);
     expect(imports['croner'], 'npm:croner@8', reason: 'a registry pin did not survive');
     expect(
-      imports['@scribe/core/'],
-      Uri.directory(p.join(checkout.path, 'engine', 'core')).toString(),
+      imports['@scribe/contracts/'],
+      Uri.directory(p.join(checkout.path, 'engine', 'contracts')).toString(),
       reason: 'a path of the checkout was carried over as it was written, so it means nothing here',
     );
   });
@@ -167,7 +167,7 @@ void main() {
 
     final Map<String, Object?> imports = importsOf(created.directory);
     expect(imports.containsKey('croner'), isFalse, reason: 'a package reaches what it never declared');
-    expect(imports.containsKey('@scribe/core/'), isFalse, reason: 'a package reaches what it never declared');
+    expect(imports.containsKey('@scribe/contracts/'), isFalse, reason: 'a package reaches what it never declared');
   });
 
   resolving('a package reaches its own files under the name it declared', () {

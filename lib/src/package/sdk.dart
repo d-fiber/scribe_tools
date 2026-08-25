@@ -43,7 +43,11 @@ import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/sdk_target.dart';
 
 /// The file the checkout carries its version in.
-const String kSdkVersionFile = 'VERSION';
+///
+/// It is the workspace root's own configuration: scribe is one Deno project, and a
+/// Deno project says its version there. There is no `VERSION` file any more, and
+/// nothing else in the checkout names the version.
+const String kSdkVersionFile = 'deno.json';
 
 /// The file the checkout declares what every specifier answers to in.
 ///
@@ -51,7 +55,7 @@ const String kSdkVersionFile = 'VERSION';
 /// outside the framework is pinned. A package resolves through it rather than
 /// pinning its own, so that two packages cannot disagree on which redis client
 /// they got.
-const String kSdkImportMapFile = 'engine/deno.json';
+const String kSdkImportMapFile = 'deno.json';
 
 /// The directory, inside a checkout, holding the language a package is written against.
 const String kAlchemyDirectory = 'engine/alchemy';
@@ -128,11 +132,29 @@ Sdk findSdk({String? from}) {
 Sdk? _sdkAt(Directory root) {
   if (!SdkCatalog.isFrameworkRoot(root)) return null;
 
-  final File version = root.childFile(kSdkVersionFile);
-  return Sdk(
-    root: p.absolute(root.path),
-    version: version.existsSync() ? version.readAsStringSync().trim() : kUnknownVersion,
-  );
+  return Sdk(root: p.absolute(root.path), version: _versionOf(root));
+}
+
+/// The version the checkout at [root] publishes, or [kUnknownVersion].
+///
+/// It is read from the workspace root's own `deno.json`, which is where a Deno
+/// project carries its version. A checkout whose file is missing, unreadable or
+/// silent about the version answers [kUnknownVersion], which every constraint a
+/// package writes refuses, so the refusal names the version instead of the
+/// hundred type errors that would otherwise follow.
+String _versionOf(Directory root) {
+  final File map = root.childFile(kSdkVersionFile);
+  if (!map.existsSync()) return kUnknownVersion;
+
+  try {
+    final Object? document = jsonDecode(map.readAsStringSync());
+    if (document is! Map<String, Object?>) return kUnknownVersion;
+
+    final Object? version = document['version'];
+    return version is String && version.isNotEmpty ? version : kUnknownVersion;
+  } on FormatException {
+    return kUnknownVersion;
+  }
 }
 
 String _programDirectory() {
@@ -173,7 +195,37 @@ Map<String, String> sdkImports(Sdk sdk) {
     held[specifier] = _absolute(answer, beside);
   });
 
+  held.addAll(_layersOf(sdk));
+
   return held;
+}
+
+/// The directory, inside a checkout, holding the framework's own layers.
+const String kLayersDirectory = 'engine';
+
+/// Every layer the checkout publishes, from its specifier to its directory.
+///
+/// The root map does not name them, and that is deliberate: a workspace member
+/// inherits what the root declares, so a layer written there would be reachable
+/// from every other one and the order between them would stop being enforced.
+/// Each layer declares itself in its own `deno.json` instead.
+///
+/// A package resolved outside a checkout still has to reach them, so they are
+/// read back from the tree here. A directory counts as a layer when it carries a
+/// `deno.json`, which is what makes it a member.
+Map<String, String> _layersOf(Sdk sdk) {
+  final Directory layers = globals.fs.directory(p.join(sdk.root, kLayersDirectory));
+  if (!layers.existsSync()) return const <String, String>{};
+
+  final Map<String, String> found = <String, String>{};
+  for (final FileSystemEntity entry in layers.listSync()) {
+    if (entry is! Directory) continue;
+    if (!globals.fs.file(p.join(entry.path, 'deno.json')).existsSync()) continue;
+
+    found['@scribe/${p.basename(entry.path)}/'] = '${p.absolute(entry.path)}/';
+  }
+
+  return found;
 }
 
 Object? _decode(File map) {
