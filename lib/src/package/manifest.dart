@@ -226,6 +226,14 @@ const String _artefacts =
 #   ops:
 #     - ./ops/database/
 #     - ./ops/queue/
+#   # One entry per kind of declaration this package lets a project write. The
+#   # key names the function the generated loader exports, and the value names the
+#   # symbol a project file imports from this package's door to declare one: the
+#   # CLI walks lib/, finds the files importing it, and writes them down. Leave it
+#   # out and a project declares nothing of yours. Two mounted packages cannot
+#   # open the same key, since one file would then be loaded for two meanings.
+#   $kDeclarationsKey:
+#     queues: Queue
 """;
 
 final RegExp _release = RegExp(r'^\d+\.\d+\.\d+$');

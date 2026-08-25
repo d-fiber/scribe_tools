@@ -94,7 +94,40 @@ void main() {
     expect(manifest.artefacts.declared, <String, String>{'scribe.db.init': 'db/init', 'scribe.ops[0]': 'ops/queue'});
   });
 
-  test('a key beside the three in the scribe block is refused', () {
+  test('declarations read one bucket per kind, the value marking a file', () {
+    final Manifest manifest = parse('scribe:\n  declarations:\n    queues: Queue\n    crons: Cron\n');
+
+    expect(manifest.artefacts.declarations, <String, String>{'queues': 'Queue', 'crons': 'Cron'});
+  });
+
+  test('a package that opens no bucket declares none, and the block is still empty', () {
+    expect(parse('scribe:\n  declarations:\n').artefacts.declarations, isEmpty);
+    expect(parse('scribe:\n  declarations:\n').artefacts.isEmpty, isTrue);
+  });
+
+  test('a package that opens a bucket hands the stack something', () {
+    expect(parse('scribe:\n  declarations:\n    queues: Queue\n').artefacts.isEmpty, isFalse);
+  });
+
+  test('declarations written as anything but a block is refused', () {
+    expect(() => parse('scribe:\n  declarations: Queue\n'), throwsToolExit('something other than a block'));
+  });
+
+  test('a bucket a source file could not spell is refused, since it is written out as a function', () {
+    expect(
+      () => parse('scribe:\n  declarations:\n    my queues: Queue\n'),
+      throwsToolExit('not a name a source file could spell'),
+    );
+  });
+
+  test('a marker a source file could not spell is refused, since it is compared to an import', () {
+    expect(
+      () => parse('scribe:\n  declarations:\n    queues: 3\n'),
+      throwsToolExit('not a name a source file could spell'),
+    );
+  });
+
+  test('a key beside the four in the scribe block is refused', () {
     expect(() => parse('scribe:\n  seeds: ./db/seeds/\n'), throwsToolExit('"scribe.seeds:", which means nothing'));
   });
 

@@ -35,6 +35,7 @@
 // LICENSE file, the LICENSE file governs.
 
 import 'package:scribe_tools/src/commands/gen/code/generators/config/country_firewall.dart';
+import 'package:scribe_tools/src/commands/gen/code/generators/config/declarations.dart';
 import 'package:scribe_tools/src/commands/gen/code/generators/config/packages.dart';
 import 'package:scribe_tools/src/commands/gen/code/generators/config/registrations.dart';
 import 'package:scribe_tools/src/commands/gen/code/generators/config/scribe_config.dart';
@@ -53,8 +54,8 @@ class GenCodeCommand extends ScribeCommand {
 
   @override
   String get description =>
-      'Rewrite the import map, the enums, the row and table types and the relations, '
-      'from config.yaml and the project SQL.';
+      'Rewrite the import map, the enums, the row and table types, the relations and the '
+      'declarations found under lib/, from config.yaml and the project SQL.';
 
   @override
   bool get requiresCompleteManifest => true;
@@ -65,6 +66,7 @@ class GenCodeCommand extends ScribeCommand {
     await generateCountryFirewall();
     await generatePackages();
     await generateRegistrations();
+    await generateDeclarations();
     await generateTables(await generateEnums());
     await generateRelations();
 

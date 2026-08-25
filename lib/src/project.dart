@@ -293,6 +293,13 @@ class GeneratedSdk {
   /// The route table the scanner found under `lib/`.
   File get routes => directory.childFile('routes.ts');
 
+  /// The functions the host loads the project's own declarations through.
+  ///
+  /// One per bucket a mounted package opened, each answering the files of that
+  /// kind found under `lib/`. They are kept apart because the host calls them at
+  /// different moments.
+  File get declarations => directory.childFile('declarations.ts');
+
   /// The typed PostgREST client.
   GeneratedRest get rest => GeneratedRest(directory.childDirectory('rest'));
 

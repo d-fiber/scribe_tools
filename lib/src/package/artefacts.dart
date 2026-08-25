@@ -46,7 +46,16 @@ import 'package:scribe_tools/src/base/common.dart';
 const String kArtefactsKey = 'scribe';
 
 /// The keys the artefacts block may carry, and no others.
-const List<String> kArtefactsKeys = <String>['db', 'protocol', 'ops'];
+const List<String> kArtefactsKeys = <String>['db', 'protocol', 'ops', 'declarations'];
+
+/// The key, inside the artefacts block, holding the kinds a package lets a project declare.
+const String kDeclarationsKey = 'declarations';
+
+/// What a bucket name and a marker have to look like to be written into TypeScript.
+///
+/// A bucket becomes the name of an exported function and a marker is compared to
+/// an imported name, so neither can be anything a source file could not spell.
+final RegExp _identifier = RegExp(r'^[A-Za-z_$][A-Za-z0-9_$]*$');
 
 /// The names a fragment of the ops templates goes by, and the whole of them.
 ///
@@ -116,10 +125,10 @@ class Database {
 /// makes leaving the block out the way to hand over nothing.
 class Artefacts {
   /// Holds what an artefacts block named, empty for each part it left out.
-  const Artefacts({required this.db, required this.protocol, required this.ops});
+  const Artefacts({required this.db, required this.protocol, required this.ops, required this.declarations});
 
   /// What a manifest with no artefacts block declares, which is nothing.
-  static const Artefacts none = Artefacts(db: null, protocol: null, ops: <String>[]);
+  static const Artefacts none = Artefacts(db: null, protocol: null, ops: <String>[], declarations: <String, String>{});
 
   /// The SQL this package poses, or null when it poses none.
   final Database? db;
@@ -144,8 +153,17 @@ class Artefacts {
   /// package whose ops are a handful of files rather than a service of its own.
   final List<String> ops;
 
+  /// The kinds of declaration this package lets a project write, bucket to marker.
+  ///
+  /// A key is the name of the function the generated loader exports, and the
+  /// value is the symbol a project file imports from this package's door to
+  /// declare one. The framework names no package and neither does the tool: this
+  /// block is where a kind of declaration comes from, and a package that lets a
+  /// project declare nothing leaves it out.
+  final Map<String, String> declarations;
+
   /// Whether the block named nothing at all.
-  bool get isEmpty => (db == null || db!.isEmpty) && protocol == null && ops.isEmpty;
+  bool get isEmpty => (db == null || db!.isEmpty) && protocol == null && ops.isEmpty && declarations.isEmpty;
 
   /// Every path this block named, from the key that named it.
   ///
@@ -180,6 +198,7 @@ class Artefacts {
       db: _database(value['db'], where),
       protocol: value.containsKey('protocol') ? _path(value['protocol'], '$kArtefactsKey.protocol', where) : null,
       ops: _ops(value['ops'], where),
+      declarations: _declarations(value[kDeclarationsKey], where),
     );
   }
 }
@@ -229,6 +248,36 @@ List<String> _ops(Object? value, String where) {
   }
 
   return found;
+}
+
+Map<String, String> _declarations(Object? value, String where) {
+  if (value == null) return const <String, String>{};
+  if (value is! Map) {
+    throwToolExit(
+      '$where holds "$kArtefactsKey.$kDeclarationsKey:" as something other than a block. One entry '
+      'per kind, the key naming it and the value naming the symbol that marks a file.',
+    );
+  }
+
+  final Map<String, String> found = <String, String>{};
+  for (final MapEntry<Object?, Object?> entry in value.entries) {
+    final String bucket = _identifierOf(entry.key, '$kArtefactsKey.$kDeclarationsKey', where);
+    found[bucket] = _identifierOf(entry.value, '$kArtefactsKey.$kDeclarationsKey.$bucket', where);
+  }
+
+  return found;
+}
+
+String _identifierOf(Object? value, String key, String where) {
+  if (value is! String || !_identifier.hasMatch(value)) {
+    throwToolExit(
+      '$where holds "$key: $value", which is not a name a source file could spell. A bucket is '
+      'written out as a function and a marker is compared to an imported name, so both are '
+      'identifiers.',
+    );
+  }
+
+  return value;
 }
 
 String _path(Object? value, String key, String where) {
