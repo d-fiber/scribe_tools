@@ -89,7 +89,10 @@ class RunCommand extends ScribeCommand {
 
   @override
   Future<ScribeCommandResult> runCommand() async {
-    final ComposeDocuments documents = await ComposeRender(project: project, withWorker: boolArg('worker')).render(await Hardware.detect());
+    final ComposeDocuments documents = await ComposeRender(
+      project: project,
+      withWorker: boolArg('worker'),
+    ).render(await Hardware.detect());
     final StackLocation location = StackLocation(project: project);
 
     final StackManifest manifest = StackManifest(

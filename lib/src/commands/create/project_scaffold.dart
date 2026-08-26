@@ -86,11 +86,7 @@ class ProjectScaffold {
   final String scribeVersion;
 
   /// The values every template of this scaffold is filled in from.
-  Map<String, String> get values => <String, String>{
-    'name': name,
-    'host': hostName,
-    'scribe': scribeVersion,
-  };
+  Map<String, String> get values => <String, String>{'name': name, 'host': hostName, 'scribe': scribeVersion};
 
   /// Every path this scaffold writes, relative to [root].
   List<String> get files => <String>[for (final TemplateFile file in _files) file.destinationFor(values)];

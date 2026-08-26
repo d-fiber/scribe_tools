@@ -76,10 +76,7 @@ void _framework() {
   _write('/fw/sdk/test/whatever.ts', 'export {};');
 
   _write('/tools/templates/project/common/.gitignore.tmpl', '.env\n.{{name}}/\n');
-  _write(
-    '/tools/templates/project/common/config.yaml.tmpl',
-    'name: "{{name}}"\nurl: "https://{{host}}.example.com"\n',
-  );
+  _write('/tools/templates/project/common/config.yaml.tmpl', 'name: "{{name}}"\nurl: "https://{{host}}.example.com"\n');
   _write('/tools/templates/project/common/init/.gitkeep.tmpl');
   _write('/tools/templates/project/common/lib/hostings/.gitkeep.tmpl');
   _write('/tools/templates/project/js/lib/main.ts.tmpl', 'import "@{{name}}/routes.ts";\n');

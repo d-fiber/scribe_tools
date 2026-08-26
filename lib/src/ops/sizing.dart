@@ -158,13 +158,9 @@ class ComposeRender {
     final Packages packages = Packages.load();
     final List<Package> active = packages.active;
 
-    final List<String> profiles = <String>[...Packages.profilesOf(active), if (withWorker) workerProfile]
-      ..sort();
+    final List<String> profiles = <String>[...Packages.profilesOf(active), if (withWorker) workerProfile]..sort();
 
-    final SizingRules rules = SizingRules(
-      hardware,
-      Capacity.load(mounted: active, profiles: profiles.toSet()),
-    );
+    final SizingRules rules = SizingRules(hardware, Capacity.load(mounted: active, profiles: profiles.toSet()));
     final Map<String, String> values = <String, String>{...rules.resolve(), ..._identity()};
 
     globals.logger.printTrace('[sizing] hardware $hardware');

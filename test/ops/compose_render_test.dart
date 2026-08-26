@@ -101,11 +101,7 @@ void _vendorFramework(FileSystem fs, String root) {
     p.join(_toolRoot, 'templates/ops/proxy', '$proxyFileName.tmpl'),
   );
   for (final String name in <String>[capacityFileName, ...dockerfileNames]) {
-    _copy(
-      fs,
-      p.join('templates/ops/docker', '$name.tmpl'),
-      p.join(_toolRoot, 'templates/ops/docker', '$name.tmpl'),
-    );
+    _copy(fs, p.join('templates/ops/docker', '$name.tmpl'), p.join(_toolRoot, 'templates/ops/docker', '$name.tmpl'));
   }
   for (final String name in provisioningSqlNames) {
     _copy(fs, p.join('templates/ops/db', '$name.tmpl'), p.join(_toolRoot, 'templates/ops/db', '$name.tmpl'));
