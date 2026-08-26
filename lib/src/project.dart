@@ -35,7 +35,6 @@
 // LICENSE file, the LICENSE file governs.
 
 import 'package:file/file.dart';
-import 'package:path/path.dart' as p;
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/scribe_manifest.dart';
@@ -141,54 +140,77 @@ class Project {
   Directory get assets => directory.childDirectory('assets');
 
   /// Everything the user writes.
+  /// The directory holding the project's nodes, and nothing else.
+  ///
+  /// One directory per node, each named after the node that serves it. What a
+  /// project used to keep beside them, its templates and its SQL, sits at the
+  /// root now: a directory under here that no node declares is served by
+  /// nothing.
   Directory get lib => directory.childDirectory('lib');
 
-  /// The SDK this project targets, [kDefaultSdkName] when the manifest names none.
+  /// The SDK this project is written in, read from what `lib/` holds.
+  ///
+  /// The manifest does not name it. `scribe create` asks once and writes the
+  /// files, and the files answer from then on: a language written in the
+  /// manifest is a second place to disagree with the code, and the code is the
+  /// one that has to compile.
+  ///
+  /// A project holding nothing yet is [kDefaultSdkName], which is what `create`
+  /// offers first.
   String get sdkName {
-    final String declared = ScribeManifest.loadFrom(config)?.sdk ?? '';
-    return declared.isEmpty ? kDefaultSdkName : sdkDirectoryFor(declared);
-  }
+    final Map<String, int> counted = <String, int>{};
+    _countSources(lib, counted);
 
-  /// The extension the project's sources carry, read from the entrypoint that is there.
-  ///
-  /// It is read from the file rather than from the SDK name because the two can
-  /// disagree while a project is being moved from one target to another.
-  String get sourceExtension => p.extension(_existingEntrypoint()?.path ?? 'main.ts');
-
-  /// The file the host loads the project through, `lib/main.<ext>`.
-  ///
-  /// The file that is there when there is one, and where it would go otherwise.
-  File get entrypoint => _existingEntrypoint() ?? lib.childFile('main$sourceExtension');
-
-  File? _existingEntrypoint() {
-    if (!lib.existsSync()) return null;
-
-    for (final FileSystemEntity entity in lib.listSync(followLinks: false)) {
-      if (entity is File && p.basenameWithoutExtension(entity.path) == 'main') return entity;
+    String dominant = '';
+    int best = 0;
+    for (final MapEntry<String, int> entry in counted.entries) {
+      if (entry.value > best) {
+        best = entry.value;
+        dominant = entry.key;
+      }
     }
-    return null;
+
+    return _sdkNameForExtension[dominant] ?? kDefaultSdkName;
   }
 
-  /// The business logic: the tables, the routes, the extensions.
-  Directory get sources => lib.childDirectory('src');
+  static const Map<String, String> _sdkNameForExtension = <String, String>{'.ts': 'js', '.dart': 'dart'};
 
-  /// The project's own local modules, under `lib/dependencies/`.
+  static void _countSources(Directory directory, Map<String, int> counted) {
+    if (!directory.existsSync()) return;
+
+    for (final FileSystemEntity entry in directory.listSync(followLinks: false)) {
+      final String basename = globals.fs.path.basename(entry.path);
+      if (basename.startsWith('.')) continue;
+
+      if (entry is Directory) {
+        _countSources(entry, counted);
+        continue;
+      }
+
+      final String extension = globals.fs.path.extension(basename);
+      if (_sdkNameForExtension.containsKey(extension)) {
+        counted[extension] = (counted[extension] ?? 0) + 1;
+      }
+    }
+  }
+
+  /// The project's own local modules, under `dependencies/`.
   ///
   /// Not what `config.yaml` mounts: the packages a project mounts come from the
   /// checkout, and this directory holds code the project itself writes.
-  Directory get dependencies => lib.childDirectory('dependencies');
+  Directory get dependencies => directory.childDirectory('dependencies');
 
   /// The public pages this project serves.
-  Directory get hostings => lib.childDirectory('hostings');
+  Directory get hostings => directory.childDirectory('hostings');
 
   /// The mail templates.
-  Directory get mails => lib.childDirectory('mails');
+  Directory get mails => directory.childDirectory('mails');
 
   /// The text-message templates.
-  Directory get sms => lib.childDirectory('sms');
+  Directory get sms => directory.childDirectory('sms');
 
   /// The colours and fonts the templates render with.
-  Directory get theme => lib.childDirectory('theme');
+  Directory get theme => directory.childDirectory('theme');
 
   /// The SQL run once, when the database is empty.
   Directory get init => directory.childDirectory('init');
@@ -222,12 +244,7 @@ class Project {
   ///
   /// A directory can hold a `config.yaml` and nothing else, which is why being
   /// at the root is checked separately from being usable.
-  List<String> get missingEntries => <String>[
-    if (!config.existsSync()) configFileName,
-    if (!lib.existsSync()) 'lib/',
-    if (!entrypoint.existsSync()) 'lib/main$sourceExtension',
-    if (!sources.existsSync()) 'lib/src/',
-  ];
+  List<String> get missingEntries => <String>[if (!config.existsSync()) configFileName, if (!lib.existsSync()) 'lib/'];
 
   /// Whether every entry a project needs is there.
   bool get isUsable => missingEntries.isEmpty;
@@ -387,29 +404,6 @@ class ScribeSdk {
   /// writes resolves `@scribe/<name>/` to. A package is addressed by the name of
   /// its directory here, and by nothing else.
   Directory get packages => directory.childDirectory('packages');
-
-  /// Everything that must exist before a project can run, in one place.
-  ///
-  /// A project is mounted, built or started against a stack that does not exist
-  /// yet, so what lives here runs first. A package declares the same two
-  /// directories of its own and so does a project, and the three are read in
-  /// that order.
-  Directory get provisioning => directory.childDirectory('provisioning');
-
-  /// The SQL that creates the roles, the grants and the hook plumbing.
-  ///
-  /// It runs in the cluster's own initialisation, as superuser, before the
-  /// server accepts a connection, which is the only moment a role can be
-  /// created. The framework declares no table of its own: a table comes from a
-  /// mounted package or from the project.
-  Directory get db => provisioning.childDirectory('db');
-
-  /// What the stack mounts or builds as it is, from Dockerfiles to the Caddyfile.
-  ///
-  /// Nothing here carries a placeholder. Everything that does is a template, and
-  /// templates ship with the tool rather than with the framework, so a file read
-  /// from this directory is always a file Docker can use directly.
-  Directory get ops => provisioning.childDirectory('ops');
 
   /// The `.proto` files of the host-to-worker contract.
   Directory get protocol => directory.childDirectory('protocol');

@@ -1,7 +1,7 @@
 name: "{{app_name_snake}}"
 services:
   caddy:
-    container_name: "supabase-caddy"
+    container_name: "caddy"
     image: "caddy:2"
     restart: "unless-stopped"
     extra_hosts:
@@ -11,15 +11,14 @@ services:
       - "443:443"
       - "443:443/udp"
     volumes:
-      - "{{sdk_root}}/provisioning/ops/proxy/caddy:/etc/caddy:z"
+      - "{{proxy_config}}:/etc/caddy/Caddyfile:ro,z"
       - "caddy_data:/data"
       - "caddy_config:/config"
-      - "{{sdk_root}}/web/codex:/srv/dashboard:ro"
+      - "{{sdk_root}}/web:/srv/web:ro"
       - "./assets:/srv/public-assets:ro"
     environment:
       API_DOMAIN: "{{api_url}}"
       DASHBOARD_DOMAIN: "{{dashboard}}"
-      DASHBOARD_BASIC_AUTH: ${DASHBOARD_BASIC_AUTH}
       ACME_EMAIL: ${ACME_EMAIL}
     command:
       - /bin/sh
@@ -34,12 +33,12 @@ services:
         max-size: "10m"
         max-file: "3"
   kong:
-    container_name: "supabase-kong"
+    container_name: "kong"
     image: "kong/kong:3.9.1"
     restart: "unless-stopped"
     volumes:
-      - "./{{alchemy_dir}}/ops/gateway/kong.yml:/home/kong/temp.yml:ro,z"
-      - "{{sdk_root}}/provisioning/ops/gateway/kong-entrypoint.sh:/home/kong/kong-entrypoint.sh:ro,z"
+      - "{{gateway_config}}:/home/kong/temp.yml:ro,z"
+      - "{{gateway_entrypoint}}:/home/kong/kong-entrypoint.sh:ro,z"
     environment:
       KONG_DATABASE: "off"
       KONG_DECLARATIVE_CONFIG: "/usr/local/kong/kong.yml"
@@ -48,7 +47,7 @@ services:
       KONG_TRUSTED_IPS: "172.16.0.0/12,192.168.0.0/16,10.0.0.0/8"
       KONG_DNS_ORDER: "LAST,A,CNAME"
       KONG_DNS_NOT_FOUND_TTL: "1"
-      KONG_PLUGINS: "request-transformer,cors,key-auth,acl,basic-auth,request-termination,ip-restriction,rate-limiting,post-function,pre-function"
+      KONG_PLUGINS: "request-transformer,cors,key-auth,acl,request-termination,ip-restriction,rate-limiting,request-size-limiting,post-function,pre-function"
       KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: "160k"
       KONG_NGINX_PROXY_PROXY_BUFFERS: "64 160k"
       KONG_PROXY_ACCESS_LOG: "off"
@@ -62,15 +61,13 @@ services:
       KONG_UPSTREAM_KEEPALIVE_IDLE_TIMEOUT: "60"
       KONG_UPSTREAM_KEEPALIVE_MAX_REQUESTS: "1000"
       KONG_UPSTREAM_KEEPALIVE_POOL_SIZE: "512"
-      SUPABASE_ANON_KEY: ${ANON_KEY}
-      SUPABASE_SERVICE_KEY: ${SERVICE_KEY}
-      DASHBOARD_USERNAME: ${DASHBOARD_USERNAME}
-      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD}
-      ADMIN_APP_KEYS: ${ADMIN_APP_KEYS}
+      ANON_KEY: ${ANON_KEY}
+      SERVICE_KEY: ${SERVICE_KEY}
+      ADMIN_KEYS: ${ADMIN_KEYS}
       APP_KEYS: ${APP_KEYS}
       REDIS_PASSWORD: ${REDIS_PASSWORD}
 
-    entrypoint: "/home/kong/kong-entrypoint.sh"
+    entrypoint: ["bash", "/home/kong/kong-entrypoint.sh"]
     healthcheck:
       test: ["CMD", "kong", "health"]
       interval: "5s"
@@ -86,27 +83,25 @@ services:
         max-size: "10m"
         max-file: "3"
   functions:
-    container_name: "supabase-edge-functions"
+    container_name: "functions"
     build:
-      context: "{{sdk_root}}/provisioning/ops/docker"
+      context: "{{docker_context}}"
       dockerfile: "Dockerfile.functions"
     restart: "unless-stopped"
     volumes:
       - "{{sdk_root}}/engine:/home/deno/functions:Z"
       - "./{{alchemy_dir}}/sdk/js:/home/deno/{{alchemy_dir}}/sdk/js:ro"
-      - "./lib/extensions:/home/deno/lib/extensions:ro"
-      - "./lib/public:/home/deno/lib/public:ro"
+      - "./extensions:/home/deno/extensions:ro"
+      - "./public:/home/deno/public:ro"
       - "deno-cache:/home/deno/.cache/deno"
     environment:
       JWT_SECRET: ${JWT_SECRET}
-      SUPABASE_URL: "http://kong:8000"
-      SUPABASE_AUTH_INTERNAL_URL: "http://auth:9999"
-      SUPABASE_REST_INTERNAL_URL: "http://rest:3000"
-      SUPABASE_STORAGE_INTERNAL_URL: "http://storage:5000"
-      SUPABASE_ANON_KEY: ${ANON_KEY}
-      SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_KEY}
+      AUTH_INTERNAL_URL: "http://auth:9999"
+      REST_INTERNAL_URL: "http://rest:3000"
+      STORAGE_INTERNAL_URL: "http://storage:5000"
+      ANON_KEY: ${ANON_KEY}
+      SERVICE_KEY: ${SERVICE_KEY}
       PENDING_TOKEN_SECRET: ${PENDING_TOKEN_SECRET}
-      SUPABASE_DB_URL: "postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/postgres"
       SMTP_ACCOUNT_HOST: ${SMTP_ACCOUNT_HOST}
       SMTP_ACCOUNT_PORT: ${SMTP_ACCOUNT_PORT}
       SMTP_ACCOUNT_USER: ${SMTP_ACCOUNT_USER}
@@ -143,7 +138,7 @@ services:
       HOOK_SEND_SMS_SECRETS: ${HOOK_SEND_SMS_SECRETS}
       HOOK_CUSTOM_ACCESS_TOKEN_SECRETS: ${HOOK_CUSTOM_ACCESS_TOKEN_SECRETS}
       DEVICE_PAYLOAD_PRIVATE_KEY: ${DEVICE_PAYLOAD_PRIVATE_KEY}
-      ADMIN_APP_KEYS: ${ADMIN_APP_KEYS}
+      ADMIN_KEYS: ${ADMIN_KEYS}
       APP_KEYS: ${APP_KEYS}
       REDIS_URL: "redis://:${REDIS_PASSWORD}@redis:6379"
       NATS_URL: "nats://${NATS_PASSWORD}@nats:4222"
@@ -181,21 +176,21 @@ services:
         max-file: "3"
   api:
     build:
-      context: "{{sdk_root}}/provisioning/ops/docker"
+      context: "{{docker_context}}"
       dockerfile: "Dockerfile.api"
     restart: "unless-stopped"
     volumes:
       - "{{sdk_root}}/engine:/app/scribe/engine:ro"
       - "{{sdk_root}}/sdk:/app/scribe/sdk:ro"
       - "./{{alchemy_dir}}/sdk/js:/app/{{alchemy_dir}}/sdk/js:ro"
-      - "./lib/api:/app/lib/api:ro"
-      - "./lib/extensions:/app/lib/extensions:ro"
-      - "./lib/public:/app/lib/public:ro"
+      - "./lib:/app/lib:ro"
+      - "./extensions:/app/extensions:ro"
+      - "./public:/app/public:ro"
       - "deno-cache:/root/.cache/deno"
     environment:
       PORT: "3000"
       API_MAX_INFLIGHT_BODY_MB: "{{api_max_inflight_body}}"
-      WORKER_ENDPOINT: ${WORKER_ENDPOINT}
+      WORKER_ENDPOINT: "{{worker_endpoint}}"
       WORKER_CALLBACK_PORT: "4747"
       SMTP_ACCOUNT_HOST: ${SMTP_ACCOUNT_HOST}
       SMTP_ACCOUNT_PORT: ${SMTP_ACCOUNT_PORT}
@@ -207,12 +202,11 @@ services:
       SMTP_NOREPLY_PASS: ${SMTP_NOREPLY_PASS}
       APP_NAME: "{{app_name}}"
       JWT_SECRET: ${JWT_SECRET}
-      SUPABASE_URL: "http://kong:8000"
-      SUPABASE_AUTH_INTERNAL_URL: "http://auth:9999"
-      SUPABASE_REST_INTERNAL_URL: "http://rest:3000"
-      SUPABASE_STORAGE_INTERNAL_URL: "http://storage:5000"
-      SUPABASE_ANON_KEY: ${ANON_KEY}
-      SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_KEY}
+      AUTH_INTERNAL_URL: "http://auth:9999"
+      REST_INTERNAL_URL: "http://rest:3000"
+      STORAGE_INTERNAL_URL: "http://storage:5000"
+      ANON_KEY: ${ANON_KEY}
+      SERVICE_KEY: ${SERVICE_KEY}
       PENDING_TOKEN_SECRET: ${PENDING_TOKEN_SECRET}
       VERIFY_JWT: "true"
       OPENSEARCH_URL: "http://opensearch:9200"
@@ -241,7 +235,7 @@ services:
       HOOK_SEND_SMS_SECRETS: ${HOOK_SEND_SMS_SECRETS}
       HOOK_CUSTOM_ACCESS_TOKEN_SECRETS: ${HOOK_CUSTOM_ACCESS_TOKEN_SECRETS}
       DEVICE_PAYLOAD_PRIVATE_KEY: ${DEVICE_PAYLOAD_PRIVATE_KEY}
-      ADMIN_APP_KEYS: ${ADMIN_APP_KEYS}
+      ADMIN_KEYS: ${ADMIN_KEYS}
       APP_KEYS: ${APP_KEYS}
       REDIS_URL: "redis://:${REDIS_PASSWORD}@redis:6379"
       NATS_URL: "nats://${NATS_PASSWORD}@nats:4222"
@@ -275,7 +269,7 @@ services:
       nats:
         condition: "service_healthy"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/app/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/_health || exit 1"]
       interval: "10s"
       timeout: "5s"
       retries: 10
@@ -290,14 +284,15 @@ services:
     profiles: ["worker"]
     container_name: "worker"
     build:
-      context: "{{sdk_root}}/provisioning/ops/docker"
+      context: "{{docker_context}}"
       dockerfile: "Dockerfile.api"
     restart: "unless-stopped"
     volumes:
       - "{{sdk_root}}/sdk:/app/scribe/sdk:ro"
       - "./{{alchemy_dir}}/sdk/js:/app/{{alchemy_dir}}/sdk/js:ro"
-      - "./lib/src:/app/lib/src:ro"
-      - "./lib/contracts:/app/lib/contracts:ro"
+      - "./lib:/app/lib:ro"
+      - "{{sdk_root}}/engine:/app/scribe/engine:ro"
+      - "./contracts:/app/contracts:ro"
       - "deno-cache:/root/.cache/deno"
     environment:
       WORKER_PORT: "8787"
@@ -311,7 +306,7 @@ services:
       - "--v8-flags=--max-old-space-size={{worker_max_old_space}}"
       - "--config"
       - "/app/{{alchemy_dir}}/sdk/js/scribe.container.json"
-      - "/app/lib/src/main.ts"
+      - "/app/scribe/engine/shell/platform/worker/main.ts"
     logging:
       driver: "json-file"
       options:

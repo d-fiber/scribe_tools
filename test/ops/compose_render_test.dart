@@ -35,15 +35,18 @@
 // LICENSE file, the LICENSE file governs.
 
 import 'dart:io' as io;
-
 import 'package:file/file.dart';
 import 'package:file/memory.dart';
 import 'package:path/path.dart' as p;
 import 'package:scribe_tools/src/base/context.dart';
 import 'package:scribe_tools/src/base/logger.dart';
+import 'package:scribe_tools/src/base/platform.dart';
 import 'package:scribe_tools/src/ops/capacity.dart';
+import 'package:scribe_tools/src/ops/gateway.dart';
 import 'package:scribe_tools/src/ops/hardware.dart';
+import 'package:scribe_tools/src/ops/proxy.dart';
 import 'package:scribe_tools/src/ops/sizing.dart';
+import 'package:scribe_tools/src/stack/stack_location.dart';
 import 'package:scribe_tools/src/templates.dart';
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
@@ -58,10 +61,14 @@ final RegExp _placeholder = RegExp(r'\{\{[^}]*\}\}');
 /// The root the templates are vendored under, standing in for an installed tool.
 const String _toolRoot = '/tools';
 
+/// Where the assembled documents land, since they no longer land in the project.
+const String _stackHome = '/cache/scribe';
+
 Future<T> _withContext<T>(FileSystem fs, Future<T> Function() body) => AppContext.current.run<T>(
   overrides: <Type, Generator>{
     FileSystem: () => fs,
     Logger: BufferLogger.new,
+    Platform: () => const FakePlatform(environment: <String, String>{kStackHomeVariable: _stackHome}),
     TemplatePathProvider: () => FixedTemplatePathProvider(fs.directory(_toolRoot)),
   },
   body: body,
@@ -80,9 +87,29 @@ void _vendorFramework(FileSystem fs, String root) {
   }
   _copy(
     fs,
-    p.join(_repository, 'provisioning/ops/docker', capacityFileName),
-    p.join(root, 'provisioning/ops/docker', capacityFileName),
+    p.join('templates/ops/gateway', '$gatewayFileName.tmpl'),
+    p.join(_toolRoot, 'templates/ops/gateway', '$gatewayFileName.tmpl'),
   );
+  _copy(
+    fs,
+    p.join('templates/ops/gateway', '$gatewayEntrypointName.tmpl'),
+    p.join(_toolRoot, 'templates/ops/gateway', '$gatewayEntrypointName.tmpl'),
+  );
+  _copy(
+    fs,
+    p.join('templates/ops/proxy', '$proxyFileName.tmpl'),
+    p.join(_toolRoot, 'templates/ops/proxy', '$proxyFileName.tmpl'),
+  );
+  for (final String name in <String>[capacityFileName, ...dockerfileNames]) {
+    _copy(
+      fs,
+      p.join('templates/ops/docker', '$name.tmpl'),
+      p.join(_toolRoot, 'templates/ops/docker', '$name.tmpl'),
+    );
+  }
+  for (final String name in provisioningSqlNames) {
+    _copy(fs, p.join('templates/ops/db', '$name.tmpl'), p.join(_toolRoot, 'templates/ops/db', '$name.tmpl'));
+  }
 
   final io.Directory packages = io.Directory(p.join(_repository, 'packages'));
   if (!packages.existsSync()) return;
@@ -115,7 +142,10 @@ void main() {
           'name: "koko"\n'
           'url: "https://koko.example.com"\n'
           'email: "dev@koko.example.com"\n'
-          'packages:\n'
+          'api:\n'
+          '  cors:\n'
+          '    - "https://koko.example.com"\n'
+          'dependencies:\n'
           '${wanted.map((String name) => '  - $name\n').join()}',
         );
   }
@@ -126,16 +156,16 @@ void main() {
     project(<String>['auth', 'audience']);
   });
 
-  Future<ComposeDocuments> render() => _withContext(fs, () async {
+  Future<ComposeDocuments> render({bool worker = false}) => _withContext(fs, () async {
     fs.currentDirectory = '/work/koko';
 
-    return ComposeRender().render(_machine);
+    return ComposeRender(withWorker: worker).render(_machine);
   });
 
   Future<List<File>> renderFiles() async => (await render()).files;
 
   group('the compose render of a project', () {
-    test('writes the four templates under the generated ops directory', () async {
+    test('writes the four templates outside the project, in the stack cache', () async {
       final List<File> written = await renderFiles();
 
       expect(
@@ -144,8 +174,13 @@ void main() {
         reason: 'these are the documents Compose is given in -f',
       );
       for (final File file in written) {
-        expect(p.dirname(file.path), '/work/koko/.koko/ops');
+        expect(file.path, startsWith('$_stackHome/stacks/'), reason: 'the documents live outside the project');
       }
+      expect(
+        fs.directory('/work/koko/.koko/ops').existsSync(),
+        isFalse,
+        reason: 'nothing docker reads is written into the project',
+      );
     });
 
     test('leaves no placeholder behind in anything it writes', () async {
@@ -201,14 +236,14 @@ void main() {
       expect((await render()).profiles, <String>['realtime', 'search']);
     });
 
-    test('starts the worker only when config.yaml asks for it', () async {
+    test('starts the worker only when the command asks for it', () async {
       expect((await render()).profiles, isNot(contains('worker')));
+      expect((await render(worker: true)).profiles, contains('worker'));
+    });
 
-      fs
-          .file('/work/koko/config.yaml')
-          .writeAsStringSync('${fs.file('/work/koko/config.yaml').readAsStringSync()}worker: true\n');
-
-      expect((await render()).profiles, contains('worker'));
+    test('names the worker to the api only when the worker is started', () async {
+      expect(_workerEndpointOf((await render()).files), isEmpty);
+      expect(_workerEndpointOf((await render(worker: true)).files), workerEndpoint);
     });
 
     test('names a profile once, whatever number of services sit behind it', () async {
@@ -254,4 +289,12 @@ void main() {
       );
     });
   });
+}
+
+/// The address the rendered `api` service is given to reach the worker on.
+String _workerEndpointOf(List<File> rendered) {
+  final File compose = rendered.firstWhere((File file) => p.basename(file.path) == 'docker-compose.yaml');
+  final YamlMap services = (loadYaml(compose.readAsStringSync()) as YamlMap)['services'] as YamlMap;
+
+  return ((services['api'] as YamlMap)['environment'] as YamlMap)['WORKER_ENDPOINT'] as String;
 }

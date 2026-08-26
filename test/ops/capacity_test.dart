@@ -131,7 +131,7 @@ void main() {
         };
 
         final Set<String> weighted = <String>{
-          if (source.value.weights.childFile(capacityFileName).existsSync())
+          if (source.value.weights.existsSync())
             ...Capacity.read(
               source.value.weights,
               const <File>[],
@@ -150,7 +150,7 @@ void main() {
       final List<String> mismatched = <String>[];
 
       for (final MapEntry<String, CapacitySource> ops in capacitySources().entries) {
-        if (!ops.value.weights.childFile(capacityFileName).existsSync()) continue;
+        if (!ops.value.weights.existsSync()) continue;
 
         final Object? document = loadYaml(ops.value.compose.readAsStringSync());
         final Object? services = document is YamlMap ? document['services'] : null;

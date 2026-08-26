@@ -49,7 +49,7 @@ void main() {
 
   setUp(() {
     fs = MemoryFileSystem.test();
-    fs.directory('/work/notes/lib/src/app').createSync(recursive: true);
+    fs.directory('/work/notes/lib/app').createSync(recursive: true);
     fs.file('/work/notes/config.yaml').writeAsStringSync('name: "notes"\n');
   });
 
@@ -63,7 +63,7 @@ void main() {
 
   test('a command run below the root is refused, and told where the root is', () async {
     await withFileSystem(fs, () {
-      fs.currentDirectory = '/work/notes/lib/src/app';
+      fs.currentDirectory = '/work/notes/lib/app';
 
       expect(Project.currentOrNull, isNull);
       expect(Project.findAbove(fs.currentDirectory)?.directory.path, '/work/notes');
@@ -110,14 +110,13 @@ void main() {
       fs.currentDirectory = '/work/notes';
       final Project project = Project.current;
 
-      expect(project.entrypoint.path, '/work/notes/lib/main.ts');
-      expect(project.sources.path, '/work/notes/lib/src');
-      expect(project.dependencies.path, '/work/notes/lib/dependencies');
-      expect(project.hostings.path, '/work/notes/lib/hostings');
+      expect(project.lib.path, '/work/notes/lib');
+      expect(project.dependencies.path, '/work/notes/dependencies');
+      expect(project.hostings.path, '/work/notes/hostings');
       expect(project.init.path, '/work/notes/init');
       expect(project.migrations.path, '/work/notes/migrations');
       expect(project.tests.path, '/work/notes/tests');
-      expect(project.sdk.db.path, '/work/notes/scribe/provisioning/db');
+      expect(project.sdk.packages.path, '/work/notes/scribe/packages');
     });
   });
 }

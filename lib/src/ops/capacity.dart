@@ -38,7 +38,7 @@ import 'package:file/file.dart';
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/packages.dart';
-import 'package:scribe_tools/src/project.dart';
+import 'package:scribe_tools/src/templates.dart';
 import 'package:yaml/yaml.dart';
 
 /// The file a service's cost is declared in, inside an `ops/` directory.
@@ -133,30 +133,39 @@ class Capacity {
 
   final Map<String, ServiceCapacity> _byKey;
 
-  /// The capacity of [project] and of [mounted], the mounted packages by default.
+  /// The capacity of the socle and of [mounted], the mounted packages by default.
   ///
   /// [mounted] has to be the selection rather than every package found, and
   /// [profiles] the profiles that selection switches on: the weights are read
   /// against their own sum, so anything counted here takes a share of the
   /// machine whether or not a container of it ever starts.
-  static Capacity load({Project? project, List<Package>? mounted, Set<String> profiles = const <String>{}}) {
-    final Project target = project ?? globals.project;
+  ///
+  /// The socle's own file is read from the tool rather than from the framework
+  /// checkout, because it describes the compose template the tool ships and the
+  /// two would otherwise be free to describe different services.
+  static Capacity load({List<Package>? mounted, Set<String> profiles = const <String>{}}) {
     final List<Package> found = mounted ?? Packages.load().active;
 
     return read(
-      target.sdk.ops.childDirectory('docker'),
+      globals.templatePaths
+          .directoryInPackage(kOpsTemplatesDirectoryName, globals.fs)
+          .childDirectory('docker')
+          .childFile('$capacityFileName$kTemplateSuffix'),
       found.expand((Package package) => package.fragments(capacityFileName)),
       profiles: profiles,
     );
   }
 
-  /// The capacity declared in [socle] and in each of [packageFiles].
+  /// The capacity declared by [socle] and by each of [packageFiles].
   ///
-  /// A package without a capacity file simply declares no service, which is the
-  /// case of every package that ships no container.
-  static Capacity read(Directory socle, Iterable<File> packageFiles, {Set<String> profiles = const <String>{}}) =>
+  /// [socle] is a file rather than a directory because the socle's own weights
+  /// carry the template suffix, sitting beside the compose they weigh, while a
+  /// package writes a plain `capacity.yaml`. A package without one simply
+  /// declares no service, which is the case of every package that ships no
+  /// container.
+  static Capacity read(File socle, Iterable<File> packageFiles, {Set<String> profiles = const <String>{}}) =>
       Capacity(<ServiceCapacity>[
-        ..._readFile(socle.childFile(capacityFileName), required: true),
+        ..._readFile(socle, required: true),
         for (final File file in packageFiles) ..._readFile(file, required: false),
       ], profiles: profiles);
 

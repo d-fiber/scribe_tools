@@ -36,20 +36,19 @@
 
 import 'package:file/file.dart';
 
-import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/packages.dart';
 
 /// Every directory of socle SQL, in the order it has to be applied.
 ///
-/// What the framework provisions comes first, the mounted packages next, sorted
-/// so the order does not depend on the file system.
-List<Directory> kernelSqlRoots() => <Directory>[globals.project.sdk.db, ..._packageSqlRoots()];
-
-List<Directory> _packageSqlRoots() {
+/// They all come from mounted packages, sorted so the order does not depend on
+/// the file system. The framework itself declares no table: what it provisions
+/// is the roles and the database settings, which hold no schema to read.
+List<Directory> kernelSqlRoots() {
   final List<Directory> roots = <Directory>[
     for (final Package package in Packages.load().active)
       if (package.sql case final Directory sql) sql,
   ]..sort((Directory a, Directory b) => a.path.compareTo(b.path));
+
   return roots;
 }
 

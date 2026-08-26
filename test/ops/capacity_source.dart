@@ -39,6 +39,7 @@ import 'package:file/local.dart';
 import 'package:path/path.dart' as p;
 import 'package:scribe_tools/src/ops/capacity.dart';
 import 'package:scribe_tools/src/packages.dart';
+import 'package:scribe_tools/src/templates.dart';
 
 /// The framework repository, checked out next to this one.
 const String repository = '../scribe';
@@ -51,23 +52,20 @@ const FileSystem _fs = LocalFileSystem();
 /// checkout root, which is the only place a render looks for them.
 Directory get packagesRoot => _fs.directory(p.join(repository, 'packages'));
 
-/// The socle's own ops directory, which holds the `capacity.yaml` every project reads.
-Directory get socleOps => _fs.directory(p.join(repository, 'provisioning/ops/docker'));
-
-/// Where the socle's compose templates live, which is this package rather than the framework.
-Directory get socleComposeTemplates => _fs.directory('templates/ops/docker');
+/// Where the socle's ops templates live, which is this package rather than the framework.
+///
+/// Its `capacity.yaml.tmpl` sits beside the compose it weighs, so the two cannot
+/// come to describe different services.
+Directory get socleOps => _fs.directory('templates/ops/docker');
 
 /// A `capacity.yaml` and the compose document its weights have to agree with.
 ///
-/// A module keeps both in the same directory, since neither is read without the
-/// other. The socle does not: its compose carries `{{variables}}` and so ships
-/// with the tool under `templates/`, while its weights are plain numbers and
-/// stay in the framework's `ops/`.
+/// Both sit in the same directory, since neither is read without the other.
 class CapacitySource {
   const CapacitySource({required this.weights, required this.compose});
 
-  /// The directory holding the `capacity.yaml`.
-  final Directory weights;
+  /// The file holding the weights.
+  final File weights;
 
   /// The compose document declaring the services those weights name.
   final File compose;
@@ -78,11 +76,14 @@ class CapacitySource {
 /// The socle comes first, then one per package, keyed the way a mismatch has to
 /// be reported for a reader to know which file to open.
 Map<String, CapacitySource> capacitySources() => <String, CapacitySource>{
-  'ops/docker': CapacitySource(weights: socleOps, compose: socleComposeTemplates.childFile('docker-compose.yaml.tmpl')),
+  'ops/docker': CapacitySource(
+    weights: socleOps.childFile('$capacityFileName$kTemplateSuffix'),
+    compose: socleOps.childFile('docker-compose.yaml.tmpl'),
+  ),
   for (final MapEntry<String, Directory> package in frameworkPackages().entries)
     for (final Directory subject in opsDirectories(package.value))
       _sourceKey(package.key, package.value, subject): CapacitySource(
-        weights: subject,
+        weights: subject.childFile(capacityFileName),
         compose: subject.childFile('docker-compose.yaml'),
       ),
 };
@@ -114,7 +115,7 @@ Map<String, Directory> frameworkPackages() => <String, Directory>{
 /// Every profile the framework's packages declare between them.
 ///
 /// `worker` is not one of them. It belongs to the socle, and it is switched on
-/// by the project's own `worker:` key rather than by mounting anything.
+/// by `scribe run --worker` rather than by mounting anything.
 const Set<String> packageProfiles = <String>{'realtime', 'search'};
 
 /// The capacity the framework declares, socle and packages together.
@@ -133,7 +134,7 @@ Capacity frameworkCapacityOf(Iterable<String> names, {Set<String> profiles = pac
   final Map<String, Directory> packages = frameworkPackages();
 
   return Capacity.read(
-    _fs.directory(p.join(repository, 'provisioning/ops/docker')),
+    socleOps.childFile('$capacityFileName$kTemplateSuffix'),
     names.expand((String name) => opsDirectories(packages[name]!).map((Directory d) => d.childFile(capacityFileName))),
     profiles: profiles,
   );

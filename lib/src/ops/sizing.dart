@@ -42,10 +42,13 @@ import 'package:scribe_tools/src/base/template.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/ops/capacity.dart';
 import 'package:scribe_tools/src/ops/fragments.dart';
+import 'package:scribe_tools/src/ops/gateway.dart';
 import 'package:scribe_tools/src/ops/hardware.dart';
+import 'package:scribe_tools/src/ops/proxy.dart';
 import 'package:scribe_tools/src/ops/sizing_rules.dart';
 import 'package:scribe_tools/src/packages.dart';
 import 'package:scribe_tools/src/project.dart';
+import 'package:scribe_tools/src/stack/stack_location.dart';
 import 'package:scribe_tools/src/templates.dart';
 
 /// The templates rendered on every run, in the order Compose reads them.
@@ -58,6 +61,16 @@ const List<String> composeTemplates = <String>[composeTemplate, 'resources.yaml'
 /// declare one of its own.
 const String overlayTemplate = 'overlay.yaml';
 
+/// The Dockerfiles the socle builds from, copied beside the rendered documents.
+const List<String> dockerfileNames = <String>['Dockerfile.api', 'Dockerfile.functions'];
+
+/// The SQL the cluster runs before it accepts a connection.
+///
+/// It is the socle's own provisioning and not a package's: the passwords of the
+/// roles the images log in as, and the database settings a package reads back.
+/// A package carries its own SQL under `db/`, and mounts it beside these.
+const List<String> provisioningSqlNames = <String>['roles.sql', 'jwt.sql'];
+
 /// The document an overlay is merged into, since it has no base of its own.
 const String overlayBase = 'name: "{{app_name_snake}}"\nservices:\n';
 
@@ -66,6 +79,15 @@ const String overlayBase = 'name: "{{app_name_snake}}"\nservices:\n';
 /// No package declares it: the worker belongs to the socle, and whether it runs
 /// is a project decision rather than a consequence of a selection.
 const String workerProfile = 'worker';
+
+/// The address the host reaches the worker on, inside the compose network.
+///
+/// It is the worker service's own name and the port its command listens on, so
+/// it holds as long as those two do. The rendered value is empty when no worker
+/// is started, which the host reads as there being none: rendering it rather
+/// than reading it from the caller's environment is what keeps the profile and
+/// the address from disagreeing.
+const String workerEndpoint = 'http://worker:8787';
 
 /// The file name an overlay labelled [label] is written to.
 ///
@@ -79,14 +101,30 @@ String overlayFileName(String label) => 'overlay.${label.replaceAll('/', '-')}.y
 /// arguments, so they have to travel next to the documents rather than inside
 /// them. A caller that starts the stack needs both or it starts the wrong half.
 class ComposeDocuments {
-  /// Holds the [files] Compose reads and the [profiles] it is started with.
-  const ComposeDocuments({required this.files, required this.profiles});
+  /// Holds what Compose reads and what it has to be told to read it with.
+  const ComposeDocuments({
+    required this.files,
+    required this.profiles,
+    required this.projectDirectory,
+    required this.projectName,
+  });
 
   /// The documents to pass Compose in `-f`, in the order it must read them.
   final List<File> files;
 
   /// The Compose profiles to switch on, sorted.
   final List<String> profiles;
+
+  /// The absolute path every relative path inside the documents resolves against.
+  ///
+  /// It is the project root, and the documents no longer sit inside it, so an
+  /// invocation without `--project-directory` resolves thirty-three mounts
+  /// against the wrong root and every one of them lands somewhere that does not
+  /// exist.
+  final String projectDirectory;
+
+  /// The name Docker knows this stack by, taken from `config.yaml`.
+  final String projectName;
 }
 
 /// The compose documents of a project, rendered from the templates the tool ships.
@@ -96,25 +134,36 @@ class ComposeDocuments {
 /// the project's generated directory.
 class ComposeRender {
   /// Renders [project], the one the command is running in when none is named.
-  ComposeRender({Project? project}) : project = project ?? globals.project;
+  ComposeRender({Project? project, this.withWorker = false}) : project = project ?? globals.project;
+
+  /// Whether the project's code is asked to run in a container of its own.
+  ///
+  /// It is decided when the stack is started and not held by the manifest,
+  /// because the host only talks to a worker when `WORKER_ENDPOINT` names one:
+  /// two switches for one thing can disagree, and one of them living in a file
+  /// the other never reads is how they do.
+  final bool withWorker;
 
   /// The project being rendered, whose `config.yaml` decides the selection.
   final Project project;
 
   /// Renders every template and every overlay, and returns what Compose needs.
   Future<ComposeDocuments> render(Hardware hardware) async {
-    final Directory target = project.generated.ops;
-    if (!target.existsSync()) target.createSync(recursive: true);
+    // Outside the project, and emptied first: an overlay whose package the
+    // project has since dropped would otherwise survive, and the only practical
+    // way to list the documents again is a glob, so the dead one would be
+    // mounted with the live ones.
+    final Directory target = StackLocation(project: project).prepare();
 
     final Packages packages = Packages.load();
     final List<Package> active = packages.active;
 
-    final List<String> profiles = <String>[...Packages.profilesOf(active), if (project.manifest.worker) workerProfile]
+    final List<String> profiles = <String>[...Packages.profilesOf(active), if (withWorker) workerProfile]
       ..sort();
 
     final SizingRules rules = SizingRules(
       hardware,
-      Capacity.load(project: project, mounted: active, profiles: profiles.toSet()),
+      Capacity.load(mounted: active, profiles: profiles.toSet()),
     );
     final Map<String, String> values = <String, String>{...rules.resolve(), ..._identity()};
 
@@ -149,7 +198,55 @@ class ComposeRender {
       }
     }
 
-    return ComposeDocuments(files: rendered, profiles: profiles);
+    await GatewayRender(project: project).render(StackLocation(project: project).gateway, values, active);
+    await ProxyRender(project: project).render(StackLocation(project: project).proxy, values);
+    await _renderDockerfiles(StackLocation(project: project).docker, values);
+    await _renderProvisioningSql(StackLocation(project: project).db, values);
+
+    return ComposeDocuments(
+      files: rendered,
+      profiles: profiles,
+      projectDirectory: project.directory.absolute.path,
+      projectName: project.manifest.name.toSnakeCase(),
+    );
+  }
+
+  /// Renders the Dockerfiles the socle builds from into [target].
+  ///
+  /// They travel with the stack rather than being built from the framework
+  /// checkout: a build context pointing into it would make the image depend on
+  /// which checkout happens to sit next to the project.
+  Future<void> _renderDockerfiles(Directory target, Map<String, String> values) async {
+    final Directory source = globals.templatePaths
+        .directoryInPackage(kOpsTemplatesDirectoryName, globals.fs)
+        .childDirectory('docker');
+
+    if (!target.existsSync()) target.createSync(recursive: true);
+    for (final String name in dockerfileNames) {
+      final File file = source.childFile('$name$kTemplateSuffix');
+      if (!file.existsSync()) throwToolExit('No $name template at ${file.path}');
+
+      await target.childFile(name).writeAsString(renderTemplate(name, await file.readAsString(), values));
+    }
+  }
+
+  /// Renders the socle's provisioning SQL into [target].
+  ///
+  /// It is mounted into the cluster's own initialisation directory, which runs
+  /// as superuser before the server accepts a connection: that is the only
+  /// moment a role can be created, so nothing here can be moved to a migration.
+  Future<void> _renderProvisioningSql(Directory target, Map<String, String> values) async {
+    final Directory source = globals.templatePaths
+        .directoryInPackage(kOpsTemplatesDirectoryName, globals.fs)
+        .childDirectory('db');
+
+    if (!target.existsSync()) target.createSync(recursive: true);
+    for (final String name in provisioningSqlNames) {
+      final File file = source.childFile('$name$kTemplateSuffix');
+      if (!file.existsSync()) throwToolExit('No $name template at ${file.path}');
+
+      await target.childFile(name).writeAsString(renderTemplate(name, await file.readAsString(), values));
+    }
   }
 
   /// The values that name the project rather than size it.
@@ -161,7 +258,16 @@ class ComposeRender {
       'app_name_snake': name.toSnakeCase(),
       'sdk_root': './${p.basename(project.sdk.path)}',
       'alchemy_dir': p.basename(project.generated.path),
+      // Absolute, and pointing at the cache. Left relative, Compose resolves it
+      // against the project root, the daemon creates a directory where the file
+      // should be, and the gateway dies on a parse error three layers away.
+      'gateway_config': StackLocation(project: project).gateway.childFile(gatewayFileName).absolute.path,
+      'gateway_entrypoint': StackLocation(project: project).gateway.childFile(gatewayEntrypointName).absolute.path,
+      'docker_context': StackLocation(project: project).docker.absolute.path,
+      'db_provisioning': StackLocation(project: project).db.absolute.path,
+      'proxy_config': StackLocation(project: project).proxy.childFile(proxyFileName).absolute.path,
       'dashboard': project.manifest.dashboard,
+      'worker_endpoint': withWorker ? workerEndpoint : '',
       'api_url': project.manifest.apiUrl,
     };
   }

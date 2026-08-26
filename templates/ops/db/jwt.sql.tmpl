@@ -1,0 +1,24 @@
+\getenv jwt_secret JWT_SECRET
+\getenv jwt_exp JWT_EXP
+\getenv internal_secret INTERNAL_SECRET
+\getenv api_url API_INTERNAL_URL
+\getenv functions_url FUNCTIONS_INTERNAL_URL
+\getenv smtp_key SMTP_ENCRYPTION_KEY
+
+ALTER DATABASE postgres SET "app.settings.jwt_secret" TO :'jwt_secret';
+ALTER DATABASE postgres SET "app.settings.jwt_exp" TO :'jwt_exp';
+ALTER DATABASE postgres SET "app.settings.internal_secret" TO :'internal_secret';
+ALTER DATABASE postgres SET "app.settings.api_url" TO :'api_url';
+ALTER DATABASE postgres SET "app.settings.functions_url" TO :'functions_url';
+ALTER DATABASE postgres SET "app.settings.smtp_key" TO :'smtp_key';
+
+CREATE OR REPLACE FUNCTION auth.jwt() RETURNS jsonb
+  LANGUAGE sql STABLE
+  AS $$
+    SELECT coalesce(
+      nullif(current_setting('request.jwt.claim', true), ''),
+      nullif(current_setting('request.jwt.claims', true), '')
+    )::jsonb
+  $$;
+
+GRANT EXECUTE ON FUNCTION auth.jwt() TO public;

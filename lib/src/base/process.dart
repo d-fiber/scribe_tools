@@ -54,12 +54,36 @@ abstract class ProcessRunner {
   /// failed comes back as an empty string.
   Future<String> capture(List<String> command, {String? workingDirectory});
 
+  /// Runs [command] holding on to everything it wrote, and to how it ended.
+  ///
+  /// It is what a caller uses when a tool is noisy on the way to succeeding and
+  /// its noise is only worth showing when it fails.
+  Future<ProcessOutcome> observe(List<String> command, {String? workingDirectory});
+
   /// Starts [command] and forgets it, without waiting for it to end.
   ///
   /// The child outlives this process and writes nowhere it could be seen. It is
   /// how the version check reaches the network without the command the user
   /// typed ever waiting on it.
   void detach(List<String> command, {String? workingDirectory});
+}
+
+/// What a process wrote, and how it ended.
+class ProcessOutcome {
+  /// Holds the [exitCode] a process ended on and the two streams it wrote.
+  const ProcessOutcome({required this.exitCode, required this.stdout, required this.stderr});
+
+  /// The status the process ended on, zero when it did what it was asked.
+  final int exitCode;
+
+  /// Everything it wrote on standard output.
+  final String stdout;
+
+  /// Everything it wrote on standard error.
+  final String stderr;
+
+  /// Whether the process did what it was asked.
+  bool get succeeded => exitCode == 0;
 }
 
 /// The [ProcessRunner] that starts real processes.
@@ -88,6 +112,17 @@ class LocalProcessRunner extends ProcessRunner {
     );
 
     return '${result.stdout}';
+  }
+
+  @override
+  Future<ProcessOutcome> observe(List<String> command, {String? workingDirectory}) async {
+    final io.ProcessResult result = await io.Process.run(
+      command.first,
+      command.skip(1).toList(),
+      workingDirectory: workingDirectory,
+    );
+
+    return ProcessOutcome(exitCode: result.exitCode, stdout: '${result.stdout}', stderr: '${result.stderr}');
   }
 
   @override
@@ -140,6 +175,19 @@ class RecordingProcessRunner extends ProcessRunner {
     }
 
     return output;
+  }
+
+  @override
+  Future<ProcessOutcome> observe(List<String> command, {String? workingDirectory}) async {
+    commands.add(command);
+
+    for (final MapEntry<String, String> answer in outputs.entries) {
+      if (command.contains(answer.key)) {
+        return ProcessOutcome(exitCode: exitCode, stdout: answer.value, stderr: '');
+      }
+    }
+
+    return ProcessOutcome(exitCode: exitCode, stdout: output, stderr: '');
   }
 
   @override

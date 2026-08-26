@@ -34,36 +34,46 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
-import 'dart:io';
-import 'package:scribe_tools/runner.dart' as runner;
-import 'package:scribe_tools/src/commands/create.dart';
-import 'package:scribe_tools/src/commands/doctor.dart';
-import 'package:scribe_tools/src/commands/downgrade.dart';
-import 'package:scribe_tools/src/commands/gen.dart';
-import 'package:scribe_tools/src/commands/pkg.dart';
-import 'package:scribe_tools/src/commands/run.dart';
-import 'package:scribe_tools/src/commands/secrets.dart';
-import 'package:scribe_tools/src/commands/shutdown.dart';
-import 'package:scribe_tools/src/commands/upgrade.dart';
+import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/runner/scribe_command.dart';
-import 'package:scribe_tools/src/self/tool_version.dart';
+import 'package:scribe_tools/src/stack/compose.dart';
+import 'package:scribe_tools/src/stack/stack_location.dart';
+import 'package:scribe_tools/src/stack/stack_manifest.dart';
+import 'package:scribe_tools/src/tools.dart';
 
-Future<void> main(List<String> args) async {
-  final int code = await runner.run(
-    args,
-    () => <ScribeCommand>[
-      CreateCommand(),
-      DoctorCommand(),
-      DowngradeCommand(),
-      GenCommand(),
-      PkgCommand(),
-      RunCommand(),
-      SecretsCommand(),
-      ShutdownCommand(),
-      UpgradeCommand(),
-    ],
-    toolVersion: kToolVersion,
-  );
+/// Stops the stack of this project and removes what it created.
+///
+/// It reads what `up` recorded rather than assembling again, because stopping a
+/// stack must not depend on the selection still rendering: a project whose
+/// `config.yaml` has changed since it was started would otherwise assemble a
+/// different stack and stop nothing.
+class ShutdownCommand extends ScribeCommand {
+  /// Declares the flag that decides whether the stored data goes too.
+  ShutdownCommand() {
+    argParser.addFlag(
+      'clear',
+      abbr: 'c',
+      negatable: false,
+      help: 'Also remove the stored data, which is what empties the database.',
+    );
+  }
 
-  if (code != 0) exit(code);
+  @override
+  String get name => 'shutdown';
+
+  @override
+  String get description => 'Stop this project and remove what running it created.';
+
+  @override
+  List<ExternalTool> get requiredTools => const <ExternalTool>[ToolCatalog.docker];
+
+  @override
+  Future<ScribeCommandResult> runCommand() async {
+    final StackManifest manifest = StackManifest.read(StackLocation(project: project).manifest);
+    globals.logger.printStatus('Stopping ${manifest.projectName}...');
+
+    return await Compose(manifest).down(volumes: boolArg('clear')) == 0
+        ? const ScribeCommandResult.success()
+        : const ScribeCommandResult.fail();
+  }
 }
