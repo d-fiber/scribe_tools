@@ -58,7 +58,15 @@ String _mib(num megabytes) {
 /// Every value the compose templates take, derived from [hardware].
 class SizingRules {
   /// Derives every value from [hardware], sharing it out according to [capacity].
-  const SizingRules(this.hardware, this.capacity);
+  const SizingRules(this.hardware, this.capacity, {this.cpuCap = false});
+
+  /// Whether a service gets a hard CPU ceiling on top of its relative share.
+  ///
+  /// A share decides who yields under contention and bounds nothing, which is
+  /// what a machine dedicated to one stack wants: an idle neighbour lends its
+  /// cores instead of leaving them unused. A machine shared with anything else
+  /// wants the ceiling, and pays for it by never bursting past its slice.
+  final bool cpuCap;
 
   /// The machine every value below is derived from.
   final Hardware hardware;
@@ -103,6 +111,9 @@ class SizingRules {
       if (!service.isOneShot) {
         values['${service.key}_mem_res'] = _mib(limit * _reservationShare);
       }
+      values['${service.key}_cpu_ceiling'] = cpuCap
+          ? '\n          cpus: "${_cpusFor(service.key).toStringAsFixed(2)}"'
+          : '';
       values.addAll(_tunables(service));
     }
 
@@ -113,6 +124,24 @@ class SizingRules {
     }
 
     return values;
+  }
+
+  /// The ceiling line a service's limits carry, empty when the target wants none.
+  ///
+  /// It is rendered rather than written in the template because a template that
+  /// named the value directly would fail to render on every target that does not
+  /// cap, and a value of zero would be read by Compose as no CPU at all.
+  ///
+  /// The share of the machine's cores [service] may take, as a ceiling.
+  ///
+  /// It is the share the memory is cut by, applied to the cores, and never below
+  /// a tenth of a core: a service pinned under that cannot answer a health
+  /// check, and a stack that fails its probes is worse than one that lends a
+  /// neighbour slightly more than its share.
+  double _cpusFor(String service) {
+    final double share = capacity.shareOf(service) / _replicasFor(service);
+
+    return math.max(0.1, (hardware.cores * share * 100).roundToDouble() / 100);
   }
 
   int get _restPoolTotal => _clamp(hardware.cores * 2, 8, 64);
