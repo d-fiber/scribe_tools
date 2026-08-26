@@ -44,10 +44,16 @@ abstract class TemplateRenderer {
   String renderString(String name, String source, Map<String, String> values);
 }
 
-final RegExp _blockPlaceholder = RegExp(r'^([ \t]*)\{\{(\w+)\}\}[ \t]*$', multiLine: true);
-final RegExp _inlinePlaceholder = RegExp(r'\{\{(\w+)\}\}');
+final RegExp _blockPlaceholder = RegExp(r'^([ \t]*)\{\{[ \t]*(\w+)[ \t]*\}\}[ \t]*$', multiLine: true);
+final RegExp _inlinePlaceholder = RegExp(r'\{\{[ \t]*(\w+)[ \t]*\}\}');
 
 /// [source] with every `{{key}}` replaced by the [values] entry of that name.
+///
+/// Spaces inside the braces are allowed and ignored, so `{{key}}` and
+/// `{{ key }}` name the same thing. A YAML formatter reads `{{key}}` as a
+/// nested flow mapping and writes it back spaced out, and a template that came
+/// back from one used to render its own braces into the output instead of
+/// failing, since nothing matched them any more.
 ///
 /// A placeholder standing alone on its line inherits that line's indentation,
 /// and a value spanning several lines is indented on each of them rather than

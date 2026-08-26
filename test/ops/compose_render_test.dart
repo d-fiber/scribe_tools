@@ -53,7 +53,7 @@ const String _repository = '../scribe';
 
 const Hardware _machine = Hardware(cores: 8, threads: 16, memoryGb: 32);
 
-final RegExp _placeholder = RegExp(r'\{\{\w+\}\}');
+final RegExp _placeholder = RegExp(r'\{\{[^}]*\}\}');
 
 /// The root the templates are vendored under, standing in for an installed tool.
 const String _toolRoot = '/tools';

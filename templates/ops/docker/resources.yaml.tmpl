@@ -29,7 +29,7 @@ services:
           memory: "{{functions_mem_res}}"
 
   api:
-    cpu_shares: { { api_cpu_shares } }
+    cpu_shares: {{api_cpu_shares}}
     deploy:
       resources:
         limits:
