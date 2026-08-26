@@ -6,19 +6,20 @@ It is the one command a project built on scribe is worked through. It writes the
 rewrites everything the project derives from what it declares, sizes and renders the stack it
 runs on, keeps its secrets, and moves the framework checkout the project sits next to.
 
-## The line between the two CLIs
+## The two sides of the one CLI
 
 `scribe` renders a project. Somebody building an application runs it, and never opens the
 framework.
 
-`scribedev` works on the framework itself. It is never shipped to a project and never reads one,
-which is why the two are separate programs rather than two groups of commands in the same one.
+The `pkg` family works on the framework's own packages: it writes one, checks it, and says what
+is wrong inside it. It reads a framework checkout rather than a project, which is why it sits
+under its own family rather than beside `create` and `gen`.
 
 ## Getting it
 
-You already have it. A framework checkout carries its built tools in `tools/<platform>/`, put there
-when the framework was installed, so `scribe` sits beside the other tools with nothing to build and
-no version to keep in step by hand.
+You already have it. A framework checkout carries its built tools in `tools/`, put there when the
+framework was installed, so `scribe` sits beside the other tools with nothing to build and no
+version to keep in step by hand.
 
 To type `scribe` from anywhere rather than the path it sits at, link it once into a directory
 already on your `PATH`:
