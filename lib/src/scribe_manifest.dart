@@ -310,6 +310,7 @@ class ScribeManifest {
   List<ManifestProblem> get problems => <ManifestProblem>[
     ..._committedSecrets(),
     ..._missingRequiredFields(),
+    ..._apiUrlProblems(),
     ..._originProblems(),
   ];
 
@@ -374,6 +375,21 @@ class ScribeManifest {
     for (final String field in requiredFields)
       if ((_string(<String>[field]) ?? '').isEmpty) ManifestProblem(field, 'required, and it is empty'),
   ];
+
+  /// The address the API answers on, which the proxy makes a site of.
+  ///
+  /// It is refused when empty rather than rendered as one, because a site block
+  /// with no address is not an empty site: the proxy reads the first block
+  /// without a key as its global options, refuses to find them second, and the
+  /// whole file fails to adapt. A missing address would take the front door
+  /// down instead of the one route it names.
+  List<ManifestProblem> _apiUrlProblems() {
+    if (apiUrl.isNotEmpty) return const <ManifestProblem>[];
+
+    return const <ManifestProblem>[
+      ManifestProblem('api.url', 'required: the address the API answers on, which the proxy serves'),
+    ];
+  }
 
   List<ManifestProblem> _originProblems() {
     final Object? value = read(<String>['api', 'cors']);

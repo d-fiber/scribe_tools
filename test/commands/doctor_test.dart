@@ -67,6 +67,7 @@ dependencies:
   - audience
 
 api:
+  url: "https://koko.example.com"
   cors:
     - "https://koko.example.com"
 ''';
