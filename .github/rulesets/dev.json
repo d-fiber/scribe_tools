@@ -16,7 +16,7 @@
         "name": "Tagged commit messages",
         "operator": "regex",
         "negate": false,
-        "pattern": "^(\\[(DEV|BUGFIX|REFACTO|DOC|TEST|CI|PERF|SECURITY|BREAKING|REVERT|CHORE)\\]: .+|Merge )"
+        "pattern": "^(\\[(DEV|BUGFIX|REFACTO|DOC|TEST|CI|PERF|SECURITY|BREAKING|RELEASE|REVERT|CHORE)\\]: .+|Merge )"
       }
     }
   ]
