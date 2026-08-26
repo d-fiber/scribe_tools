@@ -87,6 +87,9 @@ const String kToolRootEnvironmentVariableName = 'SCRIBE_TOOLS_ROOT';
 /// them, and `dart test` runs a snapshot from a temporary directory that carries
 /// nothing at all.
 ///
+/// A symlink on the PATH is why the resolved binary is tried after that: the
+/// entrypoint is then the link, and a link sits nowhere near the templates.
+///
 /// That last case is why the current directory is tried next. A test is run from
 /// the root of the package, so the walk finds the templates that ship. The only
 /// other time it is reached is an installation whose templates were never
@@ -102,9 +105,19 @@ String defaultToolRoot({required Platform platform, required FileSystem fileSyst
   final String entrypoint = _entrypointDirectory(platform, fileSystem);
 
   return _carryingTemplates(entrypoint, fileSystem) ??
+      _carryingTemplates(_resolvedExecutableDirectory(platform, fileSystem), fileSystem) ??
       _carryingTemplates(fileSystem.currentDirectory.path, fileSystem) ??
       entrypoint;
 }
+
+/// The directory the running binary really sits in, symlinks followed.
+///
+/// The entrypoint is the path the tool was reached by, which is the symlink
+/// itself when one is on the PATH, and a symlink does not sit next to the
+/// templates its target does. Under `dart run` this names the Dart binary
+/// instead, and the walk from there finds nothing, which costs one stat.
+String _resolvedExecutableDirectory(Platform platform, FileSystem fileSystem) =>
+    _absolute(fileSystem.path.dirname(platform.resolvedExecutable), fileSystem);
 
 /// The directory the entrypoint of this process sits in.
 ///
