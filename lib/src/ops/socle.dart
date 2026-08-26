@@ -58,6 +58,9 @@ const List<String> mergedTemplates = <String>['docker-compose.yaml', 'resources.
 /// The name of the file that says what a service costs, read and never written.
 const String capacityTemplate = 'capacity.yaml';
 
+/// The service directory the database's own files sit in.
+const String databaseServiceName = 'database';
+
 /// The socle's own ops, laid out the way a package lays out its own.
 ///
 /// One directory per service, each holding everything that service needs and
