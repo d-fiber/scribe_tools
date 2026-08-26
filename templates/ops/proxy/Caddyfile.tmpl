@@ -1,55 +1,29 @@
-{
-    acme_ca https://acme.zerossl.com/v2/DV90
-    email {$ACME_EMAIL}
-}
-
 (compression) {
-    encode zstd gzip
+	encode zstd gzip
 }
 
 (security_headers) {
-    header {
-        Strict-Transport-Security "max-age=31536000; includeSubDomains"
-        X-Content-Type-Options "nosniff"
-        Referrer-Policy "strict-origin-when-cross-origin"
-        X-Frame-Options "{args[0]}"
-        -Server
-    }
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Frame-Options "{args[0]}"
+		-Server
+	}
 }
 
 {$API_DOMAIN:http://api.invalid} {
-    log {
-        output stderr
-        format json
-        level ERROR
-    }
-    import security_headers DENY
-    import compression
+	log {
+		output stderr
+		format json
+		level ERROR
+	}
+	import security_headers DENY
+	import compression
 
-    reverse_proxy kong:8000 {
-        header_up X-Real-IP {remote_host}
-    }
+	reverse_proxy kong:8000 {
+		header_up X-Real-IP {remote_host}
+	}
 }
 
-{$DASHBOARD_DOMAIN:http://dashboard.invalid} {
-    log {
-        output stderr
-        format json
-        level ERROR
-    }
-    import security_headers DENY
-    import compression
-
-    root * /srv/web/codex
-
-    @built file /index.html
-
-    handle @built {
-        try_files {path} /index.html
-        file_server
-    }
-
-    handle {
-        respond "The dashboard is not installed in this checkout." 404
-    }
-}
+{{dashboard_site}}

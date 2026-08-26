@@ -262,7 +262,6 @@ class ComposeRender {
       'docker_context': StackLocation(project: project).docker.absolute.path,
       'db_provisioning': StackLocation(project: project).db.absolute.path,
       'proxy_config': StackLocation(project: project).proxy.childFile(proxyFileName).absolute.path,
-      'dashboard': project.manifest.dashboard,
       'worker_endpoint': withWorker ? workerEndpoint : '',
       'api_url': project.manifest.apiUrl,
     };

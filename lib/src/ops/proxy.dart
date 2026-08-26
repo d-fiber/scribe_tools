@@ -73,12 +73,54 @@ class ProxyRender {
       throwToolExit('No proxy template at ${source.path}');
     }
 
-    final String written = renderTemplate(proxyFileName, await source.readAsString(), values);
+    final String written = renderTemplate(proxyFileName, await source.readAsString(), <String, String>{
+      ...values,
+      'dashboard_site': _dashboardSite(project.manifest.dashboard),
+    });
 
     if (!target.existsSync()) target.createSync(recursive: true);
     final File destination = target.childFile(proxyFileName);
-    await destination.writeAsString(written);
+    // The dashboard block is the last thing in the file and it is empty when no
+    // domain is named, so what is left is the blank lines that surrounded it,
+    // which `caddy fmt` takes off again.
+    await destination.writeAsString('${written.trimRight()}\n');
 
     return destination;
+  }
+
+  /// The site block that serves the dashboard, empty when no domain is named.
+  ///
+  /// A site block with an empty address is not an empty site: Caddy reads the
+  /// first block without a key as the global options, refuses to find them
+  /// second, and the whole file fails to adapt. A deployment that serves no
+  /// dashboard would therefore take the front door down with it, which is why
+  /// the block is rendered rather than given a domain that resolves nowhere.
+  static String _dashboardSite(String domain) {
+    if (domain.isEmpty) return '';
+
+    return <String>[
+      '$domain {',
+      '\tlog {',
+      '\t\toutput stderr',
+      '\t\tformat json',
+      '\t\tlevel ERROR',
+      '\t}',
+      '\timport security_headers DENY',
+      '\timport compression',
+      '',
+      '\troot * /srv/web/codex',
+      '',
+      '\t@built file /index.html',
+      '',
+      '\thandle @built {',
+      '\t\ttry_files {path} /index.html',
+      '\t\tfile_server',
+      '\t}',
+      '',
+      '\thandle {',
+      '\t\trespond "The dashboard is not installed in this checkout." 404',
+      '\t}',
+      '}',
+    ].join('\n');
   }
 }
