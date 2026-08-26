@@ -47,7 +47,7 @@ jobs:
           echo "Nothing was moved." >&2
           exit 1
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: dev
           fetch-depth: 0
