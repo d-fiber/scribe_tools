@@ -213,7 +213,8 @@ class CreateCommand extends ScribeCommand {
       'The project templates live in $kTemplatesDirectoryName/$kProjectTemplatesDirectoryName/ '
       'next to the tool, and there are none under '
       '${globals.templatePaths.root(globals.fs).path}.\n'
-      'Run tools/install.sh again, or set $kToolRootEnvironmentVariableName to a scribe_tools checkout.',
+      'Install them again with $kInstallCommand, or set $kToolRootEnvironmentVariableName '
+      'to a scribe_tools checkout.',
     );
   }
 

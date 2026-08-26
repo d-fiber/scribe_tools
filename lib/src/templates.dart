@@ -68,6 +68,10 @@ const String kOpsTemplatesDirectoryName = 'ops';
 /// A file without it is not a template, and nothing copies it.
 const String kTemplateSuffix = '.tmpl';
 
+/// The line that installs the tools, quoted whenever a refusal is about them missing.
+const String kInstallCommand =
+    'sh -c "\$(curl -fsSL https://raw.githubusercontent.com/d-fiber/scribe_tools/main/install.sh)"';
+
 /// The variable that names the tool's root, and wins over working it out.
 ///
 /// It is there for the two cases the walk cannot answer: a binary reached through

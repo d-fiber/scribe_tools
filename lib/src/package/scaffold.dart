@@ -106,6 +106,7 @@ PackageTemplates _templates() {
   throwToolExit(
     'The package templates live in $kTemplatesDirectoryName/$kPackageTemplatesDirectoryName/ '
     'next to the tool, and there are none under ${globals.templatePaths.root(globals.fs).path}.\n'
-    'Run tools/install.sh again, or set $kToolRootEnvironmentVariableName to a scribe_tools checkout.',
+    'Install them again with $kInstallCommand, or set $kToolRootEnvironmentVariableName '
+    'to a scribe_tools checkout.',
   );
 }
