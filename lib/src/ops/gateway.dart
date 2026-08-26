@@ -74,6 +74,18 @@ class GatewayRoute {
   final String origin;
 }
 
+/// The environment lines that carry the key of every node that asks for one.
+///
+/// One line per keyed node, named after it, so a key a project writes in its own
+/// environment reaches the gateway container. Without them the entry point finds
+/// the variable unset, drops the credential slot, and the node answers 401 to
+/// every key it is handed while Kong still reports itself healthy.
+String nodeKeyVariables(Project project) => Nodes.load(project: project)
+    .facingOutward
+    .where((ProjectNode node) => node.requiresApiKey)
+    .map((ProjectNode node) => '${node.name.toUpperCase()}_KEYS=\${${node.name.toUpperCase()}_KEYS}')
+    .join('\n');
+
 /// Renders the gateway configuration the whole selection adds up to.
 ///
 /// It is the second half of an assembly and it did not exist: the base template

@@ -252,6 +252,39 @@ void main() {
       }
     });
 
+    test('a node asking for a key gets the variable that carries it', () async {
+      fs
+          .file('/work/koko/config.yaml')
+          .writeAsStringSync(
+            'name: "koko"\n'
+            'url: "https://koko.example.com"\n'
+            'email: "dev@koko.example.com"\n'
+            'api:\n'
+            '  cors:\n'
+            '    - "https://koko.example.com"\n'
+            '  nodes:\n'
+            '    guarded:\n'
+            '      api_key: true\n'
+            '    open:\n'
+            'dependencies:\n',
+          );
+      fs.directory('/work/koko/lib/guarded').createSync(recursive: true);
+      fs.directory('/work/koko/lib/open').createSync(recursive: true);
+
+      final List<File> written = await renderFiles();
+      final String environment = written.first.parent
+          .childDirectory('env')
+          .childFile('gateway.env')
+          .readAsStringSync();
+
+      expect(
+        environment,
+        contains('GUARDED_KEYS=\${GUARDED_KEYS}'),
+        reason: 'without the line the entry point drops the credential and the node refuses every key',
+      );
+      expect(environment, isNot(contains('OPEN_KEYS')), reason: 'a node that asks for no key gets no slot');
+    });
+
     test('a replicated service carries no container name', () async {
       final List<File> written = await renderFiles();
       final File compose = written.firstWhere((File file) => p.basename(file.path) == 'docker-compose.yaml');

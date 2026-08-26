@@ -249,6 +249,7 @@ class ComposeRender {
       'project_db_init': _projectDatabaseInit(StackLocation(project: project).services).absolute.path,
       'worker_endpoint': withWorker ? workerEndpoint : '',
       'api_url': project.manifest.apiUrl,
+      'node_key_variables': nodeKeyVariables(project),
     };
   }
 
