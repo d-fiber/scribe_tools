@@ -132,10 +132,9 @@ void main() {
 
         final Set<String> weighted = <String>{
           if (source.value.weights.existsSync())
-            ...Capacity.read(
+            ...Capacity.read(<File>[
               source.value.weights,
-              const <File>[],
-            ).services.map((ServiceCapacity service) => service.name),
+            ], const <File>[]).services.map((ServiceCapacity service) => service.name),
         };
 
         if (declared.difference(weighted).isNotEmpty || weighted.difference(declared).isNotEmpty) {
@@ -155,7 +154,7 @@ void main() {
         final Object? document = loadYaml(ops.value.compose.readAsStringSync());
         final Object? services = document is YamlMap ? document['services'] : null;
 
-        for (final ServiceCapacity service in Capacity.read(ops.value.weights, const <File>[]).services) {
+        for (final ServiceCapacity service in Capacity.read(<File>[ops.value.weights], const <File>[]).services) {
           final YamlMap? declared = services is YamlMap ? services[service.name] as YamlMap? : null;
           final Object? profiles = declared?['profiles'];
           final String? started = profiles is YamlList && profiles.isNotEmpty ? profiles.first as String : null;

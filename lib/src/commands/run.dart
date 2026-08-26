@@ -52,7 +52,7 @@ import 'package:scribe_tools/src/tools.dart';
 /// invoked Docker, so nothing checked that what the renderer produced could be
 /// read, mounted, or started.
 class RunCommand extends ScribeCommand {
-  /// Declares the three options that decide what is started.
+  /// Declares the four options that decide what is started.
   RunCommand() {
     argParser
       ..addFlag(
@@ -60,6 +60,11 @@ class RunCommand extends ScribeCommand {
         abbr: 'w',
         negatable: false,
         help: 'Run the project code in a container of its own, and point the API at it.',
+      )
+      ..addOption(
+        'target',
+        abbr: 't',
+        help: 'Render for a target config.yaml declares, instead of the machine this runs on.',
       )
       ..addFlag(
         'dry-run',
@@ -92,6 +97,7 @@ class RunCommand extends ScribeCommand {
     final ComposeDocuments documents = await ComposeRender(
       project: project,
       withWorker: boolArg('worker'),
+      targetName: stringArg('target'),
     ).render(await Hardware.detect());
     final StackLocation location = StackLocation(project: project);
 

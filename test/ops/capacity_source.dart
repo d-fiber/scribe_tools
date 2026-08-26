@@ -54,9 +54,13 @@ Directory get packagesRoot => _fs.directory(p.join(repository, 'packages'));
 
 /// Where the socle's ops templates live, which is this package rather than the framework.
 ///
-/// Its `capacity.yaml.tmpl` sits beside the compose it weighs, so the two cannot
-/// come to describe different services.
-Directory get socleOps => _fs.directory('templates/ops/docker');
+/// One directory per service, each holding its `capacity.yaml.tmpl` beside the
+/// compose it weighs, so the two cannot come to describe different services.
+Directory get socleOps => _fs.directory('templates/ops/services');
+
+/// Every service directory of the socle, sorted so a run never depends on the file system.
+List<Directory> get socleServices =>
+    socleOps.listSync().whereType<Directory>().toList()..sort((Directory a, Directory b) => a.path.compareTo(b.path));
 
 /// A `capacity.yaml` and the compose document its weights have to agree with.
 ///
@@ -76,10 +80,11 @@ class CapacitySource {
 /// The socle comes first, then one per package, keyed the way a mismatch has to
 /// be reported for a reader to know which file to open.
 Map<String, CapacitySource> capacitySources() => <String, CapacitySource>{
-  'ops/docker': CapacitySource(
-    weights: socleOps.childFile('$capacityFileName$kTemplateSuffix'),
-    compose: socleOps.childFile('docker-compose.yaml.tmpl'),
-  ),
+  for (final Directory service in socleServices)
+    'services/${p.basename(service.path)}': CapacitySource(
+      weights: service.childFile('$capacityFileName$kTemplateSuffix'),
+      compose: service.childFile('docker-compose.yaml.tmpl'),
+    ),
   for (final MapEntry<String, Directory> package in frameworkPackages().entries)
     for (final Directory subject in opsDirectories(package.value))
       _sourceKey(package.key, package.value, subject): CapacitySource(
@@ -134,7 +139,7 @@ Capacity frameworkCapacityOf(Iterable<String> names, {Set<String> profiles = pac
   final Map<String, Directory> packages = frameworkPackages();
 
   return Capacity.read(
-    socleOps.childFile('$capacityFileName$kTemplateSuffix'),
+    socleServices.map((Directory d) => d.childFile('$capacityFileName$kTemplateSuffix')),
     names.expand((String name) => opsDirectories(packages[name]!).map((Directory d) => d.childFile(capacityFileName))),
     profiles: profiles,
   );

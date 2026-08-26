@@ -36,7 +36,7 @@
 
 import 'package:file/file.dart';
 import 'package:scribe_tools/src/base/common.dart';
-import 'package:scribe_tools/src/globals.dart' as globals;
+import 'package:scribe_tools/src/ops/socle.dart';
 import 'package:scribe_tools/src/packages.dart';
 import 'package:scribe_tools/src/templates.dart';
 import 'package:yaml/yaml.dart';
@@ -147,10 +147,7 @@ class Capacity {
     final List<Package> found = mounted ?? Packages.load().active;
 
     return read(
-      globals.templatePaths
-          .directoryInPackage(kOpsTemplatesDirectoryName, globals.fs)
-          .childDirectory('docker')
-          .childFile('$capacityFileName$kTemplateSuffix'),
+      SocleOps().serviceDirectories.map((Directory d) => d.childFile('$capacityFileName$kTemplateSuffix')),
       found.expand((Package package) => package.fragments(capacityFileName)),
       profiles: profiles,
     );
@@ -158,14 +155,13 @@ class Capacity {
 
   /// The capacity declared by [socle] and by each of [packageFiles].
   ///
-  /// [socle] is a file rather than a directory because the socle's own weights
-  /// carry the template suffix, sitting beside the compose they weigh, while a
-  /// package writes a plain `capacity.yaml`. A package without one simply
-  /// declares no service, which is the case of every package that ships no
-  /// container.
-  static Capacity read(File socle, Iterable<File> packageFiles, {Set<String> profiles = const <String>{}}) =>
+  /// [socle] is one file per service, each carrying the template suffix and
+  /// sitting beside the compose it weighs, while a package writes a plain
+  /// `capacity.yaml`. A package without one simply declares no service, which is
+  /// the case of every package that ships no container.
+  static Capacity read(Iterable<File> socle, Iterable<File> packageFiles, {Set<String> profiles = const <String>{}}) =>
       Capacity(<ServiceCapacity>[
-        ..._readFile(socle, required: true),
+        for (final File file in socle) ..._readFile(file, required: true),
         for (final File file in packageFiles) ..._readFile(file, required: false),
       ], profiles: profiles);
 

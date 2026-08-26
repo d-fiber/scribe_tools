@@ -41,10 +41,7 @@ import 'package:path/path.dart' as p;
 import 'package:scribe_tools/src/base/context.dart';
 import 'package:scribe_tools/src/base/logger.dart';
 import 'package:scribe_tools/src/base/platform.dart';
-import 'package:scribe_tools/src/ops/capacity.dart';
-import 'package:scribe_tools/src/ops/gateway.dart';
 import 'package:scribe_tools/src/ops/hardware.dart';
-import 'package:scribe_tools/src/ops/proxy.dart';
 import 'package:scribe_tools/src/ops/sizing.dart';
 import 'package:scribe_tools/src/stack/stack_location.dart';
 import 'package:scribe_tools/src/templates.dart';
@@ -82,29 +79,11 @@ Future<T> _withContext<T>(FileSystem fs, Future<T> Function() body) => AppContex
 /// from this package because that is where an installed tool carries them, and
 /// everything else from the framework checked out next door.
 void _vendorFramework(FileSystem fs, String root) {
-  for (final String name in composeTemplates) {
-    _copy(fs, p.join('templates/ops/docker', '$name.tmpl'), p.join(_toolRoot, 'templates/ops/docker', '$name.tmpl'));
-  }
-  _copy(
-    fs,
-    p.join('templates/ops/gateway', '$gatewayFileName.tmpl'),
-    p.join(_toolRoot, 'templates/ops/gateway', '$gatewayFileName.tmpl'),
-  );
-  _copy(
-    fs,
-    p.join('templates/ops/gateway', '$gatewayEntrypointName.tmpl'),
-    p.join(_toolRoot, 'templates/ops/gateway', '$gatewayEntrypointName.tmpl'),
-  );
-  _copy(
-    fs,
-    p.join('templates/ops/proxy', '$proxyFileName.tmpl'),
-    p.join(_toolRoot, 'templates/ops/proxy', '$proxyFileName.tmpl'),
-  );
-  for (final String name in <String>[capacityFileName, ...dockerfileNames]) {
-    _copy(fs, p.join('templates/ops/docker', '$name.tmpl'), p.join(_toolRoot, 'templates/ops/docker', '$name.tmpl'));
-  }
-  for (final String name in provisioningSqlNames) {
-    _copy(fs, p.join('templates/ops/db', '$name.tmpl'), p.join(_toolRoot, 'templates/ops/db', '$name.tmpl'));
+  for (final io.FileSystemEntity entity in io.Directory('templates/ops').listSync(recursive: true)) {
+    if (entity is! io.File) continue;
+
+    final String relative = p.relative(entity.path, from: 'templates/ops');
+    _copy(fs, entity.path, p.join(_toolRoot, 'templates/ops', relative));
   }
 
   final io.Directory packages = io.Directory(p.join(_repository, 'packages'));
@@ -219,7 +198,7 @@ void main() {
 
       expect(
         (limits['limits'] as YamlMap)['memory'],
-        '10.11g',
+        '11.53g',
         reason: 'db weighs 2122 against the 5371 this selection starts, not against the 6032 declared',
       );
     });

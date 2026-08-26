@@ -46,6 +46,7 @@ import 'package:scribe_tools/src/ops/gateway.dart';
 import 'package:scribe_tools/src/ops/hardware.dart';
 import 'package:scribe_tools/src/ops/proxy.dart';
 import 'package:scribe_tools/src/ops/sizing_rules.dart';
+import 'package:scribe_tools/src/ops/socle.dart';
 import 'package:scribe_tools/src/packages.dart';
 import 'package:scribe_tools/src/project.dart';
 import 'package:scribe_tools/src/stack/stack_location.dart';
@@ -134,7 +135,14 @@ class ComposeDocuments {
 /// the project's generated directory.
 class ComposeRender {
   /// Renders [project], the one the command is running in when none is named.
-  ComposeRender({Project? project, this.withWorker = false}) : project = project ?? globals.project;
+  ComposeRender({Project? project, this.withWorker = false, this.targetName}) : project = project ?? globals.project;
+
+  /// The deployment target this render is for, or null for the machine at hand.
+  ///
+  /// It names the machine in `config.yaml` and says whether the sizing may cap
+  /// the cores. Rendering from a workstation for a server without it sizes the
+  /// server like the workstation, which is silent and wrong.
+  final String? targetName;
 
   /// Whether the project's code is asked to run in a container of its own.
   ///
@@ -148,7 +156,10 @@ class ComposeRender {
   final Project project;
 
   /// Renders every template and every overlay, and returns what Compose needs.
-  Future<ComposeDocuments> render(Hardware hardware) async {
+  Future<ComposeDocuments> render(Hardware detected) async {
+    final Hardware hardware = targetName == null ? detected : (project.manifest.machineOf(targetName!) ?? detected);
+    final bool cpuCap = targetName != null && project.manifest.cpuCapOf(targetName!);
+
     // Outside the project, and emptied first: an overlay whose package the
     // project has since dropped would otherwise survive, and the only practical
     // way to list the documents again is a glob, so the dead one would be
@@ -160,10 +171,17 @@ class ComposeRender {
 
     final List<String> profiles = <String>[...Packages.profilesOf(active), if (withWorker) workerProfile]..sort();
 
-    final SizingRules rules = SizingRules(hardware, Capacity.load(mounted: active, profiles: profiles.toSet()));
+    final SizingRules rules = SizingRules(
+      hardware,
+      Capacity.load(mounted: active, profiles: profiles.toSet()),
+      cpuCap: cpuCap,
+    );
     final Map<String, String> values = <String, String>{...rules.resolve(), ..._identity()};
 
     globals.logger.printTrace('[sizing] hardware $hardware');
+    if (targetName != null) {
+      globals.logger.printStatus('target ${targetName!}: $hardware${cpuCap ? ', cores capped' : ''}');
+    }
     globals.logger.printStatus(
       'api x${rules.apiReplicas}, rest x${rules.restReplicas}, storage x${rules.storageReplicas}, '
       'db ${values['db_mem_limit']} (shared_buffers ${values['db_shared_buffers']}), '
@@ -176,9 +194,13 @@ class ComposeRender {
 
     _reportSelection(packages, active, profiles);
 
+    final SocleOps socle = SocleOps();
     final List<File> rendered = <File>[
-      for (final String name in composeTemplates)
-        await _renderTemplate(name, values, target, packages.fragmentsFor(name, active)),
+      for (final String name in mergedTemplates)
+        await _renderTemplate(name, values, target, <YamlFragment>[
+          ...socle.fragmentsFor(name),
+          ...packages.fragmentsFor(name, active),
+        ]),
     ];
 
     // One file per overlay, never one per package: two overlays that patch the
@@ -194,10 +216,11 @@ class ComposeRender {
       }
     }
 
-    await GatewayRender(project: project).render(StackLocation(project: project).gateway, values, active);
-    await ProxyRender(project: project).render(StackLocation(project: project).proxy, values);
-    await _renderDockerfiles(StackLocation(project: project).docker, values);
-    await _renderProvisioningSql(StackLocation(project: project).db, values);
+    final StackLocation stack = StackLocation(project: project);
+    await GatewayRender(project: project).render(stack.services.childDirectory('gateway'), values, active);
+    await ProxyRender(project: project).render(stack.services.childDirectory('proxy'), values);
+    await _renderServiceAssets(stack.services, values);
+    await _renderEnvironments(stack.env, values, active);
 
     return ComposeDocuments(
       files: rendered,
@@ -205,44 +228,6 @@ class ComposeRender {
       projectDirectory: project.directory.absolute.path,
       projectName: project.manifest.name.toSnakeCase(),
     );
-  }
-
-  /// Renders the Dockerfiles the socle builds from into [target].
-  ///
-  /// They travel with the stack rather than being built from the framework
-  /// checkout: a build context pointing into it would make the image depend on
-  /// which checkout happens to sit next to the project.
-  Future<void> _renderDockerfiles(Directory target, Map<String, String> values) async {
-    final Directory source = globals.templatePaths
-        .directoryInPackage(kOpsTemplatesDirectoryName, globals.fs)
-        .childDirectory('docker');
-
-    if (!target.existsSync()) target.createSync(recursive: true);
-    for (final String name in dockerfileNames) {
-      final File file = source.childFile('$name$kTemplateSuffix');
-      if (!file.existsSync()) throwToolExit('No $name template at ${file.path}');
-
-      await target.childFile(name).writeAsString(renderTemplate(name, await file.readAsString(), values));
-    }
-  }
-
-  /// Renders the socle's provisioning SQL into [target].
-  ///
-  /// It is mounted into the cluster's own initialisation directory, which runs
-  /// as superuser before the server accepts a connection: that is the only
-  /// moment a role can be created, so nothing here can be moved to a migration.
-  Future<void> _renderProvisioningSql(Directory target, Map<String, String> values) async {
-    final Directory source = globals.templatePaths
-        .directoryInPackage(kOpsTemplatesDirectoryName, globals.fs)
-        .childDirectory('db');
-
-    if (!target.existsSync()) target.createSync(recursive: true);
-    for (final String name in provisioningSqlNames) {
-      final File file = source.childFile('$name$kTemplateSuffix');
-      if (!file.existsSync()) throwToolExit('No $name template at ${file.path}');
-
-      await target.childFile(name).writeAsString(renderTemplate(name, await file.readAsString(), values));
-    }
   }
 
   /// The values that name the project rather than size it.
@@ -254,14 +239,13 @@ class ComposeRender {
       'app_name_snake': name.toSnakeCase(),
       'sdk_root': './${p.basename(project.sdk.path)}',
       'alchemy_dir': p.basename(project.generated.path),
-      // Absolute, and pointing at the cache. Left relative, Compose resolves it
-      // against the project root, the daemon creates a directory where the file
-      // should be, and the gateway dies on a parse error three layers away.
-      'gateway_config': StackLocation(project: project).gateway.childFile(gatewayFileName).absolute.path,
-      'gateway_entrypoint': StackLocation(project: project).gateway.childFile(gatewayEntrypointName).absolute.path,
-      'docker_context': StackLocation(project: project).docker.absolute.path,
-      'db_provisioning': StackLocation(project: project).db.absolute.path,
-      'proxy_config': StackLocation(project: project).proxy.childFile(proxyFileName).absolute.path,
+      // Absolute, and pointing at the cache. Left relative, Compose resolves a
+      // mount against the project root, the daemon creates a directory where
+      // the file should be, and the container dies on a parse error three
+      // layers from the cause.
+      'stack_env': StackLocation(project: project).env.absolute.path,
+      for (final String service in SocleOps().serviceNames)
+        'service_$service': StackLocation(project: project).services.childDirectory(service).absolute.path,
       'worker_endpoint': withWorker ? workerEndpoint : '',
       'api_url': project.manifest.apiUrl,
     };
@@ -281,6 +265,56 @@ class ComposeRender {
     globals.logger.printStatus('profiles: ${profiles.isEmpty ? 'none, the socle alone' : profiles.join(', ')}');
   }
 
+  /// Renders every file a service mounts, under the stack rather than the checkout.
+  ///
+  /// A container that read its configuration from the framework checkout would
+  /// depend on which checkout happens to sit beside the project, and two
+  /// projects sharing one would share it.
+  Future<void> _renderServiceAssets(Directory target, Map<String, String> values) async {
+    final SocleOps socle = SocleOps();
+
+    for (final Directory service in socle.serviceDirectories) {
+      final Directory into = target.childDirectory(p.basename(service.path));
+      for (final File asset in socle.assetsOf(service)) {
+        final String name = p.basename(asset.path).replaceAll(kTemplateSuffix, '');
+        // The gateway document and the proxy configuration carry blocks built
+        // from the nodes a project declares, so they have a renderer of their
+        // own and are written by it, not here.
+        if (name == gatewayFileName || name == proxyFileName) continue;
+        if (!into.existsSync()) into.createSync(recursive: true);
+
+        await into.childFile(name).writeAsString(renderTemplate(name, await asset.readAsString(), values));
+      }
+    }
+  }
+
+  /// Writes the environment files a service reads, one per audience.
+  ///
+  /// The socle declares an audience and every mounted package adds to it, by the
+  /// same merge-by-name rule the compose fragments follow. A package the project
+  /// did not mount contributes nothing, and no service lists it.
+  Future<void> _renderEnvironments(Directory target, Map<String, String> values, List<Package> active) async {
+    final Map<String, String> merged = <String, String>{...SocleOps().environments};
+
+    for (final String audience in merged.keys.toList()) {
+      for (final Package package in active) {
+        for (final File file in package.fragments(audience)) {
+          merged[audience] = '${merged[audience]}${file.readAsStringSync()}';
+        }
+      }
+    }
+
+    if (!target.existsSync()) target.createSync(recursive: true);
+    for (final MapEntry<String, String> audience in merged.entries) {
+      await target.childFile(audience.key).writeAsString(renderTemplate(audience.key, audience.value, values));
+    }
+  }
+
+  /// Merges the socle's and the packages' slices of [name] onto the stack base.
+  ///
+  /// Every merged document is built on the same base, which carries the project
+  /// name and nothing else: the socle declares its services the way a package
+  /// declares its own, so no document has a body of its own to start from.
   Future<File> _renderTemplate(
     String name,
     Map<String, String> values,
@@ -289,10 +323,9 @@ class ComposeRender {
   ) async {
     final File source = globals.templatePaths
         .directoryInPackage(kOpsTemplatesDirectoryName, globals.fs)
-        .childDirectory('docker')
-        .childFile('$name$kTemplateSuffix');
+        .childFile('$stackTemplate$kTemplateSuffix');
     if (!source.existsSync()) {
-      throwToolExit('No template at ${source.path}');
+      throwToolExit('No stack template at ${source.path}');
     }
 
     return _write(name, await source.readAsString(), values, target, fragments);

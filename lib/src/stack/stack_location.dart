@@ -95,17 +95,11 @@ class StackLocation {
   /// The directory this project's documents are written to.
   Directory get directory => home.childDirectory('stacks').childDirectory(fingerprint);
 
-  /// The directory the gateway configuration is written to.
-  Directory get gateway => directory.childDirectory('gateway');
+  /// The directory each service's own files are written to, one per service.
+  Directory get services => directory.childDirectory('services');
 
-  /// The directory the socle's provisioning SQL is written to.
-  Directory get db => directory.childDirectory('db');
-
-  /// The directory the Dockerfiles the socle builds from are copied to.
-  Directory get docker => directory.childDirectory('docker');
-
-  /// The directory the reverse proxy configuration is written to.
-  Directory get proxy => directory.childDirectory('proxy');
+  /// The directory the environment files a service reads are written to.
+  Directory get env => directory.childDirectory('env');
 
   /// The file that says what was assembled, and how to drive it again.
   File get manifest => directory.childFile('stack.json');

@@ -40,6 +40,7 @@ import 'package:scribe_tools/src/base/template.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/nodes.dart';
 import 'package:scribe_tools/src/ops/fragments.dart';
+import 'package:scribe_tools/src/ops/socle.dart';
 import 'package:scribe_tools/src/packages.dart';
 import 'package:scribe_tools/src/project.dart';
 import 'package:scribe_tools/src/templates.dart';
@@ -94,6 +95,7 @@ class GatewayRender {
   Future<File> render(Directory target, Map<String, String> values, List<Package> active) async {
     final File source = globals.templatePaths
         .directoryInPackage(kOpsTemplatesDirectoryName, globals.fs)
+        .childDirectory(servicesDirectoryName)
         .childDirectory('gateway')
         .childFile('$gatewayFileName$kTemplateSuffix');
     if (!source.existsSync()) {
@@ -126,6 +128,7 @@ class GatewayRender {
   Future<void> _renderEntrypoint(Directory target, Map<String, String> values) async {
     final File source = globals.templatePaths
         .directoryInPackage(kOpsTemplatesDirectoryName, globals.fs)
+        .childDirectory(servicesDirectoryName)
         .childDirectory('gateway')
         .childFile('$gatewayEntrypointName$kTemplateSuffix');
     if (!source.existsSync()) {

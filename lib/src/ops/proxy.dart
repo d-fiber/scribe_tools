@@ -38,6 +38,7 @@ import 'package:file/file.dart';
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/base/template.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
+import 'package:scribe_tools/src/ops/socle.dart';
 import 'package:scribe_tools/src/project.dart';
 import 'package:scribe_tools/src/templates.dart';
 
@@ -67,6 +68,7 @@ class ProxyRender {
   Future<File> render(Directory target, Map<String, String> values) async {
     final File source = globals.templatePaths
         .directoryInPackage(kOpsTemplatesDirectoryName, globals.fs)
+        .childDirectory(servicesDirectoryName)
         .childDirectory('proxy')
         .childFile('$proxyFileName$kTemplateSuffix');
     if (!source.existsSync()) {
