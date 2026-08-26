@@ -42,10 +42,19 @@ import 'package:scribe_tools/src/project_templates.dart';
 import 'package:scribe_tools/src/sdk_target.dart';
 import 'package:scribe_tools/src/templates.dart';
 
+/// What a scaffold writes when nobody told it the framework's version.
+const String kUnknownScribeVersion = '0.0.0';
+
 /// The tree `create` writes, and everything that decides what goes in it.
 class ProjectScaffold {
   /// Writes a project called [name] into [root], from [templates], for [target].
-  ProjectScaffold({required this.root, required this.name, required this.target, required this.templates});
+  ProjectScaffold({
+    required this.root,
+    required this.name,
+    required this.target,
+    required this.templates,
+    this.scribeVersion = kUnknownScribeVersion,
+  });
 
   /// The directory the project is written into.
   final Directory root;
@@ -69,8 +78,19 @@ class ProjectScaffold {
   /// The project name as a host name, where an underscore is not allowed.
   String get hostName => name.replaceAll('_', '-');
 
+  /// The version of the framework this project is written against.
+  ///
+  /// The caller reads it from the checkout, because a scaffold does not know
+  /// where one is and a test stands next to none. It is what the manifest
+  /// constrains upgrades with.
+  final String scribeVersion;
+
   /// The values every template of this scaffold is filled in from.
-  Map<String, String> get values => <String, String>{'name': name, 'sdk': target.name, 'host': hostName};
+  Map<String, String> get values => <String, String>{
+    'name': name,
+    'host': hostName,
+    'scribe': scribeVersion,
+  };
 
   /// Every path this scaffold writes, relative to [root].
   List<String> get files => <String>[for (final TemplateFile file in _files) file.destinationFor(values)];

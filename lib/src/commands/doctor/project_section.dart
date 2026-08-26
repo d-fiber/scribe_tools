@@ -95,10 +95,7 @@ List<Finding> _entries(Project project) {
     );
   }
 
-  for (final MapEntry<String, Directory> entry in <String, Directory>{
-    'lib/': project.lib,
-    'lib/src/': project.sources,
-  }.entries) {
+  for (final MapEntry<String, Directory> entry in <String, Directory>{'lib/': project.lib}.entries) {
     if (entry.value.existsSync()) {
       findings.add(Finding.ok('${entry.key} is here'));
       continue;
@@ -109,19 +106,6 @@ List<Finding> _entries(Project project) {
         '${entry.key} is missing',
         hint: 'Run `scribe doctor --rescue` to create it.',
         repair: () => entry.value.create(recursive: true),
-      ),
-    );
-  }
-
-  if (project.entrypoint.existsSync()) {
-    findings.add(Finding.ok('lib/${project.entrypoint.basename} is here'));
-  } else {
-    findings.add(
-      Finding.problem(
-        'lib/${project.entrypoint.basename} is missing',
-        hint:
-            'It is the file the host loads the project through, and it opens the app node. '
-            'Copy it from a project `scribe create` wrote.',
       ),
     );
   }

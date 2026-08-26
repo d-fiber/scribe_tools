@@ -1,24 +1,48 @@
-name: "{{name}}"
-email: "dev@{{host}}.example.com"
+name: {{name}}
+description: Say in one sentence what this project serves.
+version: 1.0.0
 
-dashboard: ""
-
-sdk: "{{sdk}}"
-
-app:
-  deeplink_scheme: "{{name}}"
-  ios_store_url: ""
-  android_store_url: ""
+environment:
+  scribe: "^{{scribe}}"
 
 dependencies:
-  - security/auth
-  - security/rbac
 
-worker: false
+# The domain the dashboard is served on, empty when this deployment serves none.
+dashboard: ""
 
 api:
-  url: ""
-  config:
-    origins:
-      - "https://{{host}}.example.com"
-    allowed_countries: []
+  url: "https://{{host}}.example.com"
+
+  # The origins a browser may call any node from, unless the node names its own.
+  cors:
+    - "https://{{host}}.example.com"
+
+  # A node is armed here and nowhere else. It is served by lib/<name>/, and a
+  # directory nothing names here is served by nothing.
+  #
+  # A node holding v1/ and v2/ serves both, at /v1/<name>/ and /v2/<name>/. One
+  # holding its routes directly serves v1.
+  #
+  # Every key below is optional, so a node taking the defaults is one line.
+  nodes:
+    example:
+      description: "What the application calls."
+
+      # False keeps it reachable from inside the deployment only, with no
+      # gateway route at all. Defaults to true.
+      public: true
+
+      # Asks for the x-example-key header before answering. Defaults to false,
+      # which leaves the node guarded by what the application itself checks.
+      api_key: false
+
+      # Per address. Defaults to 20 and 400, deliberately tight.
+      rate_limit:
+        sec: 20
+        min: 400
+
+      # Refused with a 413 at the door, before the node reads it. Defaults to 10.
+      max_body_mb: 10
+
+      # Before the gateway gives up and answers 504. Defaults to 30.
+      timeout_sec: 30

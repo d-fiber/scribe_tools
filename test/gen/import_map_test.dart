@@ -64,7 +64,7 @@ void _package(String name, {String at = '$checkout/packages', Map<String, String
 }
 
 void _project(List<String> wanted, {Map<String, String> from = const <String, String>{}}) {
-  final StringBuffer text = StringBuffer('name: "notes"\npackages:\n');
+  final StringBuffer text = StringBuffer('name: "notes"\ndependencies:\n');
   for (final String name in wanted) {
     final String? path = from[name];
     text.write(path == null ? '  - $name\n' : '  - $name:\n      path: $path\n');

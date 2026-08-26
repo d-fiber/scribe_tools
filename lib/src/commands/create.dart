@@ -41,6 +41,7 @@ import 'package:scribe_tools/src/commands/create/create_report.dart';
 import 'package:scribe_tools/src/commands/create/project_scaffold.dart';
 import 'package:scribe_tools/src/commands/create/sdk_choice.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
+import 'package:scribe_tools/src/package/sdk.dart';
 import 'package:scribe_tools/src/project_templates.dart';
 import 'package:scribe_tools/src/runner/scribe_command.dart';
 import 'package:scribe_tools/src/runner/scribe_command_runner.dart';
@@ -153,6 +154,7 @@ class CreateCommand extends ScribeCommand {
       name: projectName,
       target: target,
       templates: templates,
+      scribeVersion: findSdk(from: globals.fs.currentDirectory.path).version,
     );
     await _write(scaffold, projectName: projectName, target: target);
 

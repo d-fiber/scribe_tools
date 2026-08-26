@@ -78,7 +78,7 @@ void _framework() {
   _write('/tools/templates/project/common/.gitignore.tmpl', '.env\n.{{name}}/\n');
   _write(
     '/tools/templates/project/common/config.yaml.tmpl',
-    'name: "{{name}}"\nsdk: "{{sdk}}"\nurl: "https://{{host}}.example.com"\n',
+    'name: "{{name}}"\nurl: "https://{{host}}.example.com"\n',
   );
   _write('/tools/templates/project/common/init/.gitkeep.tmpl');
   _write('/tools/templates/project/common/lib/hostings/.gitkeep.tmpl');
@@ -248,24 +248,23 @@ void main() {
       });
     });
 
-    test('the chosen SDK is written down, so later commands read it back', () async {
+    test('the SDK a later command reads back is the one the files were written in', () async {
       await withFileSystem(() async {
         final Project project = await scaffold('dart');
 
-        expect(project.config.readAsStringSync(), contains('sdk: "dart"'));
+        expect(project.config.readAsStringSync(), isNot(contains('sdk')));
         expect(project.sdkName, 'dart');
-        expect(project.entrypoint.path, '/work/notes/lib/main.dart');
         expect(project.missingEntries, isEmpty);
       });
     });
 
-    test('a project without the field is the default SDK, and stays on main.ts', () async {
+    test('a lib holding no source at all is the default SDK', () async {
       await withFileSystem(() async {
-        final Project project = await scaffold('js');
-        project.config.writeAsStringSync('name: "notes"\n');
+        final Project project = await scaffold('dart');
+        project.lib.deleteSync(recursive: true);
+        project.lib.createSync(recursive: true);
 
         expect(project.sdkName, kDefaultSdkName);
-        expect(project.entrypoint.path, '/work/notes/lib/main.ts');
       });
     });
 

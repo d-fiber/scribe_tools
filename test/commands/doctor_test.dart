@@ -61,17 +61,14 @@ const String binDirectory = '/usr/bin';
 const String completeManifest = '''
 name: "koko"
 url: "https://koko.example.com"
-email: "dev@koko.example.com"
 
-packages:
+dependencies:
   - auth
   - audience
 
 api:
-  config:
-    origins:
-      - "https://koko.example.com"
-    allowed_countries: ["FR"]
+  cors:
+    - "https://koko.example.com"
 ''';
 
 /// Runs `scribe` with [args] on a machine carrying [installed] and nothing else.
@@ -109,8 +106,7 @@ void writeProject({String manifest = completeManifest, bool withLib = true}) {
 
   if (!withLib) return;
 
-  fs.file('$projectDirectory/lib/main.ts').createSync(recursive: true);
-  fs.directory('$projectDirectory/lib/src').createSync(recursive: true);
+  fs.directory('$projectDirectory/lib/app').createSync(recursive: true);
 }
 
 /// Every tool the report looks for, plus the package manager of this fake machine.
@@ -150,7 +146,6 @@ void main() {
       expect(await runScribe(<String>['doctor', '-v'], installed: everything), 0);
       expect(logger.statusText, contains('[✓] Project (koko)'));
       expect(logger.statusText, contains('config.yaml is here'));
-      expect(logger.statusText, contains('lib/main.ts is here'));
     });
 
     test('a missing tool names the command that installs it', () async {
@@ -188,25 +183,15 @@ void main() {
 
       expect(await runScribe(<String>['doctor'], installed: everything), 0);
       expect(logger.statusText, contains('lib/ is missing'));
-      expect(logger.statusText, contains('lib/src/ is missing'));
       expect(logger.statusText, contains('Run `scribe doctor --rescue` to create it.'));
     });
 
-    test('an entrypoint cannot be invented, and the report says what it is', () async {
-      writeProject(withLib: false);
-
-      await runScribe(<String>['doctor'], installed: everything);
-
-      expect(logger.statusText, contains('lib/main.ts is missing'));
-      expect(logger.statusText, contains('It is the file the host loads the project through'));
-    });
-
     test('a field the manifest is missing is named with the file to fill it in', () async {
-      writeProject(manifest: 'name: "koko"\n');
+      writeProject(manifest: 'dependencies:\n');
 
       expect(await runScribe(<String>['doctor'], installed: everything), 0);
-      expect(logger.statusText, contains('Fill `email` in config.yaml.'));
-      expect(logger.statusText, contains('Fill `api.config.origins` in config.yaml.'));
+      expect(logger.statusText, contains('Fill `name` in config.yaml.'));
+      expect(logger.statusText, contains('Fill `api.cors` in config.yaml.'));
     });
 
     test('a secrets file nobody holds the key for is a problem of its own', () async {
@@ -224,10 +209,9 @@ void main() {
       writeProject(withLib: false);
 
       expect(await runScribe(<String>['doctor', '--rescue'], installed: everything), 0);
-      expect(fs.directory('$projectDirectory/lib/src').existsSync(), isTrue);
+      expect(fs.directory('$projectDirectory/lib').existsSync(), isTrue);
       expect(logger.statusText, contains('Repairing what can be repaired from here.'));
-      expect(logger.statusText, isNot(contains('lib/src/ is missing\n      Run')));
-      expect(logger.statusText, contains('lib/main.ts is missing'));
+      expect(logger.statusText, isNot(contains('lib/ is missing\n      Run')));
     });
 
     test('installs a missing tool with the package manager of the machine', () async {
@@ -241,11 +225,11 @@ void main() {
     });
 
     test('says so when there is nothing it can do, and reports all the same', () async {
-      writeProject(manifest: 'name: "koko"\n');
+      writeProject(manifest: 'dependencies:\n');
 
       expect(await runScribe(<String>['doctor', '--rescue'], installed: everything), 0);
       expect(logger.statusText, contains('There is nothing --rescue can do from here.'));
-      expect(logger.statusText, contains('Fill `email` in config.yaml.'));
+      expect(logger.statusText, contains('Fill `name` in config.yaml.'));
     });
 
     test('a healthy machine is left alone', () async {

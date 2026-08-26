@@ -95,7 +95,7 @@ void _mount(List<String> wanted) {
       .file('/work/notes/config.yaml')
       .writeAsStringSync(
         'name: "notes"\n'
-        'packages:\n'
+        'dependencies:\n'
         '${wanted.map((String name) => '  - $name\n').join()}',
       );
 }

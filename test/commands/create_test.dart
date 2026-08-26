@@ -112,7 +112,7 @@ void writeFramework({
         ..writeAsStringSync('/{{name}}.log\n');
       fs.file('/tools/templates/project/common/config.yaml.tmpl')
         ..createSync(recursive: true)
-        ..writeAsStringSync('name: {{name}}\nhost: {{host}}\nsdk: {{sdk}}\n');
+        ..writeAsStringSync('name: {{name}}\nhost: {{host}}\n');
       fs.file('/tools/templates/project/common/lib/main.txt.tmpl')
         ..createSync(recursive: true)
         ..writeAsStringSync('the shared entrypoint\n');
@@ -264,7 +264,7 @@ void main() {
 
       expect(await runScribe(<String>['create', 'app']), 0);
       expect(logger.statusText, contains('Only one SDK is available, TS.'));
-      expect(contentOf('$workDirectory/app/config.yaml'), contains('sdk: js'));
+      expect(contentOf('$workDirectory/app/lib/main.txt'), 'the js entrypoint of app\n');
     });
 
     test('with nothing to ask on, the default is taken and the reason is given', () async {
@@ -278,11 +278,10 @@ void main() {
       writeFramework();
 
       expect(await runScribe(<String>['create', 'typed', '--sdk', 'ts']), 0);
-      expect(contentOf('$workDirectory/typed/config.yaml'), contains('sdk: js'));
       expect(fs.file('$workDirectory/typed/lib/main.txt').readAsStringSync(), 'the js entrypoint of typed\n');
 
       expect(await runScribe(<String>['create', 'spelled', '--sdk', 'JS']), 0);
-      expect(contentOf('$workDirectory/spelled/config.yaml'), contains('sdk: js'));
+      expect(contentOf('$workDirectory/spelled/lib/main.txt'), 'the js entrypoint of spelled\n');
     });
 
     test('the menu lists the SDKs by label, whatever order they were found in', () {
@@ -317,7 +316,7 @@ void main() {
       writeFramework();
 
       expect(await runScribe(<String>['create', 'my_app', '--sdk', 'js']), 0);
-      expect(contentOf('$workDirectory/my_app/config.yaml'), 'name: my_app\nhost: my-app\nsdk: js\n');
+      expect(contentOf('$workDirectory/my_app/config.yaml'), 'name: my_app\nhost: my-app\n');
     });
 
     test('a dotless gitignore template lands as a .gitignore', () async {
@@ -372,7 +371,7 @@ void main() {
       expect(logger.statusText, contains(r'  $ cd app'));
       expect(logger.statusText, contains(r'  $ scribe doctor'));
       expect(logger.statusText, contains('app/config.yaml'));
-      expect(logger.statusText, contains('app/lib/main.ts'));
+      expect(logger.statusText, contains('a directory under app/lib/'));
     });
 
     test('the paths themselves are traced, not printed', () async {

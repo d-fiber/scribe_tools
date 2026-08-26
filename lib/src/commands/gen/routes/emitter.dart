@@ -39,6 +39,7 @@ import 'package:path/path.dart' as p;
 import 'package:scribe_tools/src/commands/gen/routes/discovered_route.dart';
 import 'package:scribe_tools/src/commands/gen/routes/discovered_sink.dart';
 import 'package:scribe_tools/src/commands/gen/routes/discovered_source.dart';
+import 'package:scribe_tools/src/nodes.dart';
 
 const String _projectAlias = '@app/';
 const String _projectDirectory = 'lib';
@@ -51,11 +52,18 @@ String specifierOf(String file) {
 
 /// Writes the TypeScript table the host reads its routes from.
 class RoutesEmitter {
-  /// Writes out [source], which is what one scan found.
-  RoutesEmitter(this.source);
+  /// Writes out [source], which is what one scan found, for the nodes [declared].
+  RoutesEmitter(this.source, {required this.declared});
 
   /// The scan being written out.
   final DiscoveredSource source;
+
+  /// The nodes the manifest arms, which are what the worker mounts.
+  ///
+  /// They come from the manifest and not from the folders the scan walked: a
+  /// directory arms nothing on its own, and what the worker mounts has to be
+  /// what the gateway was rendered for.
+  final List<ProjectNode> declared;
 
   final Map<String, String> _bindings = <String, String>{};
   final StringBuffer _imports = StringBuffer();
@@ -89,13 +97,15 @@ class RoutesEmitter {
       sinks.writeln('  { node: $node, file: ${_quote(sink.file)}, module: $module },');
     }
 
-    final String nodes = source.nodes.map(_quote).join(', ');
+    final String nodes = declared
+        .map((ProjectNode node) => '{ name: ${_quote(node.name)}, public: ${node.facesOutward} }')
+        .join(', ');
 
     return '$header\n'
-        'import type { DiscoveredLogSink, DiscoveredRoute } from "@scribe/sdk";\n'
+        'import type { DeclaredNode, DiscoveredLogSink, DiscoveredRoute } from "@scribe/sdk";\n'
         '$_imports'
         '\n'
-        'export const nodes: readonly string[] = [$nodes];\n'
+        'export const nodes: readonly DeclaredNode[] = [$nodes];\n'
         '\n'
         'export const routes: readonly DiscoveredRoute[] = [\n'
         '$entries'

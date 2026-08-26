@@ -48,6 +48,6 @@ class DiscoveredSource {
   /// The routes found, sorted, so the generated table moves only when the tree does.
   final List<DiscoveredRoute> routes;
 
-  /// The log sinks found, sorted, empty when no `_log.ts` was written anywhere.
+  /// The log sinks found, sorted, empty when no `_logs.ts` was written anywhere.
   final List<DiscoveredSink> sinks;
 }

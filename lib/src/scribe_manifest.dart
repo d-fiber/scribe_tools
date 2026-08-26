@@ -47,7 +47,7 @@ class ManifestProblem {
   /// Reports [field] as unusable for [reason].
   const ManifestProblem(this.field, this.reason);
 
-  /// The field it is about, written as a dotted path such as `api.config.origins`.
+  /// The field it is about, written as a dotted path such as `api.cors`.
   final String field;
 
   /// What is wrong with it, and what to write instead.
@@ -68,7 +68,7 @@ class ScribeManifest {
   const ScribeManifest._(this.file, this.document);
 
   /// The fields a manifest is unusable without.
-  static const List<String> requiredFields = <String>['name', 'email'];
+  static const List<String> requiredFields = <String>['name'];
 
   /// The manifest in [file], or null when it is missing or is not a YAML mapping.
   static ScribeManifest? loadFrom(File file) {
@@ -119,13 +119,6 @@ class ScribeManifest {
   /// The address the project's mail is sent from.
   String get email => _string(<String>['email']) ?? '';
 
-  /// The SDK this project targets, lowercased, empty when it names none.
-  ///
-  /// This one is read raw rather than through [resolve]: it names a directory,
-  /// so an `env(...)` reference would be meaningless and saying so is the job
-  /// of [problems].
-  String get sdk => (read(<String>['sdk'])?.toString().trim() ?? '').toLowerCase();
-
   /// The URL scheme the mobile application is opened by.
   String get deeplinkScheme => _string(<String>['app', 'deeplink_scheme']) ?? '';
 
@@ -134,20 +127,12 @@ class ScribeManifest {
 
   /// The packages this project mounts, empty when it names none.
   ///
-  /// The key is `packages:`. A manifest that still spells it `dependencies:` is
-  /// read all the same, and only when `packages:` is absent: the file belongs to
-  /// the project rather than to the CLI, so a checkout written against the old
-  /// name keeps working instead of failing at the first command with no way
-  /// forward.
+  /// The key is `dependencies:`, and it is the only one read.
   List<String> get packages => packageSources.keys.toList();
 
   /// Where each package this project mounts comes from, empty for one the checkout carries.
   ///
-  /// The key is `packages:`. A manifest that still spells it `dependencies:` is
-  /// read all the same, and only when `packages:` is absent: the file belongs to
-  /// the project rather than to the CLI, so a checkout written against the old
-  /// name keeps working instead of failing at the first command with no way
-  /// forward.
+  /// The key is `dependencies:`, and it is the only one read.
   ///
   /// An entry is a name on its own for a package the checkout ships, a name
   /// carrying `sdk:` which says the same thing out loud, or a name carrying
@@ -162,7 +147,7 @@ class ScribeManifest {
   /// because a mistyped key would otherwise quietly mount the wrong package.
   ///
   /// ```yaml
-  /// packages:
+  /// dependencies:
   ///   - auth
   ///   - billing:
   ///       path: ../billing
@@ -170,8 +155,7 @@ class ScribeManifest {
   ///       sdk: scribe
   /// ```
   Map<String, String> get packageSources {
-    Object? value = read(<String>['packages']);
-    value ??= read(<String>['dependencies']);
+    final Object? value = read(<String>['dependencies']);
     if (value is! List) return const <String, String>{};
 
     final Map<String, String> sources = <String, String>{};
@@ -223,24 +207,60 @@ class ScribeManifest {
     return sources;
   }
 
-  /// Whether this project runs its own code in a worker process of its own.
-  ///
-  /// False by default, and false is the ordinary case: the host loads the
-  /// project in its own process, and the `worker` container would be a second
-  /// Deno nobody talks to. Saying true starts it and gives it a memory budget.
-  ///
-  /// Anything that is not a boolean is refused by [problems] rather than read
-  /// here, because `worker: "true"` and `worker: yes` both used to come back
-  /// false and drop the worker profile from the rendered stack, with nothing
-  /// said at any point.
-  bool get worker => read(<String>['worker']) == true;
-
   /// The origins allowed to call the API.
-  List<String> get origins => _strings(<String>['api', 'config', 'origins']);
+  List<String> get origins => _strings(<String>['api', 'cors']);
 
-  /// The countries the firewall lets through, as uppercase ISO 3166-1 alpha-2 codes.
-  List<String> get allowedCountries =>
-      _strings(<String>['api', 'config', 'allowed_countries']).map((String code) => code.toUpperCase()).toList();
+  /// Every node this project arms, in the order the manifest wrote them.
+  ///
+  /// They sit under `api.nodes` and not directly under `api`, which already
+  /// carries `auth`, `config` and `docs`: at the same level those three would
+  /// read as nodes named after themselves. A directory under `lib/` that is not
+  /// named here is served by nothing: the declaration is what arms a node, and
+  /// the directory is only what it serves.
+  List<String> get nodeNames {
+    final Object? value = read(<String>['api', 'nodes']);
+    if (value is! Map) return const <String>[];
+
+    return <String>[for (final Object? key in value.keys) key.toString().trim()]
+      ..removeWhere((String name) => name.isEmpty);
+  }
+
+  /// Whether the outside may call [node], true unless the manifest says otherwise.
+  ///
+  /// The default is the useful one: a node exists to be called, and the one that
+  /// does not is the exception a project writes a line for.
+  bool nodeFacesOutward(String node) => read(<String>['api', 'nodes', node, 'public']) != false;
+
+  /// Whether [node] asks the gateway for an application key, false by default.
+  ///
+  /// A node that says nothing is answered by the gateway to anyone who reaches
+  /// it, and guarded by what the application itself checks. Asking for a key
+  /// here adds a door in front of that, which is what a node holding an
+  /// administration surface wants and what a public one does not.
+  bool nodeRequiresApiKey(String node) => read(<String>['api', 'nodes', node, 'api_key']) == true;
+
+  /// The origins a node lets a browser call it from, or null when it says nothing.
+  ///
+  /// A node that says nothing takes the ones the whole API declares, which is
+  /// the ordinary case: a second list is written only when one audience is
+  /// reached from somewhere the others are not.
+  List<String>? nodeOrigins(String node) =>
+      read(<String>['api', 'nodes', node, 'cors']) == null ? null : _strings(<String>['api', 'nodes', node, 'cors']);
+
+  /// The header a caller carries this node's application key in, or null.
+  String? nodeKeyHeader(String node) => _string(<String>['api', 'nodes', node, 'key_header']);
+
+  /// How many calls a second this node admits from one address, or null.
+  int? nodeCallsPerSecond(String node) => _int(<String>['api', 'nodes', node, 'rate_limit', 'sec']);
+
+  /// The largest body this node accepts, in megabytes, or null.
+  int? nodeMaxBodyMb(String node) => _int(<String>['api', 'nodes', node, 'max_body_mb']);
+
+  /// How long the gateway waits for this node to answer, in seconds, or null.
+  int? nodeTimeoutSec(String node) => _int(<String>['api', 'nodes', node, 'timeout_sec']);
+
+  /// How many calls a minute this node admits from one address, or null.
+  int? nodeCallsPerMinute(String node) => _int(<String>['api', 'nodes', node, 'rate_limit', 'min']);
 
   /// The documented API surfaces, each with the title and description it declares.
   ///
@@ -289,13 +309,8 @@ class ScribeManifest {
   /// everything that is left rather than the first thing that failed.
   List<ManifestProblem> get problems => <ManifestProblem>[
     ..._committedSecrets(),
-    ..._flagProblems(),
     ..._missingRequiredFields(),
-    ..._sdkProblems(),
     ..._originProblems(),
-    ..._countryProblems(),
-    ..._passwordPolicyProblems(),
-    ..._smtpProblems(),
   ];
 
   /// Whether this manifest has no [problems] left.
@@ -355,153 +370,29 @@ class ScribeManifest {
   static String _envNameFor(List<String> path) =>
       path.where((String segment) => segment != 'integrations').join('_').toUpperCase();
 
-  List<ManifestProblem> _sdkProblems() {
-    final Object? value = read(<String>['sdk']);
-    if (value == null) return const <ManifestProblem>[];
-
-    if (value is! String || value.trim().isEmpty) {
-      return const <ManifestProblem>[
-        ManifestProblem('sdk', 'must name one of the directories of scribe/sdk/, e.g. js'),
-      ];
-    }
-
-    return const <ManifestProblem>[];
-  }
-
   List<ManifestProblem> _missingRequiredFields() => <ManifestProblem>[
     for (final String field in requiredFields)
       if ((_string(<String>[field]) ?? '').isEmpty) ManifestProblem(field, 'required, and it is empty'),
   ];
 
   List<ManifestProblem> _originProblems() {
-    final Object? value = read(<String>['api', 'config', 'origins']);
+    final Object? value = read(<String>['api', 'cors']);
     if (value == null) {
       return const <ManifestProblem>[
-        ManifestProblem('api.config.origins', 'required: at least one origin allowed to call the API'),
+        ManifestProblem('api.cors', 'required: at least one origin allowed to call the API'),
       ];
     }
     if (value is! List || value.isEmpty) {
       return const <ManifestProblem>[
-        ManifestProblem('api.config.origins', 'must be a non-empty list, e.g. ["https://admin.example.com"]'),
+        ManifestProblem('api.cors', 'must be a non-empty list, e.g. ["https://admin.example.com"]'),
       ];
     }
 
     return <ManifestProblem>[
       for (final Object? entry in value)
         if (!_origin.hasMatch(entry.toString().trim()))
-          ManifestProblem(
-            'api.config.origins',
-            '"$entry" must be scheme and host only, with no path and no trailing slash',
-          ),
+          ManifestProblem('api.cors', '"$entry" must be scheme and host only, with no path and no trailing slash'),
     ];
-  }
-
-  /// The keys whose value has to be a boolean, and what each one decides.
-  static const Map<String, String> _flags = <String, String>{'worker': 'whether a worker process is started'};
-
-  List<ManifestProblem> _flagProblems() {
-    return <ManifestProblem>[
-      for (final MapEntry<String, String> flag in _flags.entries)
-        if (read(<String>[flag.key]) case final Object value when value is! bool)
-          ManifestProblem(
-            flag.key,
-            'holds "$value", which is not true or false. It decides ${flag.value}, and anything else '
-            'reads as false: "true" in quotes is text, and yes is a boolean in YAML 1.1 and not here',
-          ),
-    ];
-  }
-
-  List<ManifestProblem> _countryProblems() {
-    final Object? value = read(<String>['api', 'config', 'allowed_countries']);
-    if (value == null) return const <ManifestProblem>[];
-    if (value is! List) {
-      return const <ManifestProblem>[
-        ManifestProblem('api.config.allowed_countries', 'must be a list of ISO 3166-1 alpha-2 codes, e.g. FR'),
-      ];
-    }
-
-    return <ManifestProblem>[
-      for (final Object? entry in value)
-        if (!_countryCode.hasMatch(entry.toString().trim()))
-          ManifestProblem('api.config.allowed_countries', '"$entry" is not a two-letter country code'),
-    ];
-  }
-
-  List<ManifestProblem> _passwordPolicyProblems() {
-    const List<String> path = <String>['api', 'auth', 'sign_in_with_email_and_password'];
-    if (read(path) == null) return const <ManifestProblem>[];
-
-    final List<ManifestProblem> found = <ManifestProblem>[];
-
-    final Object? enabled = read(<String>[...path, 'enabled']);
-    if (enabled is! bool) {
-      found.add(const ManifestProblem('api.auth.sign_in_with_email_and_password.enabled', 'must be true or false'));
-    }
-
-    final Object? minLength = read(<String>[...path, 'password', 'min_length']);
-    if (minLength is! int) {
-      found.add(
-        const ManifestProblem('api.auth.sign_in_with_email_and_password.password.min_length', 'must be a number'),
-      );
-    } else if (minLength < kMinPasswordLength) {
-      found.add(
-        ManifestProblem(
-          'api.auth.sign_in_with_email_and_password.password.min_length',
-          'must be at least $kMinPasswordLength, got $minLength',
-        ),
-      );
-    }
-
-    for (final String field in <String>['require_uppercase', 'require_lowercase', 'require_number']) {
-      if (read(<String>[...path, 'password', field]) is! bool) {
-        found.add(ManifestProblem('api.auth.sign_in_with_email_and_password.password.$field', 'must be true or false'));
-      }
-    }
-
-    return found;
-  }
-
-  List<ManifestProblem> _smtpProblems() {
-    final Object? value = read(<String>['api', 'config', 'smtp']);
-    if (value == null) return const <ManifestProblem>[];
-    if (value is! Map) {
-      return const <ManifestProblem>[
-        ManifestProblem('api.config.smtp', 'must be a map of named accounts, each with host, port, user and pass'),
-      ];
-    }
-
-    final List<ManifestProblem> found = <ManifestProblem>[];
-
-    for (final MapEntry<Object?, Object?> entry in value.entries) {
-      final String account = entry.key.toString();
-
-      if (!_accountName.hasMatch(account)) {
-        found.add(ManifestProblem('api.config.smtp.$account', 'name must be lowercase letters, digits and underscore'));
-        continue;
-      }
-
-      final Object? fields = entry.value;
-      if (fields is! Map) {
-        found.add(ManifestProblem('api.config.smtp.$account', 'must be a map with host, port, user and pass'));
-        continue;
-      }
-
-      final bool blank = <String>[
-        'host',
-        'port',
-        'user',
-        'pass',
-      ].every((String field) => (fields[field]?.toString().trim() ?? '').isEmpty);
-      if (blank) continue;
-
-      for (final String field in <String>['host', 'port', 'user', 'pass']) {
-        if ((fields[field]?.toString().trim() ?? '').isEmpty) {
-          found.add(ManifestProblem('api.config.smtp.$account.$field', 'required once the account is filled in'));
-        }
-      }
-    }
-
-    return found;
   }
 
   String? _string(List<String> path) {
@@ -535,6 +426,14 @@ class ScribeManifest {
     return found;
   }
 
+  int? _int(List<String> path) {
+    final Object? value = read(path);
+    if (value is int) return value;
+    if (value == null) return null;
+
+    return int.tryParse(value.toString().trim());
+  }
+
   List<String> _strings(List<String> path) {
     final Object? value = read(path);
     if (value is! List) return const <String>[];
@@ -565,10 +464,6 @@ const List<String> secretFieldNames = <String>[
 final RegExp envReference = RegExp(r'^env\((?<name>[A-Z][A-Z0-9_]*)\)$');
 
 final RegExp _origin = RegExp(r'^https?://[A-Za-z0-9.-]+(:\d+)?$');
-
-final RegExp _countryCode = RegExp(r'^[A-Za-z]{2}$');
-
-final RegExp _accountName = RegExp(r'^[a-z][a-z0-9_]*$');
 
 Object? _plain(Object? node) {
   if (node is YamlMap) {

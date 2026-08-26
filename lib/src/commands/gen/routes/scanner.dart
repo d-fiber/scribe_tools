@@ -68,7 +68,7 @@ class RouteScanner {
   ///
   /// Throws a [ToolExit] when there is no `lib/src/` to scan.
   static Future<DiscoveredSource> discover() async {
-    final Directory src = globals.project.sources;
+    final Directory src = globals.project.lib;
     if (!src.existsSync()) {
       throwToolExit('[gen:routes] ${src.path} is missing: create lib/src/ first.');
     }
@@ -92,15 +92,15 @@ class RouteScanner {
     );
   }
 
-  /// The `_log.ts` files of the project root and of each node, in that order.
+  /// The `_logs.ts` of `lib/` and of each node, in that order.
   ///
-  /// Only those two places are looked at. A `_log.ts` deeper in a node would
+  /// Only those two places are looked at. A `_logs.ts` deeper in a node would
   /// read as though logging could be scoped to a subtree, which nothing
   /// delivers on: the host routes by node and knows nothing finer.
   List<DiscoveredSink> _sinksOf(Directory src, List<Directory> nodes) {
     final List<DiscoveredSink> sinks = <DiscoveredSink>[];
 
-    final File root = File(p.join(src.parent.path, '${Conventions.logName}${Conventions.sourceExtension}'));
+    final File root = File(p.join(src.path, '${Conventions.logName}${Conventions.sourceExtension}'));
     if (root.existsSync()) {
       sinks.add(DiscoveredSink(node: null, file: _relative(root.path)));
     }

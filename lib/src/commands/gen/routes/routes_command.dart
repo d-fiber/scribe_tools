@@ -39,6 +39,7 @@ import 'package:scribe_tools/src/commands/gen/routes/discovered_source.dart';
 import 'package:scribe_tools/src/commands/gen/routes/emitter.dart';
 import 'package:scribe_tools/src/commands/gen/routes/scanner.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
+import 'package:scribe_tools/src/nodes.dart';
 import 'package:scribe_tools/src/runner/scribe_command.dart';
 
 /// Scans `lib/src/` and writes the route table the worker reads at startup.
@@ -51,7 +52,9 @@ Future<void> generateRoutes() async {
       '// Run: $bin gen routes\n';
 
   await globals.project.generated.sdk.create();
-  await globals.project.generated.sdk.routes.writeAsString(RoutesEmitter(source).render(header));
+  await globals.project.generated.sdk.routes.writeAsString(
+    RoutesEmitter(source, declared: Nodes.load().all).render(header),
+  );
 
   globals.logger.printStatus(
     '${source.routes.length} paths on ${source.nodes.length} nodes, written to '

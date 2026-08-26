@@ -102,8 +102,8 @@ class CreateReport {
     globals.logger.printStatus(r'  $ scribe doctor');
     globals.logger.printStatus('');
     globals.logger.printStatus(
-      'Your project is declared in $projectName/${Project.configFileName}, and its code is in '
-      '$projectName/lib/${target.entrypointName}.',
+      'Your project is declared in $projectName/${Project.configFileName}, and '
+      'every node it serves is a directory under $projectName/lib/.',
     );
   }
 }

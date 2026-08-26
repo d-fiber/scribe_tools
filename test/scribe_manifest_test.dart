@@ -44,18 +44,15 @@ import 'package:test/test.dart';
 
 const String _minimal = '''
 name: "notes"
-url: "https://notes.example.com"
-email: "dev@notes.example.com"
 
-packages:
+dependencies:
   - auth
   - audience
 
 api:
-  config:
-    origins:
-      - "https://notes.example.com"
-    allowed_countries: ["FR"]
+  url: "https://notes.example.com"
+  cors:
+    - "https://notes.example.com"
 ''';
 
 late MemoryFileSystem fs;
@@ -86,37 +83,6 @@ void main() {
       expect(manifest.isComplete, isTrue);
       expect(manifest.name, 'notes');
       expect(manifest.packages, <String>['auth', 'audience']);
-      expect(manifest.allowedCountries, <String>['FR']);
-    });
-  });
-
-  test('a manifest that still spells the key dependencies mounts the same packages', () async {
-    await withEnvironment(const <String, String>{}, () {
-      final ScribeManifest manifest = manifestOf(_minimal.replaceFirst('packages:', 'dependencies:'));
-
-      expect(manifest.packages, <String>['auth', 'audience']);
-    });
-  });
-
-  test('a flag that is not a boolean is refused, since anything else reads as false', () async {
-    await withEnvironment(const <String, String>{}, () {
-      for (final String written in <String>['"true"', 'yes', 'maybe', '1']) {
-        final ScribeManifest manifest = manifestOf('$_minimal\nworker: $written\n');
-
-        expect(
-          manifest.problems.map((ManifestProblem problem) => problem.field),
-          contains('worker'),
-          reason: 'worker: $written would otherwise drop the worker profile from the rendered stack',
-        );
-      }
-    });
-  });
-
-  test('a flag written as a boolean is read, and says nothing', () async {
-    await withEnvironment(const <String, String>{}, () {
-      expect(manifestOf('$_minimal\nworker: true\n').worker, isTrue);
-      expect(manifestOf('$_minimal\nworker: false\n').worker, isFalse);
-      expect(manifestOf(_minimal).problems, isEmpty);
     });
   });
 
@@ -163,29 +129,21 @@ void main() {
     });
   });
 
-  test('packages wins over dependencies when a manifest carries both', () async {
-    await withEnvironment(const <String, String>{}, () {
-      final ScribeManifest manifest = manifestOf('$_minimal\ndependencies:\n  - storage\n');
-
-      expect(manifest.packages, <String>['auth', 'audience']);
-    });
-  });
-
   test('a missing required field is named, not guessed', () async {
     await withEnvironment(const <String, String>{}, () {
-      final ScribeManifest manifest = manifestOf(_minimal.replaceFirst('email: "dev@notes.example.com"', 'email: ""'));
+      final ScribeManifest manifest = manifestOf(_minimal.replaceFirst('name: "notes"', 'name: ""'));
 
-      expect(manifest.problems.map((ManifestProblem p) => p.field), contains('email'));
+      expect(manifest.problems.map((ManifestProblem p) => p.field), contains('name'));
     });
   });
 
   test('an origin with a path is refused', () async {
     await withEnvironment(const <String, String>{}, () {
       final ScribeManifest manifest = manifestOf(
-        _minimal.replaceFirst('      - "https://notes.example.com"', '      - "https://notes.example.com/api"'),
+        _minimal.replaceFirst('    - "https://notes.example.com"', '    - "https://notes.example.com/api"'),
       );
 
-      expect(manifest.problems.map((ManifestProblem p) => p.field), contains('api.config.origins'));
+      expect(manifest.problems.map((ManifestProblem p) => p.field), contains('api.cors'));
     });
   });
 

@@ -34,10 +34,10 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
-/// A `_log.ts` the scan found, and the node it answers for.
+/// A `_logs.ts` the scan found, and the node it answers for.
 ///
-/// [node] is null for `lib/_log.ts`, the sink that takes what no node claimed.
-/// A node without a `_log.ts` produces no entry at all, which is what makes
+/// [node] is null for `lib/_logs.ts`, the sink that takes what no node claimed.
+/// A node without a `_logs.ts` produces no entry at all, which is what makes
 /// "declare nothing and nothing is delivered" cost neither a branch nor a flag.
 class DiscoveredSink {
   /// Holds the sink of [node], written in [file].
@@ -46,6 +46,6 @@ class DiscoveredSink {
   /// The node this sink answers for, null for the one that takes what no node claimed.
   final String? node;
 
-  /// The `_log.ts` this sink is declared in, relative to the project root.
+  /// The `_logs.ts` this sink is declared in, relative to the project root.
   final String file;
 }
