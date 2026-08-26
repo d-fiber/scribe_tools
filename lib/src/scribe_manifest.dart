@@ -37,6 +37,7 @@
 import 'package:file/file.dart';
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
+import 'package:scribe_tools/src/ops/hardware.dart';
 import 'package:yaml/yaml.dart';
 
 /// The shortest password `api.auth` is allowed to accept.
@@ -206,6 +207,52 @@ class ScribeManifest {
     }
     return sources;
   }
+
+  /// The name a target takes when it means the machine this command runs on.
+  static const String hostMachine = 'host';
+
+  /// Every deployment target this project declares, in the order it wrote them.
+  ///
+  /// A target says which machine a stack is rendered for and how the sizing is
+  /// allowed to use it. Detection answers for the machine at hand, which is the
+  /// right answer only when the command runs where the stack will run, and that
+  /// is never the case when a workstation renders for a server.
+  ///
+  /// An empty map is the ordinary case: a project that never names one renders
+  /// for the machine it is on.
+  List<String> get targetNames {
+    final Object? value = read(<String>['targets']);
+    if (value is! Map) return const <String>[];
+
+    return <String>[for (final Object? key in value.keys) key.toString()];
+  }
+
+  /// The machine [target] declares, or null when it takes the one detected.
+  ///
+  /// Throws a `ToolExit` when the target is unknown, naming those that exist,
+  /// because a misspelled target that fell back to detection would render for
+  /// the wrong machine without a word.
+  Hardware? machineOf(String target) {
+    final List<String> declared = targetNames;
+    if (!declared.contains(target)) {
+      throwToolExit(
+        '${file.path} declares no target called "$target".\n'
+        '${declared.isEmpty ? 'It declares none at all: add a targets: block, or drop --target.' : 'It declares ${declared.join(', ')}.'}',
+      );
+    }
+
+    final String written = _string(<String>['targets', target, 'machine']) ?? hostMachine;
+    if (written == hostMachine) return null;
+
+    return Hardware.parse(written, field: 'targets.$target.machine');
+  }
+
+  /// Whether [target] asks for a hard CPU ceiling and not only a relative share.
+  ///
+  /// False by default. A relative share decides who yields under contention and
+  /// bounds nothing, which is what a dedicated machine wants. A machine shared
+  /// with anything else wants the ceiling, and pays for it in burst capacity.
+  bool cpuCapOf(String target) => read(<String>['targets', target, 'cpu_cap']) == true;
 
   /// The origins allowed to call the API.
   List<String> get origins => _strings(<String>['api', 'cors']);

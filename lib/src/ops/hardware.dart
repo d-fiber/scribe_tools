@@ -37,6 +37,7 @@
 import 'dart:io' as io;
 
 import 'package:file/file.dart';
+import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 
 /// The machine a stack is sized for.
@@ -60,6 +61,41 @@ class Hardware {
 
   @override
   String toString() => '$cores c / $threads t, $memoryGb Go';
+
+  /// The machine a target names, written as cores, threads and gibibytes.
+  ///
+  /// The shape is `8c/16t/32g`, and it is what a deployment declares when the
+  /// command does not run on the machine the stack will. Detection answers for
+  /// the machine at hand and cannot answer for another one: a render made on a
+  /// workstation for a server would otherwise size the server like the
+  /// workstation, which is the defect this exists to close.
+  ///
+  /// Throws a `ToolExit` naming the shape when [written] is not one, because a
+  /// machine read wrong is worse than a machine not declared: the render
+  /// succeeds and every limit is off.
+  static Hardware parse(String written, {required String field}) {
+    final RegExp shape = RegExp(r'^\s*(\d+)\s*c\s*/\s*(\d+)\s*t\s*/\s*(\d+)\s*g\s*$', caseSensitive: false);
+    final RegExpMatch? match = shape.firstMatch(written);
+    if (match == null) {
+      throwToolExit(
+        '$field holds "$written", which does not name a machine.\n'
+        'Write cores, threads and gibibytes, as in "8c/16t/32g", or "host" to read the machine this runs on.',
+      );
+    }
+
+    final int cores = int.parse(match.group(1)!);
+    final int threads = int.parse(match.group(2)!);
+    final int memoryGb = int.parse(match.group(3)!);
+
+    if (cores < 1 || threads < cores || memoryGb < 1) {
+      throwToolExit(
+        '$field holds "$written", which is not a machine that can exist.\n'
+        'A machine has at least one core, at least as many threads as cores, and at least one gibibyte.',
+      );
+    }
+
+    return Hardware(cores: cores, threads: threads, memoryGb: memoryGb);
+  }
 
   /// The machine this command is running on.
   static Future<Hardware> detect() async {
