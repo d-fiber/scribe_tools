@@ -14,7 +14,7 @@ services:
       - "{{sdk_root}}/provisioning/ops/proxy/caddy:/etc/caddy:z"
       - "caddy_data:/data"
       - "caddy_config:/config"
-      - "{{sdk_root}}/web/dashboard:/srv/dashboard:ro"
+      - "{{sdk_root}}/web/codex:/srv/dashboard:ro"
       - "./assets:/srv/public-assets:ro"
     environment:
       API_DOMAIN: "{{api_url}}"
