@@ -49,6 +49,9 @@ import 'package:scribe_tools/src/project.dart';
 /// where the cache belongs.
 const String kStackHomeVariable = 'SCRIBE_STACK_HOME';
 
+/// The directory the cache sits in, dotted when it lands in a home directory.
+const String cacheDirectoryName = 'scribe_cache';
+
 /// Where a project's assembled documents live, outside the project.
 ///
 /// The project keeps what its own code imports and nothing else. What only
@@ -64,8 +67,10 @@ class StackLocation {
   /// The root every project's cache sits under.
   ///
   /// `SCRIBE_STACK_HOME` wins when it is set. Otherwise the platform decides:
-  /// `XDG_CACHE_HOME` when the environment names one, and `~/.cache` when it
-  /// does not, which is also what Docker and most tools do on this machine.
+  /// `XDG_CACHE_HOME` when the environment names one, and the home directory
+  /// when it does not. The leading dot is only there in the second case, since
+  /// a cache root is already out of the way and a dotted directory inside it
+  /// would be hidden twice.
   Directory get home {
     final Map<String, String> environment = globals.platform.environment;
 
@@ -73,11 +78,11 @@ class StackLocation {
     if (named != null && named.isNotEmpty) return globals.fs.directory(named);
 
     final String? xdg = environment['XDG_CACHE_HOME'];
-    if (xdg != null && xdg.isNotEmpty) return globals.fs.directory(p.join(xdg, 'scribe'));
+    if (xdg != null && xdg.isNotEmpty) return globals.fs.directory(p.join(xdg, cacheDirectoryName));
 
     final String home = environment['HOME'] ?? environment['USERPROFILE'] ?? '.';
 
-    return globals.fs.directory(p.join(home, '.cache', 'scribe'));
+    return globals.fs.directory(p.join(home, '.$cacheDirectoryName'));
   }
 
   /// The twelve hexadecimal characters that stand for this project's path.
