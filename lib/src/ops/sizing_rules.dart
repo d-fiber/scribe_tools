@@ -36,6 +36,7 @@
 
 import 'dart:math' as math;
 
+import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/ops/capacity.dart';
 import 'package:scribe_tools/src/ops/hardware.dart';
 
@@ -93,7 +94,38 @@ class SizingRules {
     _ => 1,
   };
 
-  double _memoryFor(String service) => _budget * capacity.shareOf(service) / _replicasFor(service);
+  /// The memory limit one container of [service] gets, in mebibytes.
+  ///
+  /// A share of the budget, never below the floor the capacity file declares
+  /// under `min`. The floor is per container and so is compared against the
+  /// share after it has been split, because it is what one container needs to
+  /// hold its own working set rather than what the service needs in total.
+  double _memoryFor(ServiceCapacity service) =>
+      math.max(service.minMib.toDouble(), _budget * capacity.shareOf(service.key) / _replicasFor(service.key));
+
+  /// What the services that start need between them before any of them answers.
+  ///
+  /// A replicated service counts once per container, since that is how many
+  /// floors the machine actually has to seat.
+  int get _floorTotal =>
+      capacity.starting.fold(0, (int sum, ServiceCapacity s) => sum + s.minMib * _replicasFor(s.key));
+
+  /// Refuses a machine whose budget cannot seat the floors of what starts.
+  ///
+  /// Handing each service its floor anyway would promise more memory than the
+  /// machine has, which Compose accepts and the kernel settles later by killing
+  /// whichever container reached for the last of it.
+  void _refuseAMachineTooSmall() {
+    final int floors = _floorTotal;
+    if (floors <= _budget) return;
+
+    throwToolExit(
+      'The stack does not fit on $hardware: the budget leaves ${_budget.round()} MiB to share out, and the services '
+      'that start need $floors MiB between them before any of them answers, so ${(floors - _budget).round()} MiB is '
+      'missing.\n'
+      'Give the machine more memory, or drop a package from config.yaml so that fewer services claim a floor.',
+    );
+  }
 
   int _parallelism(int divisor) => _clamp(hardware.cores / divisor, 1, 16);
 
@@ -103,10 +135,12 @@ class SizingRules {
   /// neither a limit nor a setting, because the fragment that would have read
   /// them is not merged either.
   Map<String, String> resolve() {
+    _refuseAMachineTooSmall();
+
     final Map<String, String> values = <String, String>{};
 
     for (final ServiceCapacity service in capacity.services) {
-      final double limit = _memoryFor(service.key);
+      final double limit = _memoryFor(service);
       values['${service.key}_mem_limit'] = _mib(limit);
       if (!service.isOneShot) {
         values['${service.key}_mem_res'] = _mib(limit * _reservationShare);
@@ -169,7 +203,7 @@ class SizingRules {
   /// `functions` are both `deno` and only one bounds its heap, `auth` and `nats`
   /// are both `go` and only one takes a database pool.
   Map<String, String> _tunables(ServiceCapacity service) {
-    final double memory = _memoryFor(service.key);
+    final double memory = _memoryFor(service);
 
     return switch (service.key) {
       'db' => <String, String>{
@@ -196,16 +230,10 @@ class SizingRules {
         'redis_io_threads': '${_clamp(hardware.cores / 8, 1, 8)}',
         'redis_io_threads_do_reads': hardware.cores > 8 ? 'yes' : 'no',
       },
-      // The floor used to be 64, applied without looking at what the replica was
-      // actually given: on a machine with more threads than gibibytes the api
-      // replica gets ~53 MiB and V8 was still told it could take 64, so the
-      // process was allowed past its own cgroup before the collector felt any
-      // pressure. 16 matches the floor `_mib` already applies to the limits
-      // themselves, which keeps the flag under the container on every shape.
-      //
-      // This bounds the V8 heap and nothing else. Request bodies live in external
-      // buffers the flag does not govern, so it is not the lever for an OOM under
-      // load. See `.claude/scribe/ops/global.md`.
+      // The lower bound of 16 matches the one `_mib` applies to the limits
+      // themselves, so the flag stays under the container on every shape. It
+      // bounds the V8 heap and nothing else, which is why it is not the lever
+      // for an OOM under load. See `.claude/scribe/ops/global.md`.
       'api' => <String, String>{
         'api_max_old_space': '${_clamp(memory * _oldSpaceShare - _v8Overhead, 16, 8192)}',
         // Request bodies live in external buffers, outside the heap the flag
@@ -221,7 +249,14 @@ class SizingRules {
         'kong_nginx_worker_processes': '${_parallelism(4)}',
         'kong_keepalive_pool': '${_clamp(hardware.cores * 32, 128, 2048)}',
       },
-      'nats' => <String, String>{'nats_gomaxprocs': '${_parallelism(6)}'},
+      'nats' => <String, String>{
+        'nats_gomaxprocs': '${_parallelism(6)}',
+        // A stream nobody trims fills the host disk, and the cluster shares it.
+        // Half the queue's own budget is what JetStream may keep, which bounds
+        // the damage to what the machine already set aside for it.
+        'nats_store_limit': '${(memory * 0.50).round()}MB',
+        'nats_memory_store': '${(memory * 0.25).round()}MB',
+      },
       'storage' => <String, String>{'storage_uv_threadpool': '${_clamp(hardware.cores / 2, 4, 16)}'},
       'imgproxy' => <String, String>{
         'imgproxy_gomaxprocs': '${_parallelism(4)}',
@@ -264,9 +299,9 @@ class SizingRules {
   /// OOM killer arrived long before `MAX_CONNECTIONS` ever did. Both bounds are
   /// therefore applied, and the smaller one wins.
   ///
-  /// The floor of a hundred is what a container under the declared minimum gets.
-  /// It cannot serve at that size, and a number it can survive says so more
-  /// usefully than one it cannot.
+  /// The lower bound of a hundred is out of reach while the service declares a
+  /// floor above its idle footprint, and stands for a capacity file that lowers
+  /// one or raises the other.
   int _realtimeConnections(double memory) {
     final double seated = (memory - _realtimeIdleMib) * 1024 / _realtimeConnectionKib;
     return _clamp(math.min(hardware.threads * 2000, seated), 100, 64000);

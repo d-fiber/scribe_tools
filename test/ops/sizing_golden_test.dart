@@ -44,8 +44,11 @@ import 'package:test/test.dart';
 import 'capacity_source.dart';
 
 /// The shapes the golden was taken on, and the labels it keys them by.
+///
+/// Two gibibytes is not among them, because a project that mounts every package
+/// asks for more than such a machine has: `sizing_floor_test.dart` holds the
+/// refusal it gets instead of a table.
 const Map<String, Hardware> _shapes = <String, Hardware>{
-  '1c2t2g': Hardware(cores: 1, threads: 2, memoryGb: 2),
   '2c4t4g': Hardware(cores: 2, threads: 4, memoryGb: 4),
   '4c8t8g': Hardware(cores: 4, threads: 8, memoryGb: 8),
   '8c16t32g': Hardware(cores: 8, threads: 16, memoryGb: 32),

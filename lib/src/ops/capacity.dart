@@ -112,10 +112,18 @@ class Capacity {
   /// Gathers [services], budgeting only those that start under [profiles].
   Capacity(List<ServiceCapacity> services, {Set<String> profiles = const <String>{}})
     : services = List<ServiceCapacity>.unmodifiable(services),
+      profiles = Set<String>.unmodifiable(profiles),
       total = services
           .where((ServiceCapacity service) => service.startsUnder(profiles))
           .fold<int>(0, (int sum, ServiceCapacity service) => sum + service.weight),
       _byKey = <String, ServiceCapacity>{for (final ServiceCapacity service in services) service.key: service};
+
+  /// The Compose profiles the selection switches on.
+  ///
+  /// Held rather than only summed into [total] because [starting] answers a
+  /// second question the budget asks: which services are actually going to be
+  /// started, and so which of their floors the machine has to seat.
+  final Set<String> profiles;
 
   /// Every declared service, in the order the files were read.
   ///
@@ -186,6 +194,12 @@ class Capacity {
 
     return service.weight / total;
   }
+
+  /// Every service that starts, and so every service that holds a share.
+  ///
+  /// The complement of what [total] leaves out: a service behind a profile
+  /// nobody switched on is declared, gets a limit written, and is not here.
+  Iterable<ServiceCapacity> get starting => services.where((ServiceCapacity s) => s.startsUnder(profiles));
 
   /// Every service whose container count depends on the machine.
   Iterable<ServiceCapacity> get replicated => services.where((ServiceCapacity s) => s.isReplicated);
