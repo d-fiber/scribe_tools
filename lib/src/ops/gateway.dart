@@ -165,8 +165,62 @@ class GatewayRender {
           .join('\n\n'),
       'api_node_acls': nodes.where(_keyed).map(_acl).join('\n'),
       'app_key_consumers': nodes.where(_keyed).map(_consumer).join('\n'),
+      'codex_service': _codexService(project.manifest.dashboard),
       for (final Package package in active) '${package.name}_cors_origins': origins,
     };
+  }
+
+  /// The service the dashboard reads its gauges through, empty when none is served.
+  ///
+  /// Two conditions guard it and neither is enough alone. The host match means a
+  /// request on the public domain never reaches the route at all, so the surface
+  /// is not merely unadvertised there. The key and the group mean a browser that
+  /// resolves the dashboard's domain still answers for itself, because that
+  /// domain is public DNS like any other.
+  static String _codexService(String dashboard) {
+    if (dashboard.isEmpty) return '';
+
+    final String host = Uri.parse(dashboard).host;
+    if (host.isEmpty) {
+      throwToolExit('config.yaml declares a dashboard at "$dashboard", which names no host.');
+    }
+
+    return <String>[
+      '- name: codex',
+      '  protocol: http',
+      '  host: api-upstream',
+      '  port: 3000',
+      '  path: /_codex',
+      '  read_timeout: 15000',
+      '  write_timeout: 15000',
+      '  connect_timeout: 15000',
+      '  routes:',
+      '    - name: codex-route',
+      '      strip_path: true',
+      '      methods:',
+      '        - GET',
+      '      hosts:',
+      '        - $host',
+      '      paths:',
+      '        - /_codex',
+      '  plugins:',
+      '    - name: key-auth',
+      '      config:',
+      '        key_names:',
+      '          - apikey',
+      '        key_in_query: false',
+      '    - name: acl',
+      '      config:',
+      '        allow:',
+      '          - admin',
+      '    - name: rate-limiting',
+      '      config:',
+      '        second: 10',
+      '        minute: 300',
+      '        limit_by: ip',
+      '        policy: local',
+      '        fault_tolerant: true',
+    ].join('\n');
   }
 
   String _originsBlock(List<String> origins, String field) {

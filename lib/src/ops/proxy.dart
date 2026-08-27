@@ -110,6 +110,15 @@ class ProxyRender {
       '\timport security_headers DENY',
       '\timport compression',
       '',
+      // The gauges are read by the page this block serves, and by nothing else:
+      // the gateway matches `/_codex` on this host only, and asks for a key on
+      // top. Serving it from the public site would put a load report behind a
+      // domain anyone knows.
+      '\thandle_path /codex/* {',
+      '\t\trewrite * /_codex{uri}',
+      '\t\treverse_proxy kong:8000',
+      '\t}',
+      '',
       '\troot * /srv/web/codex',
       '',
       '\t@built file /index.html',
