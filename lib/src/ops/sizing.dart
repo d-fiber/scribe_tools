@@ -246,27 +246,31 @@ class ComposeRender {
       'stack_env': StackLocation(project: project).env.absolute.path,
       for (final String service in SocleOps().serviceNames)
         'service_$service': StackLocation(project: project).services.childDirectory(service).absolute.path,
-      'project_db_init': _projectDatabaseInit(StackLocation(project: project).services).absolute.path,
+      'project_db_init': _projectDatabaseDirectory(StackLocation(project: project).services, 'init').absolute.path,
+      'project_db_migrations': _projectDatabaseDirectory(
+        StackLocation(project: project).services,
+        'migrations',
+      ).absolute.path,
       'worker_endpoint': withWorker ? workerEndpoint : '',
       'api_url': project.manifest.apiUrl,
       'node_key_variables': nodeKeyVariables(project),
     };
   }
 
-  /// The directory the database reads the project's own SQL from.
+  /// The directory a service reads the project's own `db/<name>` from.
   ///
-  /// `db/init` under the project when it ships SQL, and an empty directory of the
+  /// The project's directory when it ships one, and an empty directory of the
   /// stack otherwise. Never a path that is missing: a bind whose source is absent
-  /// makes the daemon create it, and a project with no SQL would find an empty
-  /// `db/init` appear at its root, which the node check then reports as a
+  /// makes the daemon create it, so a project with no SQL used to find an empty
+  /// `lib/db/` appear at its root, which the node check then reports as a
   /// directory nothing declares.
-  Directory _projectDatabaseInit(Directory services) {
-    final Directory declared = project.directory.childDirectory('db').childDirectory('init');
+  Directory _projectDatabaseDirectory(Directory services, String name) {
+    final Directory declared = project.directory.childDirectory('db').childDirectory(name);
     if (declared.existsSync()) {
       return declared;
     }
 
-    return services.childDirectory(databaseServiceName).childDirectory('project-init')..createSync(recursive: true);
+    return services.childDirectory(databaseServiceName).childDirectory('project-$name')..createSync(recursive: true);
   }
 
   void _reportSelection(Packages packages, List<Package> active, List<String> profiles) {
