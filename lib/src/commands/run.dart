@@ -43,6 +43,7 @@ import 'package:scribe_tools/src/ops/hardware.dart';
 import 'package:scribe_tools/src/ops/sizing.dart';
 import 'package:scribe_tools/src/runner/scribe_command.dart';
 import 'package:scribe_tools/src/stack/compose.dart';
+import 'package:scribe_tools/src/stack/router.dart';
 import 'package:scribe_tools/src/stack/stack_location.dart';
 import 'package:scribe_tools/src/stack/stack_manifest.dart';
 import 'package:scribe_tools/src/tools.dart';
@@ -129,8 +130,29 @@ class RunCommand extends ScribeCommand {
 
     if (!boolArg('force')) await refuseForeignCheckout(compose);
 
+    const Router router = Router();
+    if (!await router.ensureUp()) {
+      throwToolExit('The router of this machine did not start, so nothing would be reachable.');
+    }
+
+    final List<String> taken = await router.hostnamesTakenBesides(manifest.projectName);
+    final List<String> clashing = documents.hostnames.where(taken.contains).toList();
+    if (clashing.isNotEmpty) {
+      throwToolExit(
+        'Another project on this machine already answers on ${clashing.join(', ')}.\n'
+        'Two projects cannot share a hostname: rename this one in config.yaml, or stop the other.',
+      );
+    }
+
     globals.logger.printStatus('Starting ${manifest.projectName}...');
 
-    return await compose.up() == 0 ? const ScribeCommandResult.success() : const ScribeCommandResult.fail();
+    if (await compose.up() != 0) {
+      return const ScribeCommandResult.fail();
+    }
+
+    await router.attach('${manifest.projectName}_default');
+    globals.logger.printStatus('It answers on http://${documents.hostnames.first}');
+
+    return const ScribeCommandResult.success();
   }
 }

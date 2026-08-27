@@ -104,6 +104,7 @@ String overlayFileName(String label) => 'overlay.${label.replaceAll('/', '-')}.y
 class ComposeDocuments {
   /// Holds what Compose reads and what it has to be told to read it with.
   const ComposeDocuments({
+    required this.hostnames,
     required this.files,
     required this.profiles,
     required this.projectDirectory,
@@ -126,6 +127,13 @@ class ComposeDocuments {
 
   /// The name Docker knows this stack by, taken from `config.yaml`.
   final String projectName;
+
+  /// Every hostname the router will answer this stack on.
+  ///
+  /// The project's own name under `.scribe.localhost`, so a machine running ten
+  /// projects reaches each without naming a port, and the domain the manifest
+  /// declares, which is the one a deployment answers on.
+  final List<String> hostnames;
 }
 
 /// The compose documents of a project, rendered from the templates the tool ships.
@@ -227,8 +235,15 @@ class ComposeRender {
       profiles: profiles,
       projectDirectory: project.directory.absolute.path,
       projectName: project.manifest.name.toSnakeCase(),
+      hostnames: _hostnames(),
     );
   }
+
+  /// Every hostname this stack claims, in the order the labels write them.
+  List<String> _hostnames() => <String>[
+    '${project.manifest.name.toSnakeCase()}.scribe.localhost',
+    Uri.parse(project.manifest.apiUrl).host,
+  ].where((String host) => host.isNotEmpty).toList();
 
   /// The values that name the project rather than size it.
   Map<String, String> _identity() {
@@ -253,6 +268,7 @@ class ComposeRender {
       ).absolute.path,
       'worker_endpoint': withWorker ? workerEndpoint : '',
       'api_url': project.manifest.apiUrl,
+      'api_host': Uri.parse(project.manifest.apiUrl).host,
       'node_key_variables': nodeKeyVariables(project),
     };
   }

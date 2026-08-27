@@ -46,6 +46,9 @@ const String servicesDirectoryName = 'services';
 /// The directory the environment files a service reads sit in.
 const String envDirectoryName = 'env';
 
+/// The directory the machine's shared router is described in.
+const String routerDirectoryName = 'router';
+
 /// The document every merged template is built onto.
 const String stackTemplate = 'stack.yaml';
 
