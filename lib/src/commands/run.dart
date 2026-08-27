@@ -150,7 +150,7 @@ class RunCommand extends ScribeCommand {
       return const ScribeCommandResult.fail();
     }
 
-    await router.attach('${manifest.projectName}_default');
+    await router.attach('${manifest.projectName}_edge');
     globals.logger.printStatus('It answers on http://${documents.hostnames.first}');
 
     return const ScribeCommandResult.success();
