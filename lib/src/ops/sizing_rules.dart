@@ -44,6 +44,7 @@ const double _budgetShare = 0.80;
 const double _reservationShare = 0.47;
 const double _oldSpaceShare = 0.70;
 const int _v8Overhead = 96;
+const int _bootableHeap = 32;
 const double _inflightBodyShare = 0.15;
 
 const int _minShares = 256;
@@ -238,12 +239,13 @@ class SizingRules {
         'redis_io_threads': '${_clamp(hardware.cores / 8, 1, 8)}',
         'redis_io_threads_do_reads': hardware.cores > 8 ? 'yes' : 'no',
       },
-      // The lower bound of 16 matches the one `_mib` applies to the limits
-      // themselves, so the flag stays under the container on every shape. It
-      // bounds the V8 heap and nothing else, which is why it is not the lever
-      // for an OOM under load. See `.claude/scribe/ops/global.md`.
+      // The lower bound is the smallest heap this engine was seen to boot on:
+      // at 16 MiB it dies with `Fatal JavaScript out of memory` before serving
+      // anything, and at 32 MiB it answers. A service that reaches the bound
+      // has a floor too low for its runtime, and the bound keeps it bootable
+      // instead of hiding the mistake behind a restart loop.
       'api' => <String, String>{
-        'api_max_old_space': '${_clamp(memory * _oldSpaceShare - _v8Overhead, 16, 8192)}',
+        'api_max_old_space': '${_clamp(memory * _oldSpaceShare - _v8Overhead, _bootableHeap, 8192)}',
         // Request bodies live in external buffers, outside the heap the flag
         // above bounds. The two therefore add up, and the budget was a fixed
         // 256 MiB against replicas that can be smaller than that. Fifteen
@@ -251,7 +253,7 @@ class SizingRules {
         'api_max_inflight_body': '${_clamp(memory * _inflightBodyShare, 8, 1024)}',
       },
       'worker' => <String, String>{
-        'worker_max_old_space': '${_clamp(memory * _oldSpaceShare - _v8Overhead, 16, 8192)}',
+        'worker_max_old_space': '${_clamp(memory * _oldSpaceShare - _v8Overhead, _bootableHeap, 8192)}',
       },
       'kong' => <String, String>{
         'kong_nginx_worker_processes': '${_parallelism(4)}',
