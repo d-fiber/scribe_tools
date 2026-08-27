@@ -33,30 +33,26 @@
 //
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
+import 'package:scribe_tools/src/commands/gen/code/generators/config/declarations.dart';
+import 'package:scribe_tools/src/commands/gen/code/generators/config/registrations.dart';
+import 'package:scribe_tools/src/commands/gen/code/generators/config/scribe_config.dart';
+import 'package:scribe_tools/src/commands/gen/code/generators/schema/enums.dart';
+import 'package:scribe_tools/src/commands/gen/code/generators/schema/tables.dart';
+import 'package:scribe_tools/src/commands/gen/code/relations/relations.dart';
 
-import 'package:scribe_tools/src/commands/gen/code/generate.dart';
-import 'package:scribe_tools/src/runner/scribe_command.dart';
-
-/// Rewrites the generated TypeScript a project imports, from `config.yaml` and the SQL.
-class GenCodeCommand extends ScribeCommand {
-  /// Takes no option: everything it writes comes from `config.yaml` and the SQL.
-  GenCodeCommand();
-
-  @override
-  String get name => 'code';
-
-  @override
-  String get description =>
-      'Rewrite the import map, the enums, the row and table types, the relations and the '
-      'declarations found under lib/, from config.yaml and the project SQL.';
-
-  @override
-  bool get requiresCompleteManifest => true;
-
-  @override
-  Future<ScribeCommandResult> runCommand() async {
-    await generateProjectCode();
-
-    return const ScribeCommandResult.success();
-  }
+/// Rewrites every generated file a project imports, from `config.yaml` and the SQL.
+///
+/// The order is fixed: the import map has to exist before the declarations that
+/// resolve through it, and the enums before the tables that name them.
+///
+/// A container reads three of these files, so assembling a stack runs this first.
+/// Started without them the engine finds no import map, or finds one and registers
+/// no node, and answers every route with its own 404 while reporting itself
+/// healthy.
+Future<void> generateProjectCode() async {
+  await generateScribeConfig();
+  await generateRegistrations();
+  await generateDeclarations();
+  await generateTables(await generateEnums());
+  await generateRelations();
 }

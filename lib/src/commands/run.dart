@@ -36,6 +36,8 @@
 
 import 'package:file/file.dart';
 import 'package:scribe_tools/src/base/common.dart';
+import 'package:scribe_tools/src/commands/gen/code/generate.dart';
+import 'package:scribe_tools/src/commands/gen/routes/routes_command.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/ops/hardware.dart';
 import 'package:scribe_tools/src/ops/sizing.dart';
@@ -94,6 +96,9 @@ class RunCommand extends ScribeCommand {
 
   @override
   Future<ScribeCommandResult> runCommand() async {
+    await generateProjectCode();
+    await generateRoutes();
+
     final ComposeDocuments documents = await ComposeRender(
       project: project,
       withWorker: boolArg('worker'),
