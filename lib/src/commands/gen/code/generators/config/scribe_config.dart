@@ -85,6 +85,7 @@ Future<void> generateScribeConfig() async {
       projectRoot: '/app/lib/',
       assetsRoot: '/app/assets/',
       doors: doors,
+      lock: false,
     ),
   );
 

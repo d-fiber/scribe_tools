@@ -132,6 +132,11 @@ Map<String, String> mountedDoors(Directory checkout, Map<String, dynamic> framew
 /// a project has no reason to reach through it. The map also compiles the host
 /// itself, and the host does. Keeping a project out of there is a convention,
 /// not something an import map can enforce.
+///
+/// [lock] is false for the copy the container reads. Deno writes its lockfile
+/// beside the configuration it was given, and the project is mounted read-only
+/// there, so a runtime that keeps the lock dies on the first import with a write
+/// error naming a file nobody asked for.
 String renderImportMap(
   Map<String, dynamic> frameworkConfig,
   Map<String, String> inherited, {
@@ -139,6 +144,7 @@ String renderImportMap(
   required String projectRoot,
   required String assetsRoot,
   required Map<String, String> doors,
+  bool lock = true,
 }) {
   final String engine = '${frameworkRoot}engine/';
 
@@ -157,6 +163,7 @@ String renderImportMap(
       globals.project.generatedAlias: './',
       '@generated/': './',
     },
+    if (!lock) 'lock': false,
     if (frameworkConfig['compilerOptions'] != null) 'compilerOptions': frameworkConfig['compilerOptions'],
     if (frameworkConfig['fmt'] != null) 'fmt': frameworkConfig['fmt'],
   };
