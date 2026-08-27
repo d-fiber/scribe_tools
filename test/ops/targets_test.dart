@@ -51,12 +51,20 @@ api:
     - "https://koko.example.com"
 targets:
   local:
+    kind: dev
     machine: host
   vps:
-    machine: 4c/8t/4g
+    kind: machine
+    machine:
+      cores: 4
+      threads: 8
+      memory: 4g
     cpu_cap: true
   big:
-    machine: 8c/16t/24g
+    machine:
+      cores: 8
+      threads: 16
+      memory: 24g
 ''';
 
 late MemoryFileSystem fs;
@@ -82,31 +90,82 @@ void main() {
 
   group('a machine written as a target', () {
     test('is read as cores, threads and gibibytes', () {
-      final Hardware machine = Hardware.parse('4c/8t/4g', field: 'targets.vps.machine');
+      final Hardware machine = Hardware.parse(<Object?, Object?>{
+        'cores': 4,
+        'threads': 8,
+        'memory': '4g',
+      }, field: 'targets.vps.machine');
 
       expect(machine.cores, 4);
       expect(machine.threads, 8);
       expect(machine.memoryGb, 4);
     });
 
-    test('is read whatever the spacing and the case', () {
-      expect(Hardware.parse(' 8C / 16T / 24G ', field: 'x').cores, 8);
+    test('takes memory with the gibibyte suffix or without it', () {
+      final Map<Object?, Object?> bare = <Object?, Object?>{'cores': 8, 'threads': 16, 'memory': 24};
+
+      expect(Hardware.parse(bare, field: 'x').memoryGb, 24);
+      expect(Hardware.parse(<Object?, Object?>{...bare, 'memory': ' 24G '}, field: 'x').memoryGb, 24);
     });
 
-    for (final String written in <String>['8c/16t', '8/16/24', 'huit coeurs', '8c/16t/24', '']) {
-      test('"$written" is refused instead of read as something', () {
+    for (final MapEntry<String, Map<Object?, Object?>> written in <String, Map<Object?, Object?>>{
+      'a core count that is not a number': <Object?, Object?>{'cores': 'huit', 'threads': 16, 'memory': '24g'},
+      'a memory that names no gibibytes': <Object?, Object?>{'cores': 8, 'threads': 16, 'memory': 'beaucoup'},
+      'nothing at all': <Object?, Object?>{},
+    }.entries) {
+      test('${written.key} is refused instead of read as something', () {
         expect(
-          () => Hardware.parse(written, field: 'targets.vps.machine'),
-          throwsA(isA<ToolExit>().having((ToolExit e) => e.message, 'message', contains('8c/16t/32g'))),
+          () => Hardware.parse(written.value, field: 'targets.vps.machine'),
+          throwsA(isA<ToolExit>().having((ToolExit e) => e.message, 'message', contains('targets.vps.machine'))),
         );
       });
     }
 
-    for (final String written in <String>['0c/1t/1g', '8c/4t/8g', '8c/16t/0g']) {
-      test('"$written" is refused as a machine that cannot exist', () {
-        expect(() => Hardware.parse(written, field: 'x'), throwsA(isA<ToolExit>()));
+    for (final MapEntry<String, Map<Object?, Object?>> written in <String, Map<Object?, Object?>>{
+      'no core': <Object?, Object?>{'cores': 0, 'threads': 1, 'memory': '1g'},
+      'fewer threads than cores': <Object?, Object?>{'cores': 8, 'threads': 4, 'memory': '8g'},
+      'no memory': <Object?, Object?>{'cores': 8, 'threads': 16, 'memory': '0g'},
+    }.entries) {
+      test('${written.key} is refused as a machine that cannot exist', () {
+        expect(() => Hardware.parse(written.value, field: 'x'), throwsA(isA<ToolExit>()));
       });
     }
+  });
+
+  group('the kind a target declares', () {
+    test('is what it wrote', () async {
+      await withEnvironment(const <String, String>{}, () {
+        expect(manifestOf(_manifest).kindOf('local'), TargetKind.dev);
+        expect(manifestOf(_manifest).kindOf('vps'), TargetKind.machine);
+      });
+    });
+
+    test('is a machine when the target names none, which is what a target used to mean', () async {
+      await withEnvironment(const <String, String>{}, () {
+        expect(manifestOf(_manifest).kindOf('big'), TargetKind.machine);
+      });
+    });
+
+    test('is refused when it names something that is not a kind', () async {
+      await withEnvironment(const <String, String>{}, () {
+        expect(
+          () => manifestOf(_manifest.replaceFirst('kind: dev', 'kind: laptop')).kindOf('local'),
+          throwsA(isA<ToolExit>().having((ToolExit e) => e.message, 'message', contains('dev, machine, paas'))),
+        );
+      });
+    });
+
+    test('names the platform a paas target deploys onto, and nothing for the others', () async {
+      await withEnvironment(const <String, String>{}, () {
+        final ScribeManifest manifest = manifestOf(
+          _manifest.replaceFirst('  big:', '  cloud:\n    kind: paas\n    platform: fly\n  big:'),
+        );
+
+        expect(manifest.kindOf('cloud'), TargetKind.paas);
+        expect(manifest.platformOf('cloud'), 'fly');
+        expect(manifest.platformOf('vps'), '');
+      });
+    });
   });
 
   group('the targets a manifest declares', () {

@@ -62,39 +62,62 @@ class Hardware {
   @override
   String toString() => '$cores c / $threads t, $memoryGb Go';
 
-  /// The machine a target names, written as cores, threads and gibibytes.
+  /// The machine a target declares, read from the three keys it names it with.
   ///
-  /// The shape is `8c/16t/32g`, and it is what a deployment declares when the
-  /// command does not run on the machine the stack will. Detection answers for
-  /// the machine at hand and cannot answer for another one: a render made on a
-  /// workstation for a server would otherwise size the server like the
-  /// workstation, which is the defect this exists to close.
+  /// A deployment writes it when the command does not run on the machine the
+  /// stack will. Detection answers for the machine at hand and cannot answer for
+  /// another one: a render made on a workstation for a server would otherwise
+  /// size the server like the workstation, which is the defect this exists to
+  /// close.
   ///
-  /// Throws a `ToolExit` naming the shape when [written] is not one, because a
-  /// machine read wrong is worse than a machine not declared: the render
-  /// succeeds and every limit is off.
-  static Hardware parse(String written, {required String field}) {
-    final RegExp shape = RegExp(r'^\s*(\d+)\s*c\s*/\s*(\d+)\s*t\s*/\s*(\d+)\s*g\s*$', caseSensitive: false);
-    final RegExpMatch? match = shape.firstMatch(written);
-    if (match == null) {
-      throwToolExit(
-        '$field holds "$written", which does not name a machine.\n'
-        'Write cores, threads and gibibytes, as in "8c/16t/32g", or "host" to read the machine this runs on.',
-      );
-    }
-
-    final int cores = int.parse(match.group(1)!);
-    final int threads = int.parse(match.group(2)!);
-    final int memoryGb = int.parse(match.group(3)!);
+  /// ```yaml
+  /// machine:
+  ///   cores: 4
+  ///   threads: 8
+  ///   memory: 8g
+  /// ```
+  ///
+  /// Throws a `ToolExit` naming the key at fault, because a machine read wrong is
+  /// worse than a machine not declared: the render succeeds and every limit is
+  /// off by the ratio between the two machines.
+  static Hardware parse(Map<Object?, Object?> declared, {required String field}) {
+    final int cores = _whole(declared['cores'], field: '$field.cores');
+    final int threads = _whole(declared['threads'], field: '$field.threads');
+    final int memoryGb = _gibibytes(declared['memory'], field: '$field.memory');
 
     if (cores < 1 || threads < cores || memoryGb < 1) {
       throwToolExit(
-        '$field holds "$written", which is not a machine that can exist.\n'
+        '$field names a machine that cannot exist: $cores cores, $threads threads, $memoryGb Go.\n'
         'A machine has at least one core, at least as many threads as cores, and at least one gibibyte.',
       );
     }
 
     return Hardware(cores: cores, threads: threads, memoryGb: memoryGb);
+  }
+
+  /// [value] as a whole number, refusing anything a count cannot be.
+  static int _whole(Object? value, {required String field}) {
+    final int? read = value is int ? value : int.tryParse('$value'.trim());
+    if (read == null) {
+      throwToolExit('$field holds "$value", which is not a whole number.');
+    }
+
+    return read;
+  }
+
+  /// [value] as gibibytes, written with the `g` a reader expects or without it.
+  ///
+  /// The suffix is optional because `memory: 8` and `memory: 8g` mean the same
+  /// thing to anyone reading the file, and refusing one of them would be a rule
+  /// nobody could guess.
+  static int _gibibytes(Object? value, {required String field}) {
+    final String written = '$value'.trim().toLowerCase();
+    final int? read = int.tryParse(written.endsWith('g') ? written.substring(0, written.length - 1) : written);
+    if (read == null) {
+      throwToolExit('$field holds "$value", which does not name a number of gibibytes, as in "8g".');
+    }
+
+    return read;
   }
 
   /// The machine this command is running on.

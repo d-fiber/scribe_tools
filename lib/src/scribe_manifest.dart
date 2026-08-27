@@ -58,6 +58,23 @@ class ManifestProblem {
   String toString() => '$field: $reason';
 }
 
+/// What a target deploys onto.
+///
+/// It is read once, at the top of a render, so that what changes between a
+/// workstation and a shared host is one branch rather than a flag per
+/// service that drifts apart from the others.
+enum TargetKind {
+  /// A workstation, where the stack publishes its own port and runs no router.
+  dev,
+
+  /// A host the operator owns, where one router holds 80 and 443 for every
+  /// project on it.
+  machine,
+
+  /// Somebody else's machine, which imposes its sizing and its own way in.
+  paas,
+}
+
 /// A project's `config.yaml`, read and checked.
 ///
 /// Reading is case-insensitive on keys and resolves `env(NAME)` references
@@ -241,11 +258,44 @@ class ScribeManifest {
       );
     }
 
-    final String written = _string(<String>['targets', target, 'machine']) ?? hostMachine;
-    if (written == hostMachine) return null;
+    final Object? written = read(<String>['targets', target, 'machine']);
+    if (written == null || written == hostMachine) return null;
+
+    if (written is! Map) {
+      throwToolExit(
+        'targets.$target.machine holds "$written", which does not name a machine.\n'
+        'Write cores, threads and memory under it, or "$hostMachine" to read the machine this runs on.',
+      );
+    }
 
     return Hardware.parse(written, field: 'targets.$target.machine');
   }
+
+  /// What [target] deploys onto, which decides the shape of the render.
+  ///
+  /// `dev` is a workstation: nothing owns port 80 there, so the stack publishes
+  /// a port of its own and no router stands in front of it. `machine` is a host
+  /// the operator owns, where the router holds 80 and 443 for every project on
+  /// it. `paas` is somebody else's machine, which imposes its own sizing and its
+  /// own way in.
+  ///
+  /// A target that names none is a `machine`, because that is what a target was
+  /// for before there was anything to choose.
+  TargetKind kindOf(String target) {
+    final String? written = _string(<String>['targets', target, 'kind']);
+    if (written == null) return TargetKind.machine;
+
+    return TargetKind.values.firstWhere(
+      (TargetKind kind) => kind.name == written,
+      orElse: () => throwToolExit(
+        'targets.$target.kind holds "$written", which is not a kind of target.\n'
+        'Write one of: ${TargetKind.values.map((TargetKind kind) => kind.name).join(', ')}.',
+      ),
+    );
+  }
+
+  /// The platform a `paas` target deploys onto, empty when it names none.
+  String platformOf(String target) => _string(<String>['targets', target, 'platform']) ?? '';
 
   /// Whether [target] asks for a hard CPU ceiling and not only a relative share.
   ///
