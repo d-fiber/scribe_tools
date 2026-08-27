@@ -272,10 +272,7 @@ void main() {
       fs.directory('/work/koko/lib/open').createSync(recursive: true);
 
       final List<File> written = await renderFiles();
-      final String environment = written.first.parent
-          .childDirectory('env')
-          .childFile('gateway.env')
-          .readAsStringSync();
+      final String environment = written.first.parent.childDirectory('env').childFile('gateway.env').readAsStringSync();
 
       expect(
         environment,

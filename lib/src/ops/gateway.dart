@@ -80,8 +80,7 @@ class GatewayRoute {
 /// environment reaches the gateway container. Without them the entry point finds
 /// the variable unset, drops the credential slot, and the node answers 401 to
 /// every key it is handed while Kong still reports itself healthy.
-String nodeKeyVariables(Project project) => Nodes.load(project: project)
-    .facingOutward
+String nodeKeyVariables(Project project) => Nodes.load(project: project).facingOutward
     .where((ProjectNode node) => node.requiresApiKey)
     .map((ProjectNode node) => '${node.name.toUpperCase()}_KEYS=\${${node.name.toUpperCase()}_KEYS}')
     .join('\n');
