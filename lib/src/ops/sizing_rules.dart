@@ -50,6 +50,14 @@ const int _minShares = 256;
 
 int _clamp(num value, int low, int high) => math.max(low, math.min(high, value.round()));
 
+/// [megabytes] as a whole number of mebibytes, for a reader that refuses a fraction.
+///
+/// `_mib` shortens anything above a gibibyte to two decimals, which Docker reads
+/// and a JVM does not: `-Xms1.58g` fails with `Invalid initial heap size` and the
+/// process never starts. Every value that lands in a `-Xm` flag comes through
+/// here instead.
+String _wholeMib(num megabytes) => '${math.max(16, megabytes.round())}m';
+
 String _mib(num megabytes) {
   final int value = math.max(16, megabytes.round());
   if (value < 1024) return '${value}m';
@@ -269,7 +277,7 @@ class SizingRules {
         'realtime_rlimit_nofile': '65535',
       },
       'opensearch' => <String, String>{
-        'opensearch_heap': _mib(math.min(memory * 0.5, 31 * 1024)),
+        'opensearch_heap': _wholeMib(math.min(memory * 0.5, 31 * 1024)),
         'opensearch_node_processors': '${_clamp(hardware.cores / 2, 1, 16)}',
         'opensearch_cpu_limit': _cpuCap(0.35, 0.5, 12),
       },
