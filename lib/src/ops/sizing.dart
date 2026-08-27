@@ -49,6 +49,7 @@ import 'package:scribe_tools/src/ops/sizing_rules.dart';
 import 'package:scribe_tools/src/ops/socle.dart';
 import 'package:scribe_tools/src/packages.dart';
 import 'package:scribe_tools/src/project.dart';
+import 'package:scribe_tools/src/scribe_manifest.dart';
 import 'package:scribe_tools/src/stack/stack_location.dart';
 import 'package:scribe_tools/src/templates.dart';
 
@@ -106,6 +107,7 @@ class ComposeDocuments {
   const ComposeDocuments({
     required this.hostnames,
     required this.files,
+    required this.kind,
     required this.profiles,
     required this.projectDirectory,
     required this.projectName,
@@ -127,6 +129,9 @@ class ComposeDocuments {
 
   /// The name Docker knows this stack by, taken from `config.yaml`.
   final String projectName;
+
+  /// What this render was made for, which decides how the stack is reached.
+  final TargetKind kind;
 
   /// Every hostname the router will answer this stack on.
   ///
@@ -167,6 +172,7 @@ class ComposeRender {
   Future<ComposeDocuments> render(Hardware detected) async {
     final Hardware hardware = targetName == null ? detected : (project.manifest.machineOf(targetName!) ?? detected);
     final bool cpuCap = targetName != null && project.manifest.cpuCapOf(targetName!);
+    final TargetKind kind = targetName == null ? TargetKind.machine : project.manifest.kindOf(targetName!);
 
     // Outside the project, and emptied first: an overlay whose package the
     // project has since dropped would otherwise survive, and the only practical
@@ -184,7 +190,11 @@ class ComposeRender {
       Capacity.load(mounted: active, profiles: profiles.toSet()),
       cpuCap: cpuCap,
     );
-    final Map<String, String> values = <String, String>{...rules.resolve(), ..._identity()};
+    final Map<String, String> values = <String, String>{
+      ...rules.resolve(),
+      ..._identity(),
+      'proxy_ports': _proxyPorts(kind),
+    };
 
     globals.logger.printTrace('[sizing] hardware $hardware');
     if (targetName != null) {
@@ -236,6 +246,7 @@ class ComposeRender {
       projectDirectory: project.directory.absolute.path,
       projectName: project.manifest.name.toSnakeCase(),
       hostnames: _hostnames(),
+      kind: kind,
     );
   }
 
@@ -246,6 +257,18 @@ class ComposeRender {
   ].where((String host) => host.isNotEmpty).toList();
 
   /// The values that name the project rather than size it.
+  /// The `ports:` the proxy publishes, empty everywhere but on a workstation.
+  ///
+  /// A `machine` target puts one router in front of every project and none of
+  /// them holds a host port, which is what lets ten of them run at once. A
+  /// workstation has no router and no hostname that resolves, so the stack has
+  /// to be reachable some other way, and the only one that does not collide with
+  /// the next project is a port the daemon picks.
+  ///
+  /// `scribe run` reads the port back from the container and prints it, because
+  /// a port nobody can name is a stack nobody can call.
+  String _proxyPorts(TargetKind kind) => kind == TargetKind.dev ? '\n    ports: ["80"]' : '';
+
   Map<String, String> _identity() {
     final String name = project.manifest.name;
 

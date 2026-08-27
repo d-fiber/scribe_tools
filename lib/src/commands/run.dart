@@ -42,6 +42,7 @@ import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/ops/hardware.dart';
 import 'package:scribe_tools/src/ops/sizing.dart';
 import 'package:scribe_tools/src/runner/scribe_command.dart';
+import 'package:scribe_tools/src/scribe_manifest.dart';
 import 'package:scribe_tools/src/stack/compose.dart';
 import 'package:scribe_tools/src/stack/router.dart';
 import 'package:scribe_tools/src/stack/stack_location.dart';
@@ -130,6 +131,8 @@ class RunCommand extends ScribeCommand {
 
     if (!boolArg('force')) await refuseForeignCheckout(compose);
 
+    if (documents.kind == TargetKind.dev) return _startOnThisWorkstation(compose, manifest.projectName);
+
     const Router router = Router();
     if (!await router.ensureUp()) {
       throwToolExit('The router of this machine did not start, so nothing would be reachable.');
@@ -152,6 +155,28 @@ class RunCommand extends ScribeCommand {
 
     await router.attach('${manifest.projectName}_edge');
     globals.logger.printStatus('It answers on http://${documents.hostnames.first}');
+
+    return const ScribeCommandResult.success();
+  }
+
+  /// Starts the stack on the workstation this command runs on.
+  ///
+  /// No router and no hostname: a workstation has neither, and putting one there
+  /// would take port 80 from whatever already holds it. The proxy publishes a
+  /// port the daemon picks instead, so a second project started a minute later
+  /// gets another one rather than a refusal.
+  Future<ScribeCommandResult> _startOnThisWorkstation(Compose compose, String projectName) async {
+    globals.logger.printStatus('Starting $projectName on this workstation...');
+
+    if (await compose.up() != 0) return const ScribeCommandResult.fail();
+
+    final String? port = await compose.publishedPortOf('caddy', 80);
+    if (port == null) {
+      globals.logger.printWarning('The stack is up, but no published port was found to reach it on.');
+      return const ScribeCommandResult.success();
+    }
+
+    globals.logger.printStatus('It answers on http://localhost:$port');
 
     return const ScribeCommandResult.success();
   }

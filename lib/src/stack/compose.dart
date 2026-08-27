@@ -83,6 +83,29 @@ class Compose {
   /// database rather than leaving it behind for the next start to adopt.
   Future<int> down({bool volumes = false}) => _run(<String>['down', if (volumes) '--volumes', '--remove-orphans']);
 
+  /// The host port [service] publishes [containerPort] on, or null when none.
+  ///
+  /// Compose is asked rather than the render, because a workstation lets the
+  /// daemon pick the port and the render therefore does not know it. The answer
+  /// is `0.0.0.0:49154` or `[::]:49154`, and what a caller needs is the number.
+  Future<String?> publishedPortOf(String service, int containerPort) async {
+    final String written = await globals.processRunner.capture(<String>[
+      'docker',
+      'compose',
+      ...manifest.arguments,
+      'port',
+      service,
+      '$containerPort',
+    ]);
+
+    final int colon = written.trim().lastIndexOf(':');
+    if (colon < 0) return null;
+
+    final String port = written.trim().substring(colon + 1);
+
+    return int.tryParse(port) == null ? null : port;
+  }
+
   /// Reads the value of [label] on one container of the stack, or null.
   ///
   /// Returns null when nothing of this stack is up, which is the ordinary case
