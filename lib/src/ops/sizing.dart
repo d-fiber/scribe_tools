@@ -39,6 +39,7 @@ import 'package:file/file.dart';
 import 'package:path/path.dart' as p;
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/base/template.dart';
+import 'package:scribe_tools/src/deploy/resources.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/ops/capacity.dart';
 import 'package:scribe_tools/src/ops/fragments.dart';
@@ -192,8 +193,10 @@ class ComposeRender {
     );
     final Map<String, String> values = <String, String>{
       ...rules.resolve(),
+      ...Resources.load(mounted: active).values,
       ..._identity(),
       'proxy_ports': _proxyPorts(kind),
+      'tls_resolver': _tlsResolver(),
     };
 
     globals.logger.printTrace('[sizing] hardware $hardware');
@@ -257,6 +260,23 @@ class ComposeRender {
   ].where((String host) => host.isNotEmpty).toList();
 
   /// The values that name the project rather than size it.
+  /// The certificate resolver the router uses for this project, empty when none.
+  ///
+  /// A resolver means a real certificate, and a real certificate means a
+  /// challenge the authority answers by reaching the name from outside. That
+  /// works for the domain the manifest declares and cannot work for
+  /// `<name>.scribe.localhost`, which resolves nowhere but on this machine.
+  ///
+  /// Asking for one anyway would not merely fail: the authority rate-limits a
+  /// name that keeps failing, and the router would carry a pending order for
+  /// every project on the host. Empty leaves the router on the certificate it
+  /// signs itself, which is what a machine with no public name wants.
+  String _tlsResolver() {
+    final String host = Uri.parse(project.manifest.apiUrl).host;
+
+    return host.isEmpty || host.endsWith('.localhost') ? '' : 'public';
+  }
+
   /// The `ports:` the proxy publishes, empty everywhere but on a workstation.
   ///
   /// A `machine` target puts one router in front of every project and none of
