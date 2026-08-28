@@ -74,7 +74,7 @@ const String kToolRootDirectory = '/tools';
 class PkgHarness {
   /// Opens a machine carrying every tool a command looks for, and a checkout at [kCheckoutDirectory].
   PkgHarness() {
-    for (final String executable in <String>['git', 'deno', 'npm', 'docker']) {
+    for (final String executable in <String>['git', 'deno', 'npm', 'docker', 'tofu', 'ssh', 'rsync']) {
       fs.file('$kBinDirectory/$executable').createSync(recursive: true);
     }
 

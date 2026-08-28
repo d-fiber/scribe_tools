@@ -39,6 +39,7 @@ import 'package:scribe_tools/src/framework.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/runner/scribe_command.dart';
 import 'package:scribe_tools/src/self/version.dart';
+import 'package:scribe_tools/src/tools.dart';
 
 /// Brings the framework checkout to the newest version on the release branch.
 ///
@@ -51,6 +52,9 @@ class UpgradeCommand extends ScribeCommand {
 
   @override
   String get name => 'upgrade';
+
+  @override
+  List<ExternalTool> get requiredTools => const <ExternalTool>[ToolCatalog.git];
 
   @override
   String get description => 'Bring the scribe checkout to the newest version.';

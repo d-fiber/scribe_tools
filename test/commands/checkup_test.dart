@@ -55,7 +55,11 @@ late FakeCommand work;
 const String binDirectory = '/usr/bin';
 
 /// Every tool a command is checked for.
-const List<String> everyExecutable = <String>['git', 'deno', 'npm', 'docker'];
+/// Every executable the catalogue names, so a machine that has them hears nothing.
+///
+/// It is written out rather than read from the catalogue: a test that took the
+/// list from the code it checks would pass whatever the code said.
+const List<String> everyExecutable = <String>['git', 'deno', 'npm', 'docker', 'tofu', 'ssh', 'rsync'];
 
 /// The framework checkout the version notice is read from.
 const String checkoutDirectory = '/framework';

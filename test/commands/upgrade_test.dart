@@ -102,7 +102,7 @@ void writeCheckout({String version = '0.1.5', bool cloned = true}) {
 
 /// Runs `scribe` with [args], every git call answered by [processes].
 Future<int> runScribe(List<String> args, ProcessRunner processes) {
-  for (final String executable in <String>['git', 'deno', 'npm', 'docker']) {
+  for (final String executable in <String>['git', 'deno', 'npm', 'docker', 'tofu', 'ssh', 'rsync']) {
     fs.file('$binDirectory/$executable').createSync(recursive: true);
   }
 

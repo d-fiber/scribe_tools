@@ -134,6 +134,14 @@ fetch_templates() {
   [ -d "$destination/templates/project" ] || fail "$TEMPLATES_ASSET carried no templates/project/"
 }
 
+provision() {
+  [ -x "$ROOT/tools/scribe" ] || return 0
+
+  say ""
+  say "Looking for the programs a project needs, and installing what is missing"
+  "$ROOT/tools/scribe" doctor --rescue || say "Some of them are still missing: run scribe doctor to see which."
+}
+
 main() {
   locate_or_clone
 
@@ -141,6 +149,8 @@ main() {
   say "Fetching the tools from the latest release of $TOOLS_REPOSITORY"
   fetch
   fetch_templates
+
+  provision
 
   say ""
   say "Ready. Everything is in $ROOT/tools"

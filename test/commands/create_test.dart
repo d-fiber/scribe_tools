@@ -66,7 +66,7 @@ const String binDirectory = '/usr/bin';
 /// when one is missing, so a machine carrying nothing would answer every test
 /// below with that report instead of what it is about.
 void writeMachine() {
-  for (final String executable in <String>['git', 'deno', 'npm', 'docker']) {
+  for (final String executable in <String>['git', 'deno', 'npm', 'docker', 'tofu', 'ssh', 'rsync']) {
     fs.file('$binDirectory/$executable').createSync(recursive: true);
   }
 }

@@ -111,7 +111,14 @@ void writeProject({String manifest = completeManifest, bool withLib = true}) {
 }
 
 /// Every tool the report looks for, plus the package manager of this fake machine.
-const List<String> everything = <String>['git', 'deno', 'npm', 'docker', 'brew'];
+const List<String> everything = <String>['git', 'deno', 'npm', 'docker', 'tofu', 'ssh', 'rsync', 'brew'];
+
+/// Where the path of [tool] starts on its line of the report.
+int _columnOf(String report, String tool) {
+  final String line = report.split('\n').firstWhere((String line) => line.trim().startsWith('✓ $tool'));
+
+  return line.indexOf('/');
+}
 
 void main() {
   setUp(() {
@@ -129,8 +136,13 @@ void main() {
       expect(await runScribe(<String>['doctor'], installed: everything), 0);
       expect(logger.statusText, contains('[✓] Machine'));
       expect(logger.statusText, contains('[✓] Tools'));
-      expect(logger.statusText, contains('git    $binDirectory/git'));
-      expect(logger.statusText, contains('docker $binDirectory/docker'));
+      expect(logger.statusText, matches(RegExp('git +$binDirectory/git')));
+      expect(logger.statusText, matches(RegExp('docker +$binDirectory/docker')));
+      expect(
+        _columnOf(logger.statusText, 'git'),
+        _columnOf(logger.statusText, 'docker'),
+        reason: 'the paths line up under each other, whatever the longest name is',
+      );
       expect(logger.statusText, contains('No issues found!'));
     });
 
@@ -152,9 +164,12 @@ void main() {
     test('a missing tool names the command that installs it', () async {
       writeProject();
 
-      expect(await runScribe(<String>['doctor'], installed: <String>['git', 'deno', 'npm', 'brew']), 0);
+      expect(
+        await runScribe(<String>['doctor'], installed: <String>['git', 'deno', 'npm', 'tofu', 'ssh', 'rsync', 'brew']),
+        0,
+      );
       expect(logger.statusText, contains('[!] Tools'));
-      expect(logger.statusText, contains('git    $binDirectory/git'));
+      expect(logger.statusText, matches(RegExp('git +$binDirectory/git')));
       expect(logger.statusText, contains('docker is missing'));
       expect(logger.statusText, contains('Run `brew install docker` to install it.'));
       expect(logger.statusText, contains('Doctor found issues in 1 category.'));
@@ -164,7 +179,7 @@ void main() {
     test('without a package manager, a missing tool points at its homepage', () async {
       writeProject();
 
-      expect(await runScribe(<String>['doctor'], installed: <String>['git', 'deno', 'npm']), 0);
+      expect(await runScribe(<String>['doctor'], installed: <String>['git', 'deno', 'npm', 'tofu', 'ssh', 'rsync']), 0);
       expect(logger.statusText, contains('Install it from https://'));
       expect(logger.statusText, isNot(contains('to install it.')));
       expect(logger.statusText, contains('no package manager found'));

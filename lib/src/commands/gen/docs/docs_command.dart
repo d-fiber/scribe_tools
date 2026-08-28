@@ -36,6 +36,7 @@
 
 import 'package:scribe_tools/src/commands/gen/docs/openapi_document.dart';
 import 'package:scribe_tools/src/runner/scribe_command.dart';
+import 'package:scribe_tools/src/tools.dart';
 
 /// Rebuilds the OpenAPI document of every surface the API source declares.
 class GenDocsCommand extends ScribeCommand {
@@ -44,6 +45,9 @@ class GenDocsCommand extends ScribeCommand {
 
   @override
   String get name => 'docs';
+
+  @override
+  List<ExternalTool> get requiredTools => const <ExternalTool>[ToolCatalog.npm];
 
   @override
   String get description =>

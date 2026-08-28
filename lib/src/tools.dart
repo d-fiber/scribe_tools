@@ -34,6 +34,7 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
+import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/base/logger.dart';
 import 'package:scribe_tools/src/base/terminal.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
@@ -185,12 +186,63 @@ class ToolCatalog {
     homepage: 'https://git-scm.com/downloads',
     packages: <String, String>{'winget': 'Git.Git'},
   );
+
+  /// What creates the resources a target places outside the stack.
+  static const ExternalTool tofu = ExternalTool(
+    name: 'opentofu',
+    executable: 'tofu',
+    purpose: 'creates the resources a target does not put in a container',
+    homepage: 'https://opentofu.org/docs/intro/install/',
+    packages: <String, String>{'homebrew': 'opentofu', 'winget': 'OpenTofu.Tofu', 'apk': 'opentofu'},
+  );
+
+  /// What reaches the host a deployment goes to.
+  static const ExternalTool ssh = ExternalTool(
+    name: 'ssh',
+    executable: 'ssh',
+    purpose: 'reaches the host a target names',
+    homepage: 'https://www.openssh.com/portable.html',
+    packages: <String, String>{'homebrew': 'openssh', 'apt': 'openssh-client', 'apk': 'openssh-client'},
+  );
+
+  /// What carries the stack to that host.
+  static const ExternalTool rsync = ExternalTool(
+    name: 'rsync',
+    executable: 'rsync',
+    purpose: 'ships the stack to the host a target names',
+    homepage: 'https://rsync.samba.org/',
+  );
+
+  /// Every tool the CLI knows about, which is what `doctor` walks.
+  ///
+  /// A tool that a command needs and this list forgets is a tool nobody is told
+  /// about until the command fails on it, so the list is the catalogue itself
+  /// rather than a copy of it kept somewhere else.
+  static const List<ExternalTool> all = <ExternalTool>[deno, npm, docker, git, tofu, ssh, rsync];
 }
 
 /// What looks for the tools a command declared, and offers to install them.
 class ToolProvisioner {
   /// Holds nothing: every run is told what it is looking for.
   const ToolProvisioner();
+
+  /// Refuses the run when [tool] is not on `PATH`, naming what installs it.
+  ///
+  /// It is the guard for a tool a command needs only sometimes: `tofu` matters
+  /// to a target that provisions and to no other, and demanding it of everybody
+  /// would make a local run wait on something it never calls.
+  void require(ExternalTool tool, {required String reason}) {
+    if (tool.isInstalled) return;
+
+    final PackageManager? manager = PackageManager.detect();
+
+    throwToolExit(
+      '${tool.name} is missing, and $reason.\n'
+      '${manager == null ? 'Install it from ${tool.homepage}.' : 'Run `${manager.commandFor(tool).join(' ')}` to install it.'}\n'
+      '\n'
+      'scribe doctor    says what this machine is missing, --rescue installs it',
+    );
+  }
 
   /// Makes sure every one of [tools] is on `PATH`, installing what is missing.
   ///
@@ -265,6 +317,8 @@ class ToolProvisioner {
       _explainOne(tool, manager);
     }
 
+    globals.logger.printStatus('');
+    globals.logger.printStatus('scribe doctor    says what this machine is missing, --rescue installs it');
     globals.logger.printStatus('');
   }
 

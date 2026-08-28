@@ -114,6 +114,10 @@ class DeployCommand extends ScribeCommand {
     // here and wrong there is a container that dies three layers from the cause.
     String? root;
     if (remote && !boolArg('plan')) {
+      globals.tools
+        ..require(ToolCatalog.ssh, reason: 'a ${target.kind.name} target is reached over it')
+        ..require(ToolCatalog.rsync, reason: 'the stack is carried to ${target.host} with it');
+
       root = await _rootOn(target);
       if (root == null) return const ScribeCommandResult.fail();
     }
@@ -176,6 +180,11 @@ class DeployCommand extends ScribeCommand {
 
       final File? recipe = Resources.recipeFor(roots, resource.type, placement.recipeName);
       if (recipe == null || !recipe.path.contains('.tf.json')) continue;
+
+      globals.tools.require(
+        ToolCatalog.tofu,
+        reason: '${resource.name} is placed on "${placement.recipeName}", which is configuration it applies',
+      );
 
       final Tofu tofu = Tofu(_stateOf(target, resource))
         ..write(

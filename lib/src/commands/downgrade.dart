@@ -40,6 +40,7 @@ import 'package:scribe_tools/src/framework.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/runner/scribe_command.dart';
 import 'package:scribe_tools/src/self/version.dart';
+import 'package:scribe_tools/src/tools.dart';
 
 /// Puts the framework checkout back on a version it was on before.
 ///
@@ -52,6 +53,9 @@ class DowngradeCommand extends ScribeCommand {
 
   @override
   String get name => 'downgrade';
+
+  @override
+  List<ExternalTool> get requiredTools => const <ExternalTool>[ToolCatalog.git];
 
   @override
   String get description => 'Put the scribe checkout back on an older version.';

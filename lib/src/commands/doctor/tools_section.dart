@@ -42,16 +42,14 @@ import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/tools.dart';
 
 /// The tools a project needs at one point or another.
-const List<ExternalTool> everyTool = <ExternalTool>[
-  ToolCatalog.git,
-  ToolCatalog.deno,
-  ToolCatalog.npm,
-  ToolCatalog.docker,
-];
+///
+/// It is the catalogue itself and not a copy: a tool added there and forgotten
+/// here would be a tool nobody is told about until a command fails on it.
+const List<ExternalTool> everyTool = ToolCatalog.all;
 
 /// Where each of [everyTool] is, and what to run for the ones that are missing.
 ///
-/// This is the one section that lists itself even when all is well: four tools
+/// This is the one section that lists itself even when all is well: the tools
 /// and their paths are what a bug report is read for, and the list is where
 /// someone checks that the `deno` being run is the one they think.
 ///
