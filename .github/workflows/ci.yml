@@ -60,11 +60,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
-      contents: write
+      contents: read
     steps:
+      # The deploy key and not GITHUB_TOKEN: a push made with that token starts
+      # no workflow, so the changelog commit would land on dev untested.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
+          ssh-key: ${{ secrets.PROMOTE_PUSH_KEY }}
+          persist-credentials: true
 
       - name: Write what this version is made of, if it has moved
         run: |
