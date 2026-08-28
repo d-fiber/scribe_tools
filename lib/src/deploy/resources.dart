@@ -70,13 +70,25 @@ class Resource {
 /// A resource once a recipe has answered for it.
 class ResolvedResource {
   /// Holds [resource] as [className] resolved it, with the [outputs] it gives.
-  const ResolvedResource({required this.resource, required this.className, required this.outputs});
+  const ResolvedResource({
+    required this.resource,
+    required this.className,
+    required this.outputs,
+    this.containerServices = const <String>{},
+  });
 
   /// The declaration this answers.
   final Resource resource;
 
   /// The recipe that answered, which is the class the target asked for.
   final String className;
+
+  /// The compose services this resource brings when it is a container.
+  ///
+  /// It is read from the `container` recipe whatever answered, because it is the
+  /// answer to a question the other recipes cannot be asked: which services stop
+  /// being part of the stack when this resource is satisfied elsewhere.
+  final Set<String> containerServices;
 
   /// What a consumer connects with: the host, the port, the credentials, the URL.
   ///
@@ -143,6 +155,16 @@ class Resources {
         _resolve(resource, recipes, (placement ?? (String _) => Placement.inContainer)(resource.name)),
   ]);
 
+  /// Every compose service that is not part of the stack any more.
+  ///
+  /// A resource placed anywhere but in a container brings no container, so the
+  /// service that used to be it leaves the document along with every dependency
+  /// on it.
+  Set<String> get suppressedServices => <String>{
+    for (final ResolvedResource resource in resolved)
+      if (resource.className != containerPlacement) ...resource.containerServices,
+  };
+
   /// The template values a binding reads, one per output of every resource.
   ///
   /// A key is `resource_<name>_<output>`, so `REDIS_URL={{resource_redis_url}}`
@@ -172,6 +194,7 @@ class Resources {
     return ResolvedResource(
       resource: resource,
       className: className,
+      containerServices: _servicesOf(_recipeIn(recipes, resource.type, containerPlacement)),
       outputs: <String, String>{
         for (final MapEntry<Object?, Object?> output in (document['outputs'] as YamlMap).entries)
           '${output.key}': _output(output.value, output.key, recipe),
@@ -184,6 +207,16 @@ class Resources {
     if (value is int || value is bool) return '$value';
 
     throwToolExit('${recipe.path}: output "$key" must be text, a number or a boolean.');
+  }
+
+  /// The services a container recipe says it brings, none when it says nothing.
+  static Set<String> _servicesOf(File? recipe) {
+    if (recipe == null) return const <String>{};
+
+    final Object? document = loadYaml(recipe.readAsStringSync());
+    if (document is! YamlMap || document['brings'] is! YamlList) return const <String>{};
+
+    return <String>{for (final Object? name in document['brings'] as YamlList) '$name'};
   }
 
   /// The recipe answering for [type] as [className], from whoever owns the type.

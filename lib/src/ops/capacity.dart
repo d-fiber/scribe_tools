@@ -143,6 +143,10 @@ class Capacity {
 
   /// The capacity of the socle and of [mounted], the mounted packages by default.
   ///
+  /// [without] names the services a target placed somewhere else. They take no
+  /// memory on this machine, so they take no share of it either, and what is left
+  /// grows by exactly what they used to hold.
+  ///
   /// [mounted] has to be the selection rather than every package found, and
   /// [profiles] the profiles that selection switches on: the weights are read
   /// against their own sum, so anything counted here takes a share of the
@@ -151,13 +155,18 @@ class Capacity {
   /// The socle's own file is read from the tool rather than from the framework
   /// checkout, because it describes the compose template the tool ships and the
   /// two would otherwise be free to describe different services.
-  static Capacity load({List<Package>? mounted, Set<String> profiles = const <String>{}}) {
+  static Capacity load({
+    List<Package>? mounted,
+    Set<String> profiles = const <String>{},
+    Set<String> without = const <String>{},
+  }) {
     final List<Package> found = mounted ?? Packages.load().active;
 
     return read(
       SocleOps().serviceDirectories.map((Directory d) => d.childFile('$capacityFileName$kTemplateSuffix')),
       found.expand((Package package) => package.fragments(capacityFileName)),
       profiles: profiles,
+      without: without,
     );
   }
 
@@ -167,11 +176,19 @@ class Capacity {
   /// sitting beside the compose it weighs, while a package writes a plain
   /// `capacity.yaml`. A package without one simply declares no service, which is
   /// the case of every package that ships no container.
-  static Capacity read(Iterable<File> socle, Iterable<File> packageFiles, {Set<String> profiles = const <String>{}}) =>
-      Capacity(<ServiceCapacity>[
-        for (final File file in socle) ..._readFile(file, required: true),
-        for (final File file in packageFiles) ..._readFile(file, required: false),
-      ], profiles: profiles);
+  static Capacity read(
+    Iterable<File> socle,
+    Iterable<File> packageFiles, {
+    Set<String> profiles = const <String>{},
+    Set<String> without = const <String>{},
+  }) => Capacity(<ServiceCapacity>[
+    for (final File file in socle)
+      for (final ServiceCapacity service in _readFile(file, required: true))
+        if (!without.contains(service.name)) service,
+    for (final File file in packageFiles)
+      for (final ServiceCapacity service in _readFile(file, required: false))
+        if (!without.contains(service.name)) service,
+  ], profiles: profiles);
 
   /// The service named [key], or null when nothing declares it.
   ServiceCapacity? operator [](String key) => _byKey[key];

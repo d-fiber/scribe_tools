@@ -40,6 +40,7 @@ import 'package:path/path.dart' as p;
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/base/template.dart';
 import 'package:scribe_tools/src/deploy/configuration.dart';
+import 'package:scribe_tools/src/deploy/prune.dart';
 import 'package:scribe_tools/src/deploy/resources.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/ops/capacity.dart';
@@ -172,9 +173,10 @@ class ComposeRender {
 
   /// Renders every template and every overlay, and returns what Compose needs.
   Future<ComposeDocuments> render(Hardware detected) async {
-    final Hardware hardware = targetName == null ? detected : (project.manifest.machineOf(targetName!) ?? detected);
-    final bool cpuCap = targetName != null && project.manifest.cpuCapOf(targetName!);
-    final TargetKind kind = targetName == null ? TargetKind.machine : project.manifest.kindOf(targetName!);
+    final Target? deployingTo = targetName == null ? null : _configuration.target(targetName!);
+    final Hardware hardware = deployingTo?.machine ?? detected;
+    final bool cpuCap = deployingTo?.cpuCap ?? false;
+    final TargetKind kind = deployingTo?.kind ?? TargetKind.machine;
 
     // Outside the project, and emptied first: an overlay whose package the
     // project has since dropped would otherwise survive, and the only practical
@@ -187,14 +189,17 @@ class ComposeRender {
 
     final List<String> profiles = <String>[...Packages.profilesOf(active), if (withWorker) workerProfile]..sort();
 
+    final Resources resources = Resources.load(mounted: active, placement: _placement);
+    final Set<String> gone = resources.suppressedServices;
+
     final SizingRules rules = SizingRules(
       hardware,
-      Capacity.load(mounted: active, profiles: profiles.toSet()),
+      Capacity.load(mounted: active, profiles: profiles.toSet(), without: gone),
       cpuCap: cpuCap,
     );
     final Map<String, String> values = <String, String>{
       ...rules.resolve(),
-      ...Resources.load(mounted: active, placement: _placement).values,
+      ...resources.values,
       ..._identity(),
       'proxy_ports': _proxyPorts(kind),
       'tls_resolver': _tlsResolver(),
@@ -222,7 +227,7 @@ class ComposeRender {
         await _renderTemplate(name, values, target, <YamlFragment>[
           ...socle.fragmentsFor(name),
           ...packages.fragmentsFor(name, active),
-        ]),
+        ], gone: gone),
     ];
 
     // One file per overlay, never one per package: two overlays that patch the
@@ -233,7 +238,9 @@ class ComposeRender {
       for (final YamlFragment overlay in package.fragmentsFor(overlayTemplate)) {
         rendered.insert(
           position++,
-          await _write(overlayFileName(overlay.label), overlayBase, values, target, <YamlFragment>[overlay]),
+          await _write(overlayFileName(overlay.label), overlayBase, values, target, <YamlFragment>[
+            overlay,
+          ], gone: gone),
         );
       }
     }
@@ -259,14 +266,27 @@ class ComposeRender {
   /// A render with no target is a render for the machine at hand, where nothing
   /// is placed anywhere else: a workstation is the one case that cannot have
   /// been described by a target block.
-  Placement _placement(String resource) => targetName == null
-      ? Placement.inContainer
-      : ProjectConfiguration.load(project: project).placementOf(targetName!, resource);
+  Placement _placement(String resource) =>
+      targetName == null ? Placement.inContainer : _configuration.placementOf(targetName!, resource);
+
+  /// How and where this project runs, read once per render.
+  late final ProjectConfiguration _configuration = ProjectConfiguration.load(project: project);
+
+  /// The domain this render answers on, the target's when it names one.
+  ///
+  /// A domain belongs to the target because it is the value that differs between
+  /// a workstation and a deployment, and a project holding a single one could
+  /// never have two.
+  String get _apiUrl {
+    final String declared = targetName == null ? '' : _configuration.target(targetName!).domain;
+
+    return declared.isEmpty ? project.manifest.apiUrl : declared;
+  }
 
   /// Every hostname this stack claims, in the order the labels write them.
   List<String> _hostnames() => <String>[
     '${project.manifest.name.toSnakeCase()}.scribe.localhost',
-    Uri.parse(project.manifest.apiUrl).host,
+    Uri.parse(_apiUrl).host,
   ].where((String host) => host.isNotEmpty).toList();
 
   /// The values that name the project rather than size it.
@@ -282,7 +302,7 @@ class ComposeRender {
   /// every project on the host. Empty leaves the router on the certificate it
   /// signs itself, which is what a machine with no public name wants.
   String _tlsResolver() {
-    final String host = Uri.parse(project.manifest.apiUrl).host;
+    final String host = Uri.parse(_apiUrl).host;
 
     return host.isEmpty || host.endsWith('.localhost') ? '' : 'public';
   }
@@ -320,8 +340,8 @@ class ComposeRender {
         'migrations',
       ).absolute.path,
       'worker_endpoint': withWorker ? workerEndpoint : '',
-      'api_url': project.manifest.apiUrl,
-      'api_host': Uri.parse(project.manifest.apiUrl).host,
+      'api_url': _apiUrl,
+      'api_host': Uri.parse(_apiUrl).host,
       'node_key_variables': nodeKeyVariables(project),
     };
   }
@@ -410,8 +430,9 @@ class ComposeRender {
     String name,
     Map<String, String> values,
     Directory target,
-    List<YamlFragment> fragments,
-  ) async {
+    List<YamlFragment> fragments, {
+    Set<String> gone = const <String>{},
+  }) async {
     final File source = globals.templatePaths
         .directoryInPackage(kOpsTemplatesDirectoryName, globals.fs)
         .childFile('$stackTemplate$kTemplateSuffix');
@@ -419,7 +440,7 @@ class ComposeRender {
       throwToolExit('No stack template at ${source.path}');
     }
 
-    return _write(name, await source.readAsString(), values, target, fragments);
+    return _write(name, await source.readAsString(), values, target, fragments, gone: gone);
   }
 
   Future<File> _write(
@@ -427,10 +448,13 @@ class ComposeRender {
     String source,
     Map<String, String> values,
     Directory target,
-    List<YamlFragment> fragments,
-  ) async {
+    List<YamlFragment> fragments, {
+    Set<String> gone = const <String>{},
+  }) async {
     final File destination = target.childFile(name);
-    await destination.writeAsString(renderTemplate(name, mergeYamlDocuments(source, fragments), values));
+    await destination.writeAsString(
+      renderTemplate(name, withoutServices(mergeYamlDocuments(source, fragments), gone), values),
+    );
 
     return destination;
   }

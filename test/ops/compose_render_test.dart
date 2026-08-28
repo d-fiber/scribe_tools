@@ -131,13 +131,76 @@ void main() {
     project(<String>['auth', 'audience']);
   });
 
-  Future<ComposeDocuments> render({bool worker = false}) => _withContext(fs, () async {
+  Future<ComposeDocuments> render({bool worker = false, String? target}) => _withContext(fs, () async {
     fs.currentDirectory = '/work/koko';
 
-    return ComposeRender(withWorker: worker).render(_machine);
+    return ComposeRender(withWorker: worker, targetName: target).render(_machine);
   });
 
+  /// Places [resource] on [className] for a target named `elsewhere`.
+  void place(String resource, String className) =>
+      (fs.file('/work/koko/configuration/main.yaml')..createSync(recursive: true)).writeAsStringSync(
+        'targets:\n'
+        '  elsewhere:\n'
+        '    kind: machine\n'
+        'deploy:\n'
+        '  elsewhere:\n'
+        '    $resource: $className\n',
+      );
+
   Future<List<File>> renderFiles() async => (await render()).files;
+
+  group('a resource a target placed somewhere else', () {
+    test('takes its service out of every document it was declared in', () async {
+      place('postgres', 'external');
+
+      for (final File file in (await render(target: 'elsewhere')).files) {
+        final Object? services = loadYaml(file.readAsStringSync()) is YamlMap
+            ? (loadYaml(file.readAsStringSync()) as YamlMap)['services']
+            : null;
+
+        expect(
+          services is YamlMap ? services.keys : const <Object?>[],
+          isNot(contains('db')),
+          reason: p.basename(file.path),
+        );
+      }
+    });
+
+    test('takes every dependency on that service out with it', () async {
+      place('postgres', 'external');
+      final String compose = (await render(target: 'elsewhere')).files.first.readAsStringSync();
+
+      expect(compose, isNot(contains('      db:')));
+      expect(compose, contains('      redis:'), reason: 'a datastore still in a container is still waited on');
+    });
+
+    test('binds the addresses of the stack to what the recipe of that class gives', () async {
+      place('postgres', 'external');
+      await render(target: 'elsewhere');
+
+      expect(
+        fs
+            .directory('$_stackHome/stacks')
+            .listSync()
+            .whereType<Directory>()
+            .single
+            .childDirectory('env')
+            .childFile('datastores.env')
+            .readAsStringSync(),
+        contains('REDIS_URL=redis://'),
+      );
+    });
+
+    test('leaves the stack exactly as it was when nothing is placed anywhere else', () async {
+      place('redis', 'container');
+      final String placed = (await render(target: 'elsewhere')).files.first.readAsStringSync();
+
+      expect(placed, contains('  db:'));
+      expect(placed, contains('  redis:'));
+      expect(placed, contains('      db:'));
+    });
+  });
 
   group('the compose render of a project', () {
     test('writes the four templates outside the project, in the stack cache', () async {
