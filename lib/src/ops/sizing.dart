@@ -442,7 +442,6 @@ class ComposeRender {
       'image_functions': image('functions'),
       'image_db': image('db'),
       'image_rest': image('rest'),
-      'image_backup': image('backup'),
       'build_platform': platform.isEmpty ? '' : 'platforms: ["$platform"]',
       'build_context_api': _bakes
           ? project.directory.absolute.path

@@ -287,7 +287,7 @@ class DeployCommand extends ScribeCommand {
     final String name = project.manifest.name.toSnakeCase();
     final Map<String, String> pinned = <String, String>{};
 
-    for (final String service in <String>['api', 'functions', 'db', 'rest', 'backup']) {
+    for (final String service in <String>['api', 'functions', 'db', 'rest']) {
       final String reference = '${target.registry}/$name-$service:${target.tag}';
       final ProcessOutcome outcome = await globals.processRunner.observe(<String>[
         'docker',
