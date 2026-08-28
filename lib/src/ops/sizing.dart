@@ -246,6 +246,7 @@ class ComposeRender {
       ..._identity(),
       'proxy_ports': _proxyPorts(kind),
       'tls_resolver': _tlsResolver(),
+      'proxy_routers': _proxyRouters(),
     };
 
     globals.logger.printTrace('[sizing] hardware $hardware');
@@ -366,6 +367,56 @@ class ComposeRender {
     final String host = Uri.parse(_apiUrl).host;
 
     return host.isEmpty || host.endsWith('.localhost') ? '' : 'public';
+  }
+
+  /// The routers this stack's proxy declares, one block per name it answers on.
+  ///
+  /// A stack answers on two names, the one under `.scribe.localhost` that only
+  /// this machine resolves, and the one the project declares. They cannot share
+  /// a router, for two reasons that both bite.
+  ///
+  /// A certificate is ordered for every name its router's rule holds, as one
+  /// order. Asking for both means asking an authority to sign a `.localhost`,
+  /// which it refuses, and the refusal takes the whole order with it: the
+  /// public name would never get a certificate either. Splitting them is what
+  /// makes a certificate possible at all.
+  ///
+  /// And only the public name can be pushed to https. It answers on the secure
+  /// port alone, with a router of its own on the plain port that redirects
+  /// instead of serving, so the API never answers in clear with authorization
+  /// headers in the request. The other name keeps the plain port, because there
+  /// is nowhere to send it: a workstation pushed to https lands on a
+  /// certificate error instead of its own API.
+  ///
+  /// A project with no public name of its own declares one router for both,
+  /// since neither name holds a certificate and there is nothing to separate.
+  String _proxyRouters() {
+    final String name = project.manifest.name;
+    final String local = '$name.scribe.localhost';
+    final String public = Uri.parse(_apiUrl).host;
+    final String resolver = _tlsResolver();
+
+    if (resolver.isEmpty) {
+      final String rule = public.isEmpty || public == local ? 'Host(`$local`)' : 'Host(`$local`) || Host(`$public`)';
+
+      return '\n'
+          '      traefik.http.routers.$name.rule: "$rule"\n'
+          '      traefik.http.routers.$name.entrypoints: "web,websecure"';
+    }
+
+    return '\n'
+        '      traefik.http.routers.$name.rule: "Host(`$local`)"\n'
+        '      traefik.http.routers.$name.entrypoints: "web,websecure"\n'
+        '      traefik.http.routers.$name-public.rule: "Host(`$public`)"\n'
+        '      traefik.http.routers.$name-public.entrypoints: "websecure"\n'
+        '      traefik.http.routers.$name-public.service: "$name"\n'
+        '      traefik.http.routers.$name-public.tls.certresolver: "$resolver"\n'
+        '      traefik.http.routers.$name-https.rule: "Host(`$public`)"\n'
+        '      traefik.http.routers.$name-https.entrypoints: "web"\n'
+        '      traefik.http.routers.$name-https.service: "$name"\n'
+        '      traefik.http.routers.$name-https.middlewares: "$name-https"\n'
+        '      traefik.http.middlewares.$name-https.redirectscheme.scheme: "https"\n'
+        '      traefik.http.middlewares.$name-https.redirectscheme.permanent: "true"';
   }
 
   /// The `ports:` the proxy publishes, empty everywhere but on a workstation.
