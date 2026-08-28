@@ -75,10 +75,11 @@ String withoutServices(String document, Set<String> gone) {
     if (line.trimRight().endsWith('depends_on:') && _indentOf(line) == _dependencyIndent - 2) {
       final int end = _endOfBlock(lines, i, _dependencyIndent - 2);
       final List<String> entries = _dependenciesIn(lines.sublist(i + 1, end), gone);
-      if (entries.isNotEmpty)
+      if (entries.isNotEmpty) {
         kept
           ..add(line)
           ..addAll(entries);
+      }
       i = end - 1;
       continue;
     }
@@ -112,7 +113,9 @@ List<String> _dependenciesIn(List<String> lines, Set<String> gone) {
 /// readability, and treating it as an end would leave half a block behind.
 int _endOfBlock(List<String> lines, int start, int indent) {
   for (int i = start + 1; i < lines.length; i++) {
-    if (lines[i].trim().isEmpty) continue;
+    if (lines[i].trim().isEmpty) {
+      continue;
+    }
     if (_indentOf(lines[i]) <= indent) return i;
   }
 

@@ -114,6 +114,7 @@ class ComposeDocuments {
     required this.profiles,
     required this.projectDirectory,
     required this.projectName,
+    required this.resources,
   });
 
   /// The documents to pass Compose in `-f`, in the order it must read them.
@@ -135,6 +136,13 @@ class ComposeDocuments {
 
   /// What this render was made for, which decides how the stack is reached.
   final TargetKind kind;
+
+  /// Every resource of this stack, each answered by the recipe its target names.
+  ///
+  /// It travels with the documents because a plan has to say what a deployment
+  /// creates, and only the render knows: it is the one that read the targets,
+  /// the declarations and the recipes.
+  final Resources resources;
 
   /// Every hostname the router will answer this stack on.
   ///
@@ -210,9 +218,11 @@ class ComposeRender {
       globals.logger.printStatus('target ${targetName!}: $hardware${cpuCap ? ', cores capped' : ''}');
     }
     globals.logger.printStatus(
-      'api x${rules.apiReplicas}, rest x${rules.restReplicas}, storage x${rules.storageReplicas}, '
-      'db ${values['db_mem_limit']} (shared_buffers ${values['db_shared_buffers']}), '
-      'pool ${values['rest_db_pool']}/instance',
+      <String>[
+        'api x${rules.apiReplicas}, rest x${rules.restReplicas}, storage x${rules.storageReplicas}',
+        if (values['db_mem_limit'] case final String limit) 'db $limit (shared_buffers ${values['db_shared_buffers']})',
+        if (values['rest_db_pool'] case final String pool) 'pool $pool/instance',
+      ].join(', '),
     );
 
     if (hardware.memoryGb < 4 || hardware.cores < 2) {
@@ -252,6 +262,7 @@ class ComposeRender {
     await _renderEnvironments(stack.env, values, active);
 
     return ComposeDocuments(
+      resources: resources,
       files: rendered,
       profiles: profiles,
       projectDirectory: project.directory.absolute.path,
