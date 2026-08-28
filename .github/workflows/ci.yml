@@ -30,7 +30,6 @@ jobs:
           repository: d-fiber/scribe
           ref: dev
           path: scribe
-          ssh-key: ${{ secrets.SCRIBE_DEPLOY_KEY }}
 
       - uses: dart-lang/setup-dart@v1
         with:
