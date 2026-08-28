@@ -41,6 +41,7 @@ import 'package:path/path.dart' as p;
 import 'package:scribe_tools/src/base/context.dart';
 import 'package:scribe_tools/src/base/logger.dart';
 import 'package:scribe_tools/src/base/platform.dart';
+import 'package:scribe_tools/src/deploy/resources.dart';
 import 'package:scribe_tools/src/ops/hardware.dart';
 import 'package:scribe_tools/src/ops/sizing.dart';
 import 'package:scribe_tools/src/stack/stack_location.dart';
@@ -94,7 +95,9 @@ void _vendorFramework(FileSystem fs, String root) {
 
     final String relative = p.relative(entity.path, from: packages.path);
     final List<String> segments = p.split(relative);
-    if (!segments.contains('ops') && !segments.contains('protocol')) continue;
+    final bool wanted =
+        segments.contains('ops') || segments.contains('protocol') || segments.last == configurationFileName;
+    if (!wanted) continue;
 
     _copy(fs, entity.path, p.join(root, 'packages', relative));
   }
