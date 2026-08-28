@@ -36,12 +36,16 @@
 
 import 'package:file/file.dart';
 import 'package:scribe_tools/src/base/common.dart';
+import 'package:scribe_tools/src/base/context.dart';
 import 'package:scribe_tools/src/base/logger.dart';
 import 'package:scribe_tools/src/commands/create/create_report.dart';
 import 'package:scribe_tools/src/commands/create/project_scaffold.dart';
 import 'package:scribe_tools/src/commands/create/sdk_choice.dart';
+import 'package:scribe_tools/src/deploy/forge.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/package/sdk.dart';
+import 'package:scribe_tools/src/packages.dart';
+import 'package:scribe_tools/src/project.dart';
 import 'package:scribe_tools/src/project_templates.dart';
 import 'package:scribe_tools/src/runner/scribe_command.dart';
 import 'package:scribe_tools/src/runner/scribe_command_runner.dart';
@@ -157,6 +161,7 @@ class CreateCommand extends ScribeCommand {
       scribeVersion: findSdk(from: globals.fs.currentDirectory.path).version,
     );
     await _write(scaffold, projectName: projectName, target: target);
+    await _forge(root);
 
     _report
       ..wrote(scaffold.files)
@@ -217,6 +222,34 @@ class CreateCommand extends ScribeCommand {
       '${globals.templatePaths.root(globals.fs).path}.\n'
       'Install them again with $kInstallCommand, or set $kToolRootEnvironmentVariableName '
       'to a scribe_tools checkout.',
+    );
+  }
+
+  /// Writes what the new project declares and does not yet carry.
+  ///
+  /// The scaffold lays down the files a project is written in; the forge lays
+  /// down the ones it derives from what it declares, which is `configuration/`
+  /// with a block per target and a file per package that asks to be configured.
+  /// Running it here is what makes a project correct the moment it exists,
+  /// rather than correct after a command nobody was told to run.
+  ///
+  /// It runs against the project that was just made and not the directory the
+  /// command was typed in, which holds no project at all: everything the forge
+  /// reaches for goes through the context, so putting the new project there is
+  /// what lets it read a manifest that is one directory down.
+  Future<void> _forge(Directory root) async {
+    final Project made = Project.fromDirectory(root);
+
+    await globals.context.run<void>(
+      name: 'forge the new project',
+      overrides: <Type, Generator>{Project: () => made},
+      body: () {
+        final ForgeReport report = Forge(project: made, packages: Packages.load().active).run(write: true);
+
+        for (final ForgeEntry entry in report.entries) {
+          if (entry.verdict == ForgeVerdict.written) globals.logger.printTrace('[create] forged ${entry.name}');
+        }
+      },
     );
   }
 

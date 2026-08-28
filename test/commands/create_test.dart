@@ -187,6 +187,16 @@ void main() {
       });
     }
 
+    test('a new project carries the configuration it derives, not only the files it is written in', () async {
+      writeFramework();
+
+      expect(await runScribe(<String>['create', 'fresh', '--sdk', 'js']), 0);
+
+      final File main = fs.file('$workDirectory/fresh/configuration/main.yaml');
+      expect(main.existsSync(), isTrue, reason: 'a project that has to be forged before it is correct is not correct');
+      expect(main.readAsStringSync(), contains('targets:'), reason: 'the file was written with nothing in it');
+    });
+
     test('an existing directory is never merged into', () async {
       writeFramework();
       fs.directory('$workDirectory/taken/lib').createSync(recursive: true);
