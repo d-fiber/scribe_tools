@@ -122,7 +122,11 @@ class Resources {
   /// [placement] answers for one resource by name, and a target that says
   /// nothing about a resource leaves it in a container, which is the stack as it
   /// was before anything could be placed anywhere else.
-  static Resources load({List<Package>? mounted, Placement Function(String resource)? placement}) {
+  static Resources load({
+    List<Package>? mounted,
+    Placement Function(String resource)? placement,
+    Map<String, Map<String, String>> outputs = const <String, Map<String, String>>{},
+  }) {
     final Directory root = SocleOps().root;
     final List<Package> found = mounted ?? Packages.load().active;
 
@@ -137,7 +141,39 @@ class Resources {
           package.directory.childDirectory(fragmentDirectory).childDirectory(recipesDirectoryName),
       ],
       placement: placement ?? (String _) => Placement.inContainer,
+      outputs: outputs,
     );
+  }
+
+  /// Every resource the socle and [mounted] declare, before anything answers.
+  ///
+  /// A deployment needs this list before it renders, because a resource a recipe
+  /// has to create has no outputs until the apply has run, and the render is
+  /// what those outputs are for.
+  static List<Resource> declared({List<Package>? mounted}) {
+    final List<Package> found = mounted ?? Packages.load().active;
+
+    return <Resource>[
+      ..._readFile(SocleOps().root.childFile('$configurationFileName$kTemplateSuffix')),
+      for (final Package package in found) ..._readFile(package.directory.childFile(configurationFileName)),
+    ];
+  }
+
+  /// The file a recipe of [className] for [type] is written in, null when none.
+  ///
+  /// Two shapes exist: a `.yaml` holding the outputs, and a `.tf.json` holding
+  /// configuration a provider applies to produce them.
+  static File? recipeFor(List<Directory> roots, String type, String className) => _recipeIn(roots, type, className);
+
+  /// Where the recipes of the socle and of [mounted] are looked for.
+  static List<Directory> recipeRoots({List<Package>? mounted}) {
+    final List<Package> found = mounted ?? Packages.load().active;
+
+    return <Directory>[
+      SocleOps().root.childDirectory(recipesDirectoryName),
+      for (final Package package in found)
+        package.directory.childDirectory(fragmentDirectory).childDirectory(recipesDirectoryName),
+    ];
   }
 
   /// The resources [declarations] ask for, each answered from one of [recipes].
@@ -149,10 +185,16 @@ class Resources {
     Iterable<File> declarations, {
     required List<Directory> recipes,
     Placement Function(String resource)? placement,
+    Map<String, Map<String, String>> outputs = const <String, Map<String, String>>{},
   }) => Resources(<ResolvedResource>[
     for (final File file in declarations)
       for (final Resource resource in _readFile(file))
-        _resolve(resource, recipes, (placement ?? (String _) => Placement.inContainer)(resource.name)),
+        _resolve(
+          resource,
+          recipes,
+          (placement ?? (String _) => Placement.inContainer)(resource.name),
+          outputs: outputs,
+        ),
   ]);
 
   /// Every compose service that is not part of the stack any more.
@@ -175,8 +217,25 @@ class Resources {
         'resource_${resource.resource.name}_${output.key}': output.value,
   };
 
-  static ResolvedResource _resolve(Resource resource, List<Directory> recipes, Placement placement) {
+  static ResolvedResource _resolve(
+    Resource resource,
+    List<Directory> recipes,
+    Placement placement, {
+    Map<String, Map<String, String>> outputs = const <String, Map<String, String>>{},
+  }) {
     final String className = placement.recipeName;
+
+    // A resource somebody already provisioned answers with what it produced, and
+    // no file on disk can hold that: it did not exist before the apply.
+    if (outputs[resource.name] case final Map<String, String> made) {
+      return ResolvedResource(
+        resource: resource,
+        className: className,
+        containerServices: _servicesOf(_recipeIn(recipes, resource.type, containerPlacement)),
+        outputs: made,
+      );
+    }
+
     final File? recipe = _recipeIn(recipes, resource.type, className);
     if (recipe == null) {
       throwToolExit(
@@ -225,7 +284,12 @@ class Resources {
   /// a type nothing else does simply adds a directory and is found.
   static File? _recipeIn(List<Directory> recipes, String type, String className) {
     for (final Directory root in recipes) {
-      for (final String name in <String>['$className.yaml$kTemplateSuffix', '$className.yaml']) {
+      for (final String name in <String>[
+        '$className.yaml$kTemplateSuffix',
+        '$className.yaml',
+        '$className.tf.json$kTemplateSuffix',
+        '$className.tf.json',
+      ]) {
         final File candidate = root.childDirectory(type).childFile(name);
         if (candidate.existsSync()) return candidate;
       }

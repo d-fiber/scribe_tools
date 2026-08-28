@@ -34,9 +34,12 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
+import 'dart:convert';
+
 import 'package:file/file.dart';
 import 'package:path/path.dart' as pathlib;
 import 'package:scribe_tools/src/base/common.dart';
+import 'package:scribe_tools/src/base/template.dart';
 import 'package:scribe_tools/src/commands/gen/code/generate.dart';
 import 'package:scribe_tools/src/commands/gen/routes/routes_command.dart';
 import 'package:scribe_tools/src/deploy/configuration.dart';
@@ -44,6 +47,7 @@ import 'package:scribe_tools/src/deploy/drivers/ssh.dart';
 import 'package:scribe_tools/src/deploy/forge.dart';
 import 'package:scribe_tools/src/deploy/plan.dart';
 import 'package:scribe_tools/src/deploy/resources.dart';
+import 'package:scribe_tools/src/deploy/tofu.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/ops/hardware.dart';
 import 'package:scribe_tools/src/ops/sizing.dart';
@@ -114,11 +118,15 @@ class DeployCommand extends ScribeCommand {
       if (root == null) return const ScribeCommandResult.fail();
     }
 
+    final Map<String, Map<String, String>>? made = await _provision(target, dryRun: boolArg('plan'));
+    if (made == null) return const ScribeCommandResult.fail();
+
     final ComposeDocuments documents = await ComposeRender(
       project: project,
       withWorker: boolArg('worker'),
       targetName: targetName,
       stackRoot: root,
+      resourceOutputs: made,
     ).render(await Hardware.detect());
 
     final DeploymentPlan plan = DeploymentPlan(
@@ -149,6 +157,67 @@ class DeployCommand extends ScribeCommand {
 
     return remote ? _startThere(plan, documents, root!) : _start(plan, documents);
   }
+
+  /// Creates the resources whose recipe is configuration, and returns what they made.
+  ///
+  /// A recipe written as `.tf.json` produces its outputs rather than holding
+  /// them: a password a provider generates does not exist before the apply. The
+  /// state of each one lives under the project and never in the stack cache,
+  /// which is emptied on every render.
+  Future<Map<String, Map<String, String>>?> _provision(Target target, {required bool dryRun}) async {
+    final ProjectConfiguration configuration = ProjectConfiguration.load(project: project);
+    final List<Package> mounted = Packages.load().active;
+    final List<Directory> roots = Resources.recipeRoots(mounted: mounted);
+    final Map<String, Map<String, String>> made = <String, Map<String, String>>{};
+
+    for (final Resource resource in Resources.declared(mounted: mounted)) {
+      final Placement placement = configuration.placementOf(target.name, resource.name);
+      if (placement.isContainer || placement.isExternal) continue;
+
+      final File? recipe = Resources.recipeFor(roots, resource.type, placement.recipeName);
+      if (recipe == null || !recipe.path.contains('.tf.json')) continue;
+
+      final Tofu tofu = Tofu(_stateOf(target, resource))
+        ..write(
+          jsonDecode(renderTemplate(recipe.path, recipe.readAsStringSync(), _paramsOf(placement)))
+              as Map<String, Object?>,
+        );
+
+      globals.logger.printStatus('${resource.name}: ${placement.recipeName}');
+      if (!await tofu.init()) return null;
+
+      if (dryRun) {
+        final String? plan = await tofu.plan();
+        if (plan == null) return null;
+        globals.logger.printStatus(plan.trim());
+        continue;
+      }
+
+      if (!await tofu.apply()) return null;
+
+      final Map<String, String>? outputs = await tofu.outputs();
+      if (outputs == null) return null;
+      made[resource.name] = outputs;
+    }
+
+    return made;
+  }
+
+  /// Where the state of one provisioned resource lives.
+  ///
+  /// Under the project and not in the stack cache: the cache is emptied on every
+  /// render, and losing a state is losing the trace of a database that exists
+  /// and that bills.
+  Directory _stateOf(Target target, Resource resource) => project.directory
+      .childDirectory('.scribe')
+      .childDirectory('state')
+      .childDirectory(target.name)
+      .childDirectory(resource.name);
+
+  /// What a recipe is given, as the strings a template is rendered with.
+  Map<String, String> _paramsOf(Placement placement) => <String, String>{
+    for (final MapEntry<String, Object?> entry in placement.params.entries) entry.key: '${entry.value}',
+  };
 
   /// Where the stack will sit on the host, null when the host cannot be reached.
   Future<String?> _rootOn(Target target) async {

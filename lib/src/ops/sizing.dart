@@ -159,8 +159,19 @@ class ComposeDocuments {
 /// the project's generated directory.
 class ComposeRender {
   /// Renders [project], the one the command is running in when none is named.
-  ComposeRender({Project? project, this.withWorker = false, this.targetName, this.stackRoot})
-    : project = project ?? globals.project;
+  ComposeRender({
+    Project? project,
+    this.withWorker = false,
+    this.targetName,
+    this.stackRoot,
+    this.resourceOutputs = const <String, Map<String, String>>{},
+  }) : project = project ?? globals.project;
+
+  /// What a recipe already produced, by resource name.
+  ///
+  /// A resource a provider created answers with what the apply returned, and no
+  /// file can hold that: the password did not exist before it ran.
+  final Map<String, Map<String, String>> resourceOutputs;
 
   /// The absolute path the containers will see the stack at, null when it is here.
   ///
@@ -206,7 +217,7 @@ class ComposeRender {
 
     final List<String> profiles = <String>[...Packages.profilesOf(active), if (withWorker) workerProfile]..sort();
 
-    final Resources resources = Resources.load(mounted: active, placement: _placement);
+    final Resources resources = Resources.load(mounted: active, placement: _placement, outputs: resourceOutputs);
     final Set<String> gone = resources.suppressedServices;
 
     final SizingRules rules = SizingRules(
