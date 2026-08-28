@@ -47,6 +47,7 @@ import 'package:scribe_tools/src/commands/pkg.dart';
 import 'package:scribe_tools/src/commands/run.dart';
 import 'package:scribe_tools/src/commands/secrets.dart';
 import 'package:scribe_tools/src/commands/shutdown.dart';
+import 'package:scribe_tools/src/commands/status.dart';
 import 'package:scribe_tools/src/commands/upgrade.dart';
 import 'package:scribe_tools/src/runner/scribe_command.dart';
 import 'package:scribe_tools/src/self/tool_version.dart';
@@ -66,6 +67,7 @@ Future<void> main(List<String> args) async {
       RunCommand(),
       SecretsCommand(),
       ShutdownCommand(),
+      StatusCommand(),
       UpgradeCommand(),
     ],
     toolVersion: kToolVersion,
