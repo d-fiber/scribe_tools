@@ -48,6 +48,13 @@ const String configurationFileName = 'configuration.yaml';
 /// The directory the recipes sit in, one subdirectory per resource type.
 const String recipesDirectoryName = 'recipes';
 
+/// The file a type says what every recipe for it has to return in.
+///
+/// It sits beside the recipes and not inside one, because the contract belongs
+/// to the type: `host` means the same thing whether a container or a managed
+/// service answered, and that is what lets the binding be written once.
+const String contractFileName = 'contract.yaml';
+
 /// One thing a module needs, said without saying where it comes from.
 ///
 /// A resource is the seam the whole deployment engine turns on: the socle and
@@ -250,14 +257,18 @@ class Resources {
       throwToolExit('${recipe.path}: the file must hold a mapping under "outputs".');
     }
 
+    final Map<String, String> answered = <String, String>{
+      for (final MapEntry<Object?, Object?> output in (document['outputs'] as YamlMap).entries)
+        '${output.key}': _output(output.value, output.key, recipe),
+    };
+
+    _refuseAnIncompleteRecipe(recipes, resource, className, recipe, answered);
+
     return ResolvedResource(
       resource: resource,
       className: className,
       containerServices: _servicesOf(_recipeIn(recipes, resource.type, containerPlacement)),
-      outputs: <String, String>{
-        for (final MapEntry<Object?, Object?> output in (document['outputs'] as YamlMap).entries)
-          '${output.key}': _output(output.value, output.key, recipe),
-      },
+      outputs: answered,
     );
   }
 
@@ -266,6 +277,53 @@ class Resources {
     if (value is int || value is bool) return '$value';
 
     throwToolExit('${recipe.path}: output "$key" must be text, a number or a boolean.');
+  }
+
+  /// Refuses a recipe that does not return everything its type promises.
+  ///
+  /// A field a recipe forgets is not an error anybody sees: it renders as an
+  /// empty placeholder, and the service it was meant for fails on a host that is
+  /// the empty string, three layers from the cause. The contract turns that into
+  /// a refusal at the render, naming the field.
+  static void _refuseAnIncompleteRecipe(
+    List<Directory> recipes,
+    Resource resource,
+    String className,
+    File recipe,
+    Map<String, String> answered,
+  ) {
+    final Set<String> promised = _contractOf(recipes, resource.type);
+    final List<String> missing = <String>[
+      for (final String field in promised)
+        if (!answered.containsKey(field)) field,
+    ];
+    if (missing.isEmpty) return;
+
+    throwToolExit(
+      'The $className recipe of a ${resource.type} returns no ${missing.join(', no ')}.\n'
+      'A ${resource.type} promises ${promised.join(', ')}, whoever answers for it, '
+      'because that is what its consumers are written against.\n'
+      'The recipe is ${recipe.path}',
+    );
+  }
+
+  /// What a type promises, empty when it promises nothing yet.
+  static Set<String> _contractOf(List<Directory> recipes, String type) {
+    for (final Directory root in recipes) {
+      for (final String name in <String>['$contractFileName$kTemplateSuffix', contractFileName]) {
+        final File candidate = root.childDirectory(type).childFile(name);
+        if (!candidate.existsSync()) continue;
+
+        final Object? document = loadYaml(candidate.readAsStringSync());
+        if (document is! YamlMap || document['outputs'] is! YamlList) {
+          throwToolExit('${candidate.path}: the file must hold a list under "outputs".');
+        }
+
+        return <String>{for (final Object? field in document['outputs'] as YamlList) '$field'};
+      }
+    }
+
+    return const <String>{};
   }
 
   /// The services a container recipe says it brings, none when it says nothing.

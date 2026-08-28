@@ -112,6 +112,37 @@ void main() {
       expect(resolved.outputs['url'], r'${REDIS_URL}');
     });
 
+    test('is refused when the recipe returns less than its type promises', () {
+      recipe('redis', 'outputs:\n  host: "redis"\n');
+      root
+          .childDirectory(recipesDirectoryName)
+          .childDirectory('redis')
+          .childFile(contractFileName)
+          .writeAsStringSync('outputs:\n  - host\n  - port\n  - url\n');
+
+      expect(
+        () => read(declare(_declaration)),
+        throwsA(
+          isA<ToolExit>().having(
+            (ToolExit e) => e.message,
+            'message',
+            allOf(contains('returns no port, no url'), contains('promises host, port, url')),
+          ),
+        ),
+      );
+    });
+
+    test('is taken when the recipe returns everything its type promises', () {
+      recipe('redis', _recipe);
+      root
+          .childDirectory(recipesDirectoryName)
+          .childDirectory('redis')
+          .childFile(contractFileName)
+          .writeAsStringSync('outputs:\n  - host\n  - port\n  - url\n');
+
+      expect(read(declare(_declaration)).resolved.single.outputs.keys, containsAll(<String>['host', 'port', 'url']));
+    });
+
     test('is refused by name and by type when no recipe answers for it', () {
       expect(
         () => read(declare(_declaration)),
