@@ -83,7 +83,7 @@ class DeploymentPlan {
     if (target.kind == TargetKind.vps || target.kind == TargetKind.hybrid)
       if (target.host.isEmpty)
         'targets.${target.name}.host names nobody, and a ${target.kind.name} target is reached over SSH.'
-      else
+      else if (target.registry.isEmpty)
         _needsARegistry(target),
     if (target.kind == TargetKind.paas)
       'a paas target needs a driver that pushes to the platform, and there is none yet.',
@@ -91,10 +91,10 @@ class DeploymentPlan {
       'the "${resource.className}" recipe of ${resource.resource.name} needs tofu, which is not called yet.',
   ];
 
-  /// Why a target reached over SSH cannot be deployed to yet.
+  /// Why a target reached over SSH cannot be deployed to without a registry.
   static String _needsARegistry(Target target) =>
-      'a ${target.kind.name} target needs the images in a registry, and the stack still builds them from '
-      'paths of this machine. Nothing is deployed to ${target.host} yet.';
+      'targets.${target.name}.registry names nothing, and a host that is not this one pulls its images '
+      'rather than building them from paths of this machine.';
 
   /// Whether the stack of this plan can be started where the command runs.
   bool get runsHere => target.kind == TargetKind.dev || target.kind == TargetKind.machine;

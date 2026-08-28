@@ -77,6 +77,19 @@ class Compose {
   /// Starts the stack in the background, and returns its status.
   Future<int> up() => _run(<String>['up', '-d', '--remove-orphans']);
 
+  /// Builds the images this stack declares, and returns its status.
+  ///
+  /// It is a step of its own rather than `up --build`, because a deployment
+  /// builds where the sources are and starts where the host is, and those are
+  /// two machines as soon as a target names one.
+  Future<int> build() => _run(<String>['build']);
+
+  /// Pushes the images this stack declares to the registry naming them.
+  ///
+  /// `--include-deps` is left off on purpose: what is pushed is what this stack
+  /// builds, and an image it merely pulls belongs to whoever publishes it.
+  Future<int> push() => _run(<String>['push']);
+
   /// Stops the stack and removes what it created, and returns its status.
   ///
   /// [volumes] also removes the named volumes, which is what empties the

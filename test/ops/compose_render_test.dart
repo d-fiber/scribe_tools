@@ -131,11 +131,12 @@ void main() {
     project(<String>['auth', 'audience']);
   });
 
-  Future<ComposeDocuments> render({bool worker = false, String? target}) => _withContext(fs, () async {
-    fs.currentDirectory = '/work/koko';
+  Future<ComposeDocuments> render({bool worker = false, String? target, String? stackRoot}) =>
+      _withContext(fs, () async {
+        fs.currentDirectory = '/work/koko';
 
-    return ComposeRender(withWorker: worker, targetName: target).render(_machine);
-  });
+        return ComposeRender(withWorker: worker, targetName: target, stackRoot: stackRoot).render(_machine);
+      });
 
   /// Places [resource] on [className] for a target named `elsewhere`.
   void place(String resource, String className) =>
@@ -199,6 +200,34 @@ void main() {
       expect(compose, contains('- "./lib:/app/lib:ro"'));
       expect(compose, contains('image: "koko-api:local"'));
       expect(compose, isNot(contains('context: "/work/koko"')));
+    });
+  });
+
+  group('a stack rendered for a host that is not this one', () {
+    const String there = '/home/deploy/.scribe_cache/stacks/abc123';
+
+    test('names every path a container mounts on that host, not in this cache', () async {
+      target('    kind: vps\n    registry: "ghcr.io/d-fiber"\n');
+      final String compose = (await render(target: 'elsewhere', stackRoot: there)).files.first.readAsStringSync();
+
+      expect(compose, contains('$there/env/host.env'));
+      expect(compose, contains('$there/services/gateway'));
+    });
+
+    test('keeps the Dockerfile where the build happens, which is here', () async {
+      target('    kind: vps\n    registry: "ghcr.io/d-fiber"\n');
+      final String compose = (await render(target: 'elsewhere', stackRoot: there)).files.first.readAsStringSync();
+
+      expect(compose, contains('dockerfile: "$_stackHome/stacks/'));
+      expect(compose, contains('context: "/work/koko"'));
+    });
+
+    test('leaves every path in this cache when no host is named', () async {
+      target('    kind: machine\n');
+      final String compose = (await render(target: 'elsewhere')).files.first.readAsStringSync();
+
+      expect(compose, contains('$_stackHome/stacks/'));
+      expect(compose, isNot(contains('/home/deploy')));
     });
   });
 

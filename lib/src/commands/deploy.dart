@@ -35,10 +35,12 @@
 // LICENSE file, the LICENSE file governs.
 
 import 'package:file/file.dart';
+import 'package:path/path.dart' as pathlib;
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/commands/gen/code/generate.dart';
 import 'package:scribe_tools/src/commands/gen/routes/routes_command.dart';
 import 'package:scribe_tools/src/deploy/configuration.dart';
+import 'package:scribe_tools/src/deploy/drivers/ssh.dart';
 import 'package:scribe_tools/src/deploy/forge.dart';
 import 'package:scribe_tools/src/deploy/plan.dart';
 import 'package:scribe_tools/src/deploy/resources.dart';
@@ -100,14 +102,27 @@ class DeployCommand extends ScribeCommand {
     await generateProjectCode();
     await generateRoutes();
 
+    final Target target = ProjectConfiguration.load(project: project).target(targetName);
+    final bool remote = target.host.isNotEmpty && target.registry.isNotEmpty;
+
+    // The host is asked where the stack will sit before anything is rendered:
+    // every bind mount inside the documents is absolute, so a path that is right
+    // here and wrong there is a container that dies three layers from the cause.
+    String? root;
+    if (remote && !boolArg('plan')) {
+      root = await _rootOn(target);
+      if (root == null) return const ScribeCommandResult.fail();
+    }
+
     final ComposeDocuments documents = await ComposeRender(
       project: project,
       withWorker: boolArg('worker'),
       targetName: targetName,
+      stackRoot: root,
     ).render(await Hardware.detect());
 
     final DeploymentPlan plan = DeploymentPlan(
-      target: ProjectConfiguration.load(project: project).target(targetName),
+      target: target,
       resources: documents.resources,
       services: documents.profiles,
     );
@@ -118,6 +133,12 @@ class DeployCommand extends ScribeCommand {
       return const ScribeCommandResult.success();
     }
 
+    if (plan.target.registry.isNotEmpty && !boolArg('plan')) {
+      if (await _publish(documents) case final ScribeCommandResult refusal) {
+        return refusal;
+      }
+    }
+
     if (plan.blockers.isNotEmpty) {
       for (final String blocker in plan.blockers) {
         globals.logger.printError(blocker);
@@ -126,7 +147,74 @@ class DeployCommand extends ScribeCommand {
       return const ScribeCommandResult.fail();
     }
 
-    return _start(plan, documents);
+    return remote ? _startThere(plan, documents, root!) : _start(plan, documents);
+  }
+
+  /// Where the stack will sit on the host, null when the host cannot be reached.
+  Future<String?> _rootOn(Target target) async {
+    final String? home = await RemoteHost(target.host).home();
+    if (home == null) {
+      globals.logger.printError('${target.host} did not answer, so nothing was rendered for it.');
+
+      return null;
+    }
+
+    return pathlib.posix.join(home, '.scribe_cache', 'stacks', StackLocation(project: project).fingerprint);
+  }
+
+  /// Ships the stack to the host and starts it there.
+  ///
+  /// Everything a container reads is inside the stack when a target bakes, so
+  /// one directory is the whole deployment: there is nothing else to copy and
+  /// nothing on the host to keep in step by hand.
+  Future<ScribeCommandResult> _startThere(DeploymentPlan plan, ComposeDocuments documents, String root) async {
+    final RemoteHost host = RemoteHost(plan.target.host);
+    final StackLocation location = StackLocation(project: project);
+
+    globals.logger.printStatus('shipping the stack to ${plan.target.host}');
+    if (!await host.ship(location.directory, root)) {
+      return const ScribeCommandResult.fail();
+    }
+
+    final List<String> documentsThere = <String>[
+      for (final File file in documents.files) pathlib.posix.join(root, pathlib.basename(file.path)),
+    ];
+
+    globals.logger.printStatus('starting it there');
+    final int status = await host.compose(
+      <String>['up', '-d', '--remove-orphans', '--pull', 'always'],
+      root: root,
+      projectName: documents.projectName,
+      documents: documentsThere,
+    );
+    if (status != 0) return const ScribeCommandResult.fail();
+
+    globals.logger.printStatus('ready  ${plan.target.domain}');
+
+    return const ScribeCommandResult.success();
+  }
+
+  /// Builds the images and puts them in the registry, or says why it could not.
+  ///
+  /// It runs before the blockers are read, because the images are what a remote
+  /// target is missing, and a project has to be able to publish them before the
+  /// leg that pulls them exists.
+  Future<ScribeCommandResult?> _publish(ComposeDocuments documents) async {
+    final StackManifest manifest = StackManifest(
+      projectDirectory: documents.projectDirectory,
+      projectName: documents.projectName,
+      files: <String>[for (final File file in documents.files) file.absolute.path],
+      profiles: documents.profiles,
+    );
+    final Compose compose = Compose(manifest);
+
+    globals.logger.printStatus('building the images this deployment carries');
+    if (await compose.build() != 0) return const ScribeCommandResult.fail();
+
+    globals.logger.printStatus('pushing them to the registry');
+    if (await compose.push() != 0) return const ScribeCommandResult.fail();
+
+    return null;
   }
 
   /// The refusal a project that has not been forged gets, null when it is fine.

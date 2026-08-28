@@ -159,7 +159,16 @@ class ComposeDocuments {
 /// the project's generated directory.
 class ComposeRender {
   /// Renders [project], the one the command is running in when none is named.
-  ComposeRender({Project? project, this.withWorker = false, this.targetName}) : project = project ?? globals.project;
+  ComposeRender({Project? project, this.withWorker = false, this.targetName, this.stackRoot})
+    : project = project ?? globals.project;
+
+  /// The absolute path the containers will see the stack at, null when it is here.
+  ///
+  /// A deployment ships the stack to a host and starts it there, so every bind
+  /// mount inside the documents has to name the path on that host and not the
+  /// one in this cache. What is built rather than mounted keeps its own path,
+  /// because building happens where the sources are.
+  final String? stackRoot;
 
   /// The deployment target this render is for, or null for the machine at hand.
   ///
@@ -342,14 +351,19 @@ class ComposeRender {
       // mount against the project root, the daemon creates a directory where
       // the file should be, and the container dies on a parse error three
       // layers from the cause.
-      'stack_env': StackLocation(project: project).env.absolute.path,
+      'stack_env': _seenAt(StackLocation(project: project).env),
       for (final String service in SocleOps().serviceNames)
-        'service_$service': StackLocation(project: project).services.childDirectory(service).absolute.path,
-      'project_db_init': _projectDatabaseDirectory(StackLocation(project: project).services, 'init').absolute.path,
-      'project_db_migrations': _projectDatabaseDirectory(
-        StackLocation(project: project).services,
-        'migrations',
-      ).absolute.path,
+        'service_$service': _seenAt(StackLocation(project: project).services.childDirectory(service)),
+      'dockerfile_api': StackLocation(
+        project: project,
+      ).services.childDirectory('api').childFile('Dockerfile').absolute.path,
+      'dockerfile_functions': StackLocation(
+        project: project,
+      ).services.childDirectory('functions').childFile('Dockerfile').absolute.path,
+      'project_db_init': _seenAt(_projectDatabaseDirectory(StackLocation(project: project).services, 'init')),
+      'project_db_migrations': _seenAt(
+        _projectDatabaseDirectory(StackLocation(project: project).services, 'migrations'),
+      ),
       'worker_endpoint': withWorker ? workerEndpoint : '',
       'api_url': _apiUrl,
       'api_host': Uri.parse(_apiUrl).host,
@@ -379,6 +393,7 @@ class ComposeRender {
       'image_api': image('api'),
       'image_worker': image('api'),
       'image_functions': image('functions'),
+      'image_db': image('db'),
       'build_context_api': _bakes
           ? project.directory.absolute.path
           : stack.services.childDirectory('api').absolute.path,
@@ -420,6 +435,19 @@ class ComposeRender {
         'COPY $derived/sdk/js $root/$derived/sdk/js\n';
   }
 
+  /// Where a container will see [here], which is elsewhere when the stack ships.
+  ///
+  /// A path under the stack is rewritten against [stackRoot]; a path outside it,
+  /// which only a mounting target has, is left alone because such a target never
+  /// ships anywhere.
+  String _seenAt(Directory here) {
+    final String root = StackLocation(project: project).directory.absolute.path;
+    final String path = here.absolute.path;
+    if (stackRoot == null || !path.startsWith(root)) return path;
+
+    return '$stackRoot${path.substring(root.length)}';
+  }
+
   /// The directory a service reads the project's own `db/<name>` from.
   ///
   /// The project's directory when it ships one, and an empty directory of the
@@ -429,11 +457,19 @@ class ComposeRender {
   /// directory nothing declares.
   Directory _projectDatabaseDirectory(Directory services, String name) {
     final Directory declared = project.directory.childDirectory('db').childDirectory(name);
-    if (declared.existsSync()) {
-      return declared;
+    final Directory inStack = services.childDirectory(databaseServiceName).childDirectory('project-$name')
+      ..createSync(recursive: true);
+
+    // A target that bakes ships one directory and nothing else, so what the
+    // project holds is copied in rather than mounted from where it sits.
+    if (!declared.existsSync()) return inStack;
+    if (!_bakes) return declared;
+
+    for (final File file in declared.listSync().whereType<File>()) {
+      inStack.childFile(p.basename(file.path)).writeAsStringSync(file.readAsStringSync());
     }
 
-    return services.childDirectory(databaseServiceName).childDirectory('project-$name')..createSync(recursive: true);
+    return inStack;
   }
 
   void _reportSelection(Packages packages, List<Package> active, List<String> profiles) {
