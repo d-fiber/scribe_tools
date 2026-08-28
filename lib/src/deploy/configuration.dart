@@ -98,6 +98,7 @@ class Target {
     this.cors = const <String>[],
     this.machine,
     this.cpuCap = false,
+    this.share = 1,
     this.registry = '',
     this.tag = 'latest',
     this.platform = '',
@@ -130,6 +131,13 @@ class Target {
 
   /// Whether a service is capped at its share of the cores rather than weighted.
   final bool cpuCap;
+
+  /// How much of the machine this project may take, 1 when it takes all of it.
+  ///
+  /// A host that runs one stack leaves this alone. A host that runs three has
+  /// each project name its part, and the three parts are what keeps the limits
+  /// from adding up past what the host holds.
+  final num share;
 
   /// The registry the images of this deployment are pushed to and pulled from.
   ///
@@ -297,6 +305,7 @@ class ProjectConfiguration {
           domain: manifest.apiUrl,
           machine: manifest.machineOf(name),
           cpuCap: manifest.cpuCapOf(name),
+          share: manifest.shareOf(name),
         ),
     ];
   }
@@ -324,6 +333,7 @@ class ProjectConfiguration {
           for (final Object? origin in origins) '$origin',
       ],
       machine: _machine(machine, name, file),
+      share: Hardware.parseShare(entry['share'], field: 'targets.$name.share'),
       cpuCap: entry['cpu_cap'] == true,
       registry: '${entry['registry'] ?? ''}',
       tag: '${entry['tag'] ?? 'latest'}',

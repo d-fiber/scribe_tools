@@ -67,6 +67,22 @@ targets:
       memory: 24g
 ''';
 
+const String _shared = '''
+name: koko
+targets:
+  alone:
+    machine:
+      cores: 8
+      threads: 16
+      memory: 24g
+  neighbour:
+    machine:
+      cores: 8
+      threads: 16
+      memory: 24g
+    share: 0.25
+''';
+
 late MemoryFileSystem fs;
 
 Future<T> withEnvironment<T>(Map<String, String> environment, T Function() body) => AppContext.current.run<T>(
@@ -218,6 +234,45 @@ void main() {
         expect(manifestOf(_manifest).cpuCapOf('big'), isFalse);
         expect(manifestOf(_manifest).cpuCapOf('local'), isFalse);
       });
+    });
+
+    test('a target takes the whole machine unless it names a share', () async {
+      await withEnvironment(const <String, String>{}, () {
+        expect(manifestOf(_shared).shareOf('alone'), 1);
+        expect(manifestOf(_shared).shareOf('neighbour'), 0.25);
+      });
+    });
+  });
+
+  group('a share of a machine', () {
+    const Hardware host = Hardware(cores: 8, threads: 16, memoryGb: 24);
+
+    test('leaves the machine alone when it is the whole of it', () {
+      expect(host.sharing(1), same(host));
+    });
+
+    test('cuts every count down by it', () {
+      final Hardware quarter = host.sharing(0.25);
+
+      expect(<int>[quarter.cores, quarter.threads, quarter.memoryGb], <int>[2, 4, 6]);
+    });
+
+    test('never rounds a count down to nothing', () {
+      final Hardware sliver = const Hardware(cores: 2, threads: 4, memoryGb: 2).sharing(0.1);
+
+      expect(<int>[sliver.cores, sliver.threads, sliver.memoryGb], <int>[1, 1, 1]);
+    });
+
+    test('is refused when it is not a fraction of a machine', () {
+      for (final Object? written in <Object?>[0, -1, 2, 'half']) {
+        expect(
+          () => Hardware.parseShare(written, field: 'targets.two.share'),
+          throwsA(
+            isA<ToolExit>().having((ToolExit exit) => exit.message, 'message', contains('is not a share of a machine')),
+          ),
+          reason: '$written was taken for a share',
+        );
+      }
     });
   });
 }

@@ -95,6 +95,47 @@ class Hardware {
     return Hardware(cores: cores, threads: threads, memoryGb: memoryGb);
   }
 
+  /// This machine as it looks to a project entitled to [share] of it.
+  ///
+  /// A host that runs one stack is sized against everything it has. A host that
+  /// runs three is not, and nothing else says so: without this, each project
+  /// renders limits for the whole machine, the three sets add up to three times
+  /// the host, and the kernel settles it by killing whichever container asked
+  /// last.
+  ///
+  /// Nothing falls below one core, one thread and one gibibyte. A share small
+  /// enough to round a count down to zero would divide by it further down, and
+  /// a stack that cannot be sized is more use refused than rendered.
+  Hardware sharing(num share) {
+    if (share == 1) return this;
+
+    int atLeastOne(num counted) => counted < 1 ? 1 : counted.floor();
+
+    return Hardware(
+      cores: atLeastOne(cores * share),
+      threads: atLeastOne(threads * share),
+      memoryGb: atLeastOne(memoryGb * share),
+    );
+  }
+
+  /// [written] as a fraction of a machine, refusing what a fraction cannot be.
+  ///
+  /// Above one would be a project claiming more than the host has, which is the
+  /// mistake this key exists to prevent rather than a way of writing it down.
+  static num parseShare(Object? written, {required String field}) {
+    if (written == null) return 1;
+
+    final num? read = written is num ? written : num.tryParse('$written'.trim());
+    if (read == null || read <= 0 || read > 1) {
+      throwToolExit(
+        '$field holds "$written", which is not a share of a machine.\n'
+        'Write a number above 0 and no higher than 1: 0.5 for half of the host, 1 for all of it.',
+      );
+    }
+
+    return read;
+  }
+
   /// [value] as a whole number, refusing anything a count cannot be.
   static int _whole(Object? value, {required String field}) {
     final int? read = value is int ? value : int.tryParse('$value'.trim());

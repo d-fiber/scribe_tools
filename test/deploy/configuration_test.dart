@@ -208,6 +208,16 @@ void main() {
     });
   });
 
+  group('the part of a host a target takes', () {
+    test('is read from main.yaml', () async {
+      await inProject(() {
+        write('main.yaml', 'targets:\n  shared:\n    kind: vps\n    share: 0.25\n');
+
+        expect(read().target('shared').share, 0.25);
+      });
+    });
+  });
+
   group('a kind nothing carries out', () {
     test('is refused, and the refusal names what does work', () async {
       await inProject(() {

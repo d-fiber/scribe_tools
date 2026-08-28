@@ -216,7 +216,7 @@ class ComposeRender {
   /// Renders every template and every overlay, and returns what Compose needs.
   Future<ComposeDocuments> render(Hardware detected) async {
     final Target? deployingTo = targetName == null ? null : _configuration.target(targetName!);
-    final Hardware hardware = deployingTo?.machine ?? detected;
+    final Hardware hardware = (deployingTo?.machine ?? detected).sharing(deployingTo?.share ?? 1);
     final bool cpuCap = deployingTo?.cpuCap ?? false;
     final TargetKind kind = deployingTo?.kind ?? TargetKind.machine;
 

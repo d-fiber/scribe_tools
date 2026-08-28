@@ -159,6 +159,47 @@ void main() {
     '/work/koko/configuration/main.yaml',
   )..createSync(recursive: true)).writeAsStringSync('targets:\n  elsewhere:\n$body');
 
+  group('a target that shares its host', () {
+    const String machine = '    kind: vps\n    machine:\n      cores: 8\n      threads: 16\n      memory: 24g\n';
+
+    Future<Map<String, String>> sizesUnder(String body) async {
+      target(body);
+      final List<File> written = (await render(target: 'elsewhere')).files;
+      final File resources = written.firstWhere((File file) => p.basename(file.path) == 'resources.yaml');
+      final YamlMap services = (loadYaml(resources.readAsStringSync()) as YamlMap)['services'] as YamlMap;
+
+      return <String, String>{
+        for (final MapEntry<Object?, Object?> entry in services.entries)
+          '${entry.key}': '${((entry.value! as YamlMap)['deploy']! as YamlMap)['resources']!}',
+      };
+    }
+
+    Future<int> apiContainersUnder(String body) async {
+      target(body);
+      final List<File> written = (await render(target: 'elsewhere')).files;
+      final File replicas = written.firstWhere((File file) => p.basename(file.path) == 'replicas.yaml');
+      final YamlMap api = ((loadYaml(replicas.readAsStringSync()) as YamlMap)['services'] as YamlMap)['api'] as YamlMap;
+
+      return int.parse('${(api['deploy']! as YamlMap)['replicas']}');
+    }
+
+    test('is sized against its part of the machine and not the whole of it', () async {
+      final Map<String, String> whole = await sizesUnder(machine);
+      final Map<String, String> quarter = await sizesUnder('$machine    share: 0.25\n');
+
+      expect(quarter.keys, whole.keys, reason: 'a share changed which services run');
+      expect(quarter['db'], isNot(whole['db']), reason: 'a quarter of the host gave the database all of its memory');
+    });
+
+    test('runs fewer copies of a service it can replicate', () async {
+      expect(await apiContainersUnder('$machine    share: 0.25\n'), lessThan(await apiContainersUnder(machine)));
+    });
+
+    test('is sized like the whole machine when it names no share', () async {
+      expect(await sizesUnder('$machine    share: 1\n'), await sizesUnder(machine));
+    });
+  });
+
   group('a target that names a registry', () {
     test('names its images after the registry, and builds them from the project', () async {
       target('    kind: vps\n    registry: "ghcr.io/d-fiber"\n    tag: "v3"\n');

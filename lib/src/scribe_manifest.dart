@@ -312,6 +312,10 @@ class ScribeManifest {
   /// with anything else wants the ceiling, and pays for it in burst capacity.
   bool cpuCapOf(String target) => read(<String>['targets', target, 'cpu_cap']) == true;
 
+  /// How much of the machine this target's project may take, 1 when it says nothing.
+  num shareOf(String target) =>
+      Hardware.parseShare(read(<String>['targets', target, 'share']), field: 'targets.$target.share');
+
   /// The origins allowed to call the API.
   List<String> get origins => _strings(<String>['api', 'cors']);
 
