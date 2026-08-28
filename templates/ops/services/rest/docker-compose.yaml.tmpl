@@ -12,7 +12,7 @@ services:
       dockerfile: "Dockerfile"
     restart: "unless-stopped"
     environment:
-      PGRST_DB_URI: "postgres://authenticator:${AUTHENTICATOR_PASSWORD}@db:5432/postgres"
+      PGRST_DB_URI: "postgres://authenticator:${AUTHENTICATOR_PASSWORD}@{{resource_postgres_host}}:{{resource_postgres_port}}/{{resource_postgres_database}}"
       PGRST_DB_SCHEMAS: "public"
       PGRST_DB_MAX_ROWS: "1000"
       PGRST_DB_EXTRA_SEARCH_PATH: "public"
@@ -34,8 +34,8 @@ services:
       retries: 10
       start_period: "40s"
     depends_on:
-      db:
-        condition: "service_healthy"
+      provision:
+        condition: "service_completed_successfully"
     logging:
       driver: "json-file"
       options:
