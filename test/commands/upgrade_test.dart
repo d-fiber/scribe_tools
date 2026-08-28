@@ -81,7 +81,7 @@ class MergingProcessRunner extends RecordingProcessRunner {
   final String becomes;
 
   @override
-  Future<int> run(List<String> command, {String? workingDirectory}) async {
+  Future<int> run(List<String> command, {String? workingDirectory, Map<String, String>? environment}) async {
     if (command.contains('merge')) {
       fs.file('$checkoutDirectory/deno.json').writeAsStringSync('{"version":"$becomes"}\n');
     }

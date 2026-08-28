@@ -52,6 +52,26 @@ const String kStackHomeVariable = 'SCRIBE_STACK_HOME';
 /// The directory the cache sits in, dotted when it lands in a home directory.
 const String cacheDirectoryName = 'scribe_cache';
 
+/// The cache root of this machine, which belongs to no project in particular.
+///
+/// `SCRIBE_STACK_HOME` when the environment names one, `XDG_CACHE_HOME` when it
+/// names that, and the home directory otherwise. The leading dot is only there
+/// in the last case, since a cache root is already out of the way and a dotted
+/// directory inside it would be hidden twice.
+Directory stackHome() {
+  final Map<String, String> environment = globals.platform.environment;
+
+  final String? named = environment[kStackHomeVariable];
+  if (named != null && named.isNotEmpty) return globals.fs.directory(named);
+
+  final String? xdg = environment['XDG_CACHE_HOME'];
+  if (xdg != null && xdg.isNotEmpty) return globals.fs.directory(p.join(xdg, cacheDirectoryName));
+
+  final String home = environment['HOME'] ?? environment['USERPROFILE'] ?? '.';
+
+  return globals.fs.directory(p.join(home, '.$cacheDirectoryName'));
+}
+
 /// Where a project's assembled documents live, outside the project.
 ///
 /// The project keeps what its own code imports and nothing else. What only
@@ -71,19 +91,7 @@ class StackLocation {
   /// when it does not. The leading dot is only there in the second case, since
   /// a cache root is already out of the way and a dotted directory inside it
   /// would be hidden twice.
-  Directory get home {
-    final Map<String, String> environment = globals.platform.environment;
-
-    final String? named = environment[kStackHomeVariable];
-    if (named != null && named.isNotEmpty) return globals.fs.directory(named);
-
-    final String? xdg = environment['XDG_CACHE_HOME'];
-    if (xdg != null && xdg.isNotEmpty) return globals.fs.directory(p.join(xdg, cacheDirectoryName));
-
-    final String home = environment['HOME'] ?? environment['USERPROFILE'] ?? '.';
-
-    return globals.fs.directory(p.join(home, '.$cacheDirectoryName'));
-  }
+  Directory get home => stackHome();
 
   /// The twelve hexadecimal characters that stand for this project's path.
   ///

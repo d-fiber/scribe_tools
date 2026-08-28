@@ -46,7 +46,11 @@ abstract class ProcessRunner {
   const ProcessRunner();
 
   /// Runs [command], letting it write to this process's streams, and returns its status.
-  Future<int> run(List<String> command, {String? workingDirectory});
+  ///
+  /// [environment] is added to what this process already carries, and never
+  /// replaces it: a tool that needs a variable of its own still needs the PATH
+  /// that found it.
+  Future<int> run(List<String> command, {String? workingDirectory, Map<String, String>? environment});
 
   /// Runs [command] and returns what it wrote on standard output.
   ///
@@ -58,7 +62,7 @@ abstract class ProcessRunner {
   ///
   /// It is what a caller uses when a tool is noisy on the way to succeeding and
   /// its noise is only worth showing when it fails.
-  Future<ProcessOutcome> observe(List<String> command, {String? workingDirectory});
+  Future<ProcessOutcome> observe(List<String> command, {String? workingDirectory, Map<String, String>? environment});
 
   /// Starts [command] and forgets it, without waiting for it to end.
   ///
@@ -92,11 +96,12 @@ class LocalProcessRunner extends ProcessRunner {
   const LocalProcessRunner();
 
   @override
-  Future<int> run(List<String> command, {String? workingDirectory}) async {
+  Future<int> run(List<String> command, {String? workingDirectory, Map<String, String>? environment}) async {
     final io.Process process = await io.Process.start(
       command.first,
       command.skip(1).toList(),
       workingDirectory: workingDirectory,
+      environment: environment,
       mode: io.ProcessStartMode.inheritStdio,
     );
 
@@ -115,11 +120,16 @@ class LocalProcessRunner extends ProcessRunner {
   }
 
   @override
-  Future<ProcessOutcome> observe(List<String> command, {String? workingDirectory}) async {
+  Future<ProcessOutcome> observe(
+    List<String> command, {
+    String? workingDirectory,
+    Map<String, String>? environment,
+  }) async {
     final io.ProcessResult result = await io.Process.run(
       command.first,
       command.skip(1).toList(),
       workingDirectory: workingDirectory,
+      environment: environment,
     );
 
     return ProcessOutcome(exitCode: result.exitCode, stdout: '${result.stdout}', stderr: '${result.stderr}');
@@ -161,7 +171,7 @@ class RecordingProcessRunner extends ProcessRunner {
   final List<List<String>> commands = <List<String>>[];
 
   @override
-  Future<int> run(List<String> command, {String? workingDirectory}) async {
+  Future<int> run(List<String> command, {String? workingDirectory, Map<String, String>? environment}) async {
     commands.add(command);
     return exitCode;
   }
@@ -178,7 +188,11 @@ class RecordingProcessRunner extends ProcessRunner {
   }
 
   @override
-  Future<ProcessOutcome> observe(List<String> command, {String? workingDirectory}) async {
+  Future<ProcessOutcome> observe(
+    List<String> command, {
+    String? workingDirectory,
+    Map<String, String>? environment,
+  }) async {
     commands.add(command);
 
     for (final MapEntry<String, String> answer in outputs.entries) {

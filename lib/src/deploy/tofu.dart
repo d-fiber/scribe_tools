@@ -38,6 +38,7 @@ import 'dart:convert';
 import 'package:file/file.dart';
 import 'package:scribe_tools/src/base/process.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
+import 'package:scribe_tools/src/stack/stack_location.dart';
 
 /// The file a rendered recipe is written to.
 ///
@@ -48,6 +49,13 @@ const String tofuConfigurationName = 'main.tf.json';
 
 /// The binary this shells out to.
 const String tofuBinary = 'tofu';
+
+/// The directory the providers are kept in, shared by every workspace.
+///
+/// Without it each resource downloads its own copy of every provider it names,
+/// which on a slow line is the whole of a deployment's time. It is a cache in
+/// the plain sense: deleting it costs a download and nothing else.
+const String pluginCacheDirectoryName = 'tofu-plugins';
 
 /// One run of OpenTofu against one workspace.
 ///
@@ -120,7 +128,23 @@ class Tofu {
   Future<ProcessOutcome> _run(List<String> arguments) {
     globals.logger.printTrace('[tofu] ${<String>[binary, ...arguments].join(' ')}');
 
-    return globals.processRunner.observe(<String>[binary, ...arguments], workingDirectory: workspace.path);
+    return globals.processRunner.observe(
+      <String>[binary, ...arguments],
+      workingDirectory: workspace.path,
+      environment: <String, String>{'TF_PLUGIN_CACHE_DIR': _pluginCache().path},
+    );
+  }
+
+  /// The shared provider cache, created the first time it is asked for.
+  ///
+  /// It belongs to the machine and not to a project, so it is reached without
+  /// one: a workspace can be applied from anywhere, and the providers it needs
+  /// are the same wherever it is.
+  Directory _pluginCache() {
+    final Directory cache = stackHome().childDirectory(pluginCacheDirectoryName);
+    if (!cache.existsSync()) cache.createSync(recursive: true);
+
+    return cache;
   }
 
   Future<bool> _succeeds(List<String> arguments) async {
