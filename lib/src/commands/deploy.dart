@@ -108,7 +108,7 @@ class DeployCommand extends ScribeCommand {
     await generateProjectCode();
     await generateRoutes();
 
-    final Target target = ProjectConfiguration.load(project: project).target(targetName);
+    final Target target = ProjectConfiguration.load(project: project).target(targetName)..refuseWhatNothingCarriesOut();
     final bool remote = target.host.isNotEmpty && target.registry.isNotEmpty;
 
     // The host is asked where the stack will sit before anything is rendered:

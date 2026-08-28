@@ -207,4 +207,33 @@ void main() {
       await inProject(() => expect(read().settingsOf('search'), isEmpty));
     });
   });
+
+  group('a kind nothing carries out', () {
+    test('is refused, and the refusal names what does work', () async {
+      await inProject(() {
+        write('main.yaml', 'targets:\n  somewhere:\n    kind: paas\n    host: "app.example.com"\n');
+
+        expect(
+          () => read().target('somewhere').refuseWhatNothingCarriesOut(),
+          throwsA(
+            isA<ToolExit>().having(
+              (ToolExit exit) => exit.message,
+              'message',
+              allOf(contains('nothing deploys to a paas yet'), contains('kind: vps')),
+            ),
+          ),
+        );
+      });
+    });
+
+    test('lets every other kind through', () async {
+      await inProject(() {
+        write('main.yaml', _main);
+
+        for (final String name in <String>['local', 'prod']) {
+          read().target(name).refuseWhatNothingCarriesOut();
+        }
+      });
+    });
+  });
 }
