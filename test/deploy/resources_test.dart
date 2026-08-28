@@ -37,6 +37,7 @@
 import 'package:file/file.dart';
 import 'package:file/memory.dart';
 import 'package:scribe_tools/src/base/common.dart';
+import 'package:scribe_tools/src/deploy/configuration.dart';
 import 'package:scribe_tools/src/deploy/resources.dart';
 import 'package:scribe_tools/src/templates.dart';
 import 'package:test/test.dart';
@@ -59,16 +60,19 @@ void main() {
 
   File declare(String source) => root.childFile('$configurationFileName$kTemplateSuffix')..writeAsStringSync(source);
 
-  Directory recipe(String type, String source) {
-    root.childDirectory(recipesDirectoryName).childDirectory(type).childFile('$containerClass.yaml$kTemplateSuffix')
+  Directory recipe(String type, String source, {String className = containerPlacement}) {
+    root.childDirectory(recipesDirectoryName).childDirectory(type).childFile('$className.yaml$kTemplateSuffix')
       ..createSync(recursive: true)
       ..writeAsStringSync(source);
 
     return root.childDirectory(recipesDirectoryName);
   }
 
-  Resources read(File declaration) =>
-      Resources.read(<File>[declaration], recipes: <Directory>[root.childDirectory(recipesDirectoryName)]);
+  Resources read(File declaration, {Placement? placed}) => Resources.read(
+    <File>[declaration],
+    recipes: <Directory>[root.childDirectory(recipesDirectoryName)],
+    placement: placed == null ? null : (String _) => placed,
+  );
 
   setUp(() {
     root = MemoryFileSystem.test().directory('ops')..createSync(recursive: true);
@@ -81,7 +85,7 @@ void main() {
       final ResolvedResource resolved = read(declare(_declaration)).resolved.single;
 
       expect(resolved.resource.type, 'redis');
-      expect(resolved.className, containerClass);
+      expect(resolved.className, containerPlacement);
       expect(resolved.outputs['url'], r'redis://:${REDIS_PASSWORD}@redis:6379');
     });
 
@@ -93,6 +97,19 @@ void main() {
         'resource_redis_port': '6379',
         'resource_redis_url': r'redis://:${REDIS_PASSWORD}@redis:6379',
       });
+    });
+
+    test('takes the recipe the target placed it on, not the container one', () {
+      recipe('redis', _recipe);
+      recipe('redis', 'outputs:\n  url: "\${REDIS_URL}"\n', className: externalPlacement);
+
+      final ResolvedResource resolved = read(
+        declare(_declaration),
+        placed: const Placement(className: externalPlacement),
+      ).resolved.single;
+
+      expect(resolved.className, externalPlacement);
+      expect(resolved.outputs['url'], r'${REDIS_URL}');
     });
 
     test('is refused by name and by type when no recipe answers for it', () {

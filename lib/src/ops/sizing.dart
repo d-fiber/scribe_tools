@@ -39,6 +39,7 @@ import 'package:file/file.dart';
 import 'package:path/path.dart' as p;
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/base/template.dart';
+import 'package:scribe_tools/src/deploy/configuration.dart';
 import 'package:scribe_tools/src/deploy/resources.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/ops/capacity.dart';
@@ -193,7 +194,7 @@ class ComposeRender {
     );
     final Map<String, String> values = <String, String>{
       ...rules.resolve(),
-      ...Resources.load(mounted: active).values,
+      ...Resources.load(mounted: active, placement: _placement).values,
       ..._identity(),
       'proxy_ports': _proxyPorts(kind),
       'tls_resolver': _tlsResolver(),
@@ -252,6 +253,15 @@ class ComposeRender {
       kind: kind,
     );
   }
+
+  /// Where a resource goes on the target being rendered for.
+  ///
+  /// A render with no target is a render for the machine at hand, where nothing
+  /// is placed anywhere else: a workstation is the one case that cannot have
+  /// been described by a target block.
+  Placement _placement(String resource) => targetName == null
+      ? Placement.inContainer
+      : ProjectConfiguration.load(project: project).placementOf(targetName!, resource);
 
   /// Every hostname this stack claims, in the order the labels write them.
   List<String> _hostnames() => <String>[

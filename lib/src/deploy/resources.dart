@@ -36,6 +36,7 @@
 
 import 'package:file/file.dart';
 import 'package:scribe_tools/src/base/common.dart';
+import 'package:scribe_tools/src/deploy/configuration.dart';
 import 'package:scribe_tools/src/ops/socle.dart';
 import 'package:scribe_tools/src/packages.dart';
 import 'package:scribe_tools/src/templates.dart';
@@ -46,13 +47,6 @@ const String configurationFileName = 'configuration.yaml';
 
 /// The directory the recipes sit in, one subdirectory per resource type.
 const String recipesDirectoryName = 'recipes';
-
-/// The class a resource takes when nothing places it anywhere else.
-///
-/// It is a container of the stack, which is what every resource was before
-/// there was anywhere else to put one, so a project that says nothing gets the
-/// stack it got before this existed.
-const String containerClass = 'container';
 
 /// One thing a module needs, said without saying where it comes from.
 ///
@@ -110,7 +104,16 @@ class Resources {
   /// A package's is read from the checkout, beside the code that needs it, and
   /// so is the recipe answering for a type the package owns: `bucket` belongs to
   /// `storage`, and nothing of the socle should have to know the word.
-  static Resources load({List<Package>? mounted, String className = containerClass}) {
+  /// Every resource of the socle and of [mounted], placed the way [placement]
+  /// says.
+  ///
+  /// [placement] answers for one resource by name, and a target that says
+  /// nothing about a resource leaves it in a container, which is the stack as it
+  /// was before anything could be placed anywhere else.
+  static Resources load({
+    List<Package>? mounted,
+    Placement Function(String resource)? placement,
+  }) {
     final Directory root = SocleOps().root;
     final List<Package> found = mounted ?? Packages.load().active;
 
@@ -124,7 +127,7 @@ class Resources {
         for (final Package package in found)
           package.directory.childDirectory(fragmentDirectory).childDirectory(recipesDirectoryName),
       ],
-      className: className,
+      placement: placement ?? (String _) => Placement.inContainer,
     );
   }
 
@@ -136,10 +139,11 @@ class Resources {
   static Resources read(
     Iterable<File> declarations, {
     required List<Directory> recipes,
-    String className = containerClass,
+    Placement Function(String resource)? placement,
   }) => Resources(<ResolvedResource>[
     for (final File file in declarations)
-      for (final Resource resource in _readFile(file)) _resolve(resource, recipes, className),
+      for (final Resource resource in _readFile(file))
+        _resolve(resource, recipes, (placement ?? (String _) => Placement.inContainer)(resource.name)),
   ]);
 
   /// The template values a binding reads, one per output of every resource.
@@ -152,7 +156,8 @@ class Resources {
         'resource_${resource.resource.name}_${output.key}': output.value,
   };
 
-  static ResolvedResource _resolve(Resource resource, List<Directory> recipes, String className) {
+  static ResolvedResource _resolve(Resource resource, List<Directory> recipes, Placement placement) {
+    final String className = placement.recipeName;
     final File? recipe = _recipeIn(recipes, resource.type, className);
     if (recipe == null) {
       throwToolExit(
