@@ -80,10 +80,11 @@ class Settings {
   /// Every setting the module exposes, in declaration order.
   final List<Setting> settings;
 
-  /// Whether the module exposes anything at all.
+  /// Whether the module lets a project decide anything at all.
   ///
-  /// A module that exposes nothing gets no file scaffolded, which is the case of
-  /// a package configured through its API rather than at deployment.
+  /// A module that exposes no setting can still need a resource, and a project
+  /// has to be given somewhere to place it: what decides whether a file is
+  /// written is the two together, not this alone.
   bool get isEmpty => settings.isEmpty;
 
   /// The settings [file] declares, empty when it declares none.
@@ -140,7 +141,7 @@ class Settings {
   /// The header says who wrote it and that it will not be written again, because
   /// a file a tool created is assumed to be a file a tool owns until it says
   /// otherwise, and this one belongs to whoever opens it.
-  String scaffold({required String module, required String version}) {
+  String scaffold({required String module, required String version, List<String> resources = const <String>[]}) {
     final StringBuffer out = StringBuffer()
       ..writeln('# configuration/$module.yaml')
       ..writeln('#')
@@ -159,6 +160,12 @@ class Settings {
           ..writeln()
           ..writeln('# Where each resource this package needs is placed, per target. A target')
           ..writeln('# that is not named here gets a container alongside the rest of the stack.')
+          ..writeln('#')
+          ..writeln(
+            resources.isEmpty
+                ? '# This package needs none, so this block stays empty.'
+                : '# The resources to name here are: ${resources.join(', ')}.',
+          )
           ..writeln('$deployKey: {}'))
         .toString();
   }

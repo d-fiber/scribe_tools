@@ -152,6 +152,9 @@ class Resources {
     );
   }
 
+  /// What [file] asks for, before anything answers, none when it asks nothing.
+  static List<Resource> declaredIn(File file) => _readFile(file);
+
   /// Every resource the socle and [mounted] declare, before anything answers.
   ///
   /// A deployment needs this list before it renders, because a resource a recipe

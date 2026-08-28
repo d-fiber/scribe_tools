@@ -138,6 +138,25 @@ void main() {
       });
     });
 
+    test('writes a file for a package that needs a resource and sets nothing', () async {
+      await inProject(() {
+        final ForgeReport report = forgeOf(<Package>[
+          package('search', 'requires:\n  - name: index\n    type: opensearch\n'),
+        ]).run();
+
+        expect(report.written.map((ForgeEntry e) => e.name), <String>['main', 'search']);
+        expect(configured('search').readAsStringSync(), contains('The resources to name here are: index.'));
+      });
+    });
+
+    test('names the resources a project may place, so none has to be guessed', () async {
+      await inProject(() {
+        forgeOf(<Package>[package('storage', '$_declaration\nrequires:\n  - name: objects\n    type: bucket\n')]).run();
+
+        expect(configured('storage').readAsStringSync(), contains('The resources to name here are: objects.'));
+      });
+    });
+
     test('leaves no file for a package that lets nothing be configured', () async {
       await inProject(() {
         expect(forgeOf(<Package>[package('audience', '')]).run().written.map((ForgeEntry e) => e.name), <String>[

@@ -124,11 +124,18 @@ class Forge {
     final Set<String> known = <String>{mainConfigurationName};
 
     for (final Package package in packages) {
-      final Settings declared = Settings.read(package.directory.childFile(configurationFileName));
-      if (declared.isEmpty) continue;
+      final File declaration = package.directory.childFile(configurationFileName);
+      final Settings declared = Settings.read(declaration);
+      final List<String> resources = <String>[
+        for (final Resource resource in Resources.declaredIn(declaration)) resource.name,
+      ];
+
+      // A package with no setting can still need a resource, and a project has
+      // to be given somewhere to place it. What decides is the two together.
+      if (declared.isEmpty && resources.isEmpty) continue;
 
       known.add(package.name);
-      entries.add(_module(root, package, declared, write: write));
+      entries.add(_module(root, package, declared, resources, write: write));
     }
 
     for (final String name in _filesIn(root)) {
@@ -199,10 +206,20 @@ class Forge {
     return const ForgeEntry(name: mainConfigurationName, verdict: ForgeVerdict.kept);
   }
 
-  ForgeEntry _module(Directory root, Package package, Settings declared, {required bool write}) {
+  ForgeEntry _module(
+    Directory root,
+    Package package,
+    Settings declared,
+    List<String> resources, {
+    required bool write,
+  }) {
     final File file = root.childFile('${package.name}.yaml');
     if (!file.existsSync()) {
-      final String content = declared.scaffold(module: package.name, version: _versionOf(package));
+      final String content = declared.scaffold(
+        module: package.name,
+        version: _versionOf(package),
+        resources: resources,
+      );
       if (write) {
         file
           ..createSync(recursive: true)
