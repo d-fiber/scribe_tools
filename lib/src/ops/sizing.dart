@@ -42,6 +42,7 @@ import 'package:scribe_tools/src/base/template.dart';
 import 'package:scribe_tools/src/deploy/configuration.dart';
 import 'package:scribe_tools/src/deploy/prune.dart';
 import 'package:scribe_tools/src/deploy/resources.dart';
+import 'package:scribe_tools/src/deploy/settings.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/ops/capacity.dart';
 import 'package:scribe_tools/src/ops/fragments.dart';
@@ -241,6 +242,7 @@ class ComposeRender {
     final Map<String, String> values = <String, String>{
       ...rules.resolve(),
       ...resources.values,
+      ..._settings(active),
       ..._identity(),
       'proxy_ports': _proxyPorts(kind),
       'tls_resolver': _tlsResolver(),
@@ -306,6 +308,19 @@ class ComposeRender {
       kind: kind,
     );
   }
+
+  /// What each mounted package was configured with, by the key a fragment reads.
+  ///
+  /// A package declares what it lets a project decide, `forge` writes those
+  /// defaults into `configuration/<package>.yaml`, and this is where what the
+  /// project wrote reaches the container. Without it a setting is a file
+  /// somebody edits and nothing reads.
+  Map<String, String> _settings(List<Package> mounted) => <String, String>{
+    for (final Package package in mounted)
+      ...Settings.read(
+        package.directory.childFile(configurationFileName),
+      ).valuesFor(package.name, _configuration.settingsOf(package.name)),
+  };
 
   /// Where a resource goes on the target being rendered for.
   ///

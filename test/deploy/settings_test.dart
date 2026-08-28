@@ -91,6 +91,28 @@ void main() {
       expect(written, contains('`scribe forge` never'));
     });
 
+    test('reaches a fragment under the key a resource output would use', () {
+      expect(Settings.read(declare(_declaration)).valuesFor('storage', const <String, Object?>{}), <String, String>{
+        'setting_storage_file_size_limit_mb': '100',
+        'setting_storage_image_transformation': 'true',
+      });
+    });
+
+    test('carries what the project wrote, and the default for what it left out', () {
+      expect(
+        Settings.read(declare(_declaration)).valuesFor('storage', const <String, Object?>{'file_size_limit_mb': 5}),
+        <String, String>{'setting_storage_file_size_limit_mb': '5', 'setting_storage_image_transformation': 'true'},
+      );
+    });
+
+    test('carries nothing for a setting whose value has no place in a variable', () {
+      final Settings declared = Settings.read(
+        declare('settings:\n  buckets:\n    doc: "d"\n    type: map\n    default: {}\n'),
+      );
+
+      expect(declared.valuesFor('storage', const <String, Object?>{}), <String, String>{'setting_storage_buckets': ''});
+    });
+
     test('is refused when a setting names a type nothing scaffolds', () {
       expect(
         () => Settings.read(declare('settings:\n  size:\n    doc: "d"\n    type: decimal\n    default: 1\n')),

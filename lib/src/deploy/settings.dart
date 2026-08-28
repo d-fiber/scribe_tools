@@ -109,6 +109,32 @@ class Settings {
     ]);
   }
 
+  /// What each setting is worth, by the key a fragment reads it under.
+  ///
+  /// A key is `setting_<module>_<name>`, the same shape a resource output takes,
+  /// because a fragment should not have to know which of the two it is reading.
+  /// [chosen] is what the project wrote; a setting it left out keeps the default
+  /// the module declared, so a fragment always has a value.
+  Map<String, String> valuesFor(String module, Map<String, Object?> chosen) => <String, String>{
+    for (final Setting setting in settings)
+      'setting_${module}_${setting.name}': _flat(
+        chosen.containsKey(setting.name) ? chosen[setting.name] : setting.defaultValue,
+      ),
+  };
+
+  /// A setting as a fragment carries it, which is always text.
+  ///
+  /// A collection has no place in an environment variable, so it comes out as
+  /// nothing rather than as something a service would misread: a setting a
+  /// fragment reads is a scalar, and one that is not is read by the code.
+  static String _flat(Object? value) => switch (value) {
+    null => '',
+    final bool held => '$held',
+    final int held => '$held',
+    final String held => held,
+    _ => '',
+  };
+
   /// The file a project edits, with every default written out and documented.
   ///
   /// The header says who wrote it and that it will not be written again, because
