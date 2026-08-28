@@ -150,6 +150,58 @@ void main() {
 
   Future<List<File>> renderFiles() async => (await render()).files;
 
+  /// Writes a target block, so a render can be asked for something other than here.
+  void target(String body) => (fs.file(
+    '/work/koko/configuration/main.yaml',
+  )..createSync(recursive: true)).writeAsStringSync('targets:\n  elsewhere:\n$body');
+
+  group('a target that names a registry', () {
+    test('names its images after the registry, and builds them from the project', () async {
+      target('    kind: vps\n    registry: "ghcr.io/d-fiber"\n    tag: "v3"\n');
+      final String compose = (await render(target: 'elsewhere')).files.first.readAsStringSync();
+
+      expect(compose, contains('image: "ghcr.io/d-fiber/koko-api:v3"'));
+      expect(compose, contains('image: "ghcr.io/d-fiber/koko-functions:v3"'));
+      expect(compose, contains('context: "/work/koko"'));
+    });
+
+    test('mounts none of the project, because the image carries it', () async {
+      target('    kind: vps\n    registry: "ghcr.io/d-fiber"\n');
+      final String compose = (await render(target: 'elsewhere')).files.first.readAsStringSync();
+
+      expect(compose, isNot(contains('/app/lib:ro')));
+      expect(compose, isNot(contains('/app/scribe:ro')));
+      expect(compose, contains('deno-cache:/deno-dir'));
+    });
+
+    test('puts the project inside the image it builds', () async {
+      target('    kind: vps\n    registry: "ghcr.io/d-fiber"\n');
+      await render(target: 'elsewhere');
+
+      final String dockerfile = fs
+          .directory('$_stackHome/stacks')
+          .listSync()
+          .whereType<Directory>()
+          .single
+          .childDirectory('services')
+          .childDirectory('api')
+          .childFile('Dockerfile')
+          .readAsStringSync();
+
+      expect(dockerfile, contains('COPY lib /app/lib'));
+      expect(dockerfile, contains('COPY scribe /app/scribe'));
+    });
+
+    test('a target that names none keeps the mounts, and builds from the stack', () async {
+      target('    kind: machine\n');
+      final String compose = (await render(target: 'elsewhere')).files.first.readAsStringSync();
+
+      expect(compose, contains('- "./lib:/app/lib:ro"'));
+      expect(compose, contains('image: "koko-api:local"'));
+      expect(compose, isNot(contains('context: "/work/koko"')));
+    });
+  });
+
   group('a resource a target placed somewhere else', () {
     test('takes its service out of every document it was declared in', () async {
       place('postgres', 'external');

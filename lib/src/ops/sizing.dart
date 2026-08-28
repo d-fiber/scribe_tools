@@ -354,7 +354,70 @@ class ComposeRender {
       'api_url': _apiUrl,
       'api_host': Uri.parse(_apiUrl).host,
       'node_key_variables': nodeKeyVariables(project),
+      ..._images(),
     };
+  }
+
+  /// Whether the images carry the project rather than mount it.
+  ///
+  /// A host that is not this one cannot see `./lib`, so a target that names a
+  /// registry gets images with the project inside them. A target that names
+  /// none keeps the mounts, which is what makes a change to a route visible on
+  /// a workstation without rebuilding anything.
+  bool get _bakes => targetName != null && _configuration.target(targetName!).registry.isNotEmpty;
+
+  /// What names the images, what they are built from, and what they mount.
+  Map<String, String> _images() {
+    final String prefix = targetName == null ? '' : _configuration.target(targetName!).registry;
+    final String name = project.manifest.name.toSnakeCase();
+    final String tag = prefix.isEmpty ? 'local' : (_configuration.target(targetName!).tag);
+    final StackLocation stack = StackLocation(project: project);
+
+    String image(String service) => prefix.isEmpty ? '$name-$service:local' : '$prefix/$name-$service:$tag';
+
+    return <String, String>{
+      'image_api': image('api'),
+      'image_worker': image('api'),
+      'image_functions': image('functions'),
+      'build_context_api': _bakes
+          ? project.directory.absolute.path
+          : stack.services.childDirectory('api').absolute.path,
+      'build_context_functions': _bakes
+          ? project.directory.absolute.path
+          : stack.services.childDirectory('functions').absolute.path,
+      'source_mounts_api': _bakes
+          ? ''
+          : '      - "./${p.basename(project.sdk.path)}:/app/scribe:ro"\n'
+                '      - "./${p.basename(project.generated.path)}/sdk/js:/app/${p.basename(project.generated.path)}/sdk/js:ro"\n'
+                '      - "./lib:/app/lib:ro"\n',
+      'source_mounts_functions': _bakes
+          ? ''
+          : '      - "./${p.basename(project.sdk.path)}/engine:/home/deno/functions:ro"\n'
+                '      - "./${p.basename(project.generated.path)}/sdk/js:/home/deno/${p.basename(project.generated.path)}/sdk/js:ro"\n',
+      'bake_project': _bakes ? _bakeInto('/app') : '',
+      'bake_functions': _bakes ? _bakeFunctionsInto('/home/deno') : '',
+    };
+  }
+
+  /// The lines that put the project inside an image, under [root].
+  String _bakeInto(String root) {
+    final String sdk = p.basename(project.sdk.path);
+    final String derived = p.basename(project.generated.path);
+
+    return 'WORKDIR $root\n'
+        'COPY $sdk $root/scribe\n'
+        'COPY $derived/sdk/js $root/$derived/sdk/js\n'
+        'COPY lib $root/lib\n';
+  }
+
+  /// The same, for the edge runtime, which reads a different half of the tree.
+  String _bakeFunctionsInto(String root) {
+    final String sdk = p.basename(project.sdk.path);
+    final String derived = p.basename(project.generated.path);
+
+    return 'WORKDIR $root\n'
+        'COPY $sdk/engine $root/functions\n'
+        'COPY $derived/sdk/js $root/$derived/sdk/js\n';
   }
 
   /// The directory a service reads the project's own `db/<name>` from.

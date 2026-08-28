@@ -98,6 +98,8 @@ class Target {
     this.cors = const <String>[],
     this.machine,
     this.cpuCap = false,
+    this.registry = '',
+    this.tag = 'latest',
   });
 
   /// The name `--target` refers to it by.
@@ -127,6 +129,16 @@ class Target {
 
   /// Whether a service is capped at its share of the cores rather than weighted.
   final bool cpuCap;
+
+  /// The registry the images of this deployment are pushed to and pulled from.
+  ///
+  /// Naming one is what turns the images from something this machine builds and
+  /// mounts into something a host somewhere else can pull: a host that is not
+  /// this one cannot see `./lib`, so the project has to be inside the image.
+  final String registry;
+
+  /// The tag the images of this deployment carry.
+  final String tag;
 }
 
 /// How and where a project runs, read from its `configuration/` directory.
@@ -284,6 +296,8 @@ class ProjectConfiguration {
       ],
       machine: _machine(machine, name, file),
       cpuCap: entry['cpu_cap'] == true,
+      registry: '${entry['registry'] ?? ''}',
+      tag: '${entry['tag'] ?? 'latest'}',
     );
   }
 
