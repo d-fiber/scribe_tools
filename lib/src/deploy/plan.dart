@@ -87,8 +87,6 @@ class DeploymentPlan {
         _needsARegistry(target),
     if (target.kind == TargetKind.paas)
       'a paas target needs a driver that pushes to the platform, and there is none yet.',
-    for (final ResolvedResource resource in provisioned)
-      'the "${resource.className}" recipe of ${resource.resource.name} needs tofu, which is not called yet.',
   ];
 
   /// Why a target reached over SSH cannot be deployed to without a registry.

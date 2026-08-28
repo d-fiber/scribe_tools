@@ -88,6 +88,13 @@ class RemoteHost {
         0;
   }
 
+  /// Removes [path] on the host, and answers whether it is gone.
+  ///
+  /// It is the other half of [ship]: a directory of documents left behind is a
+  /// deployment somebody can start again by hand long after the project stopped
+  /// describing it.
+  Future<bool> remove(String path) async => await _run(<String>['ssh', address, 'rm -rf $path']) == 0;
+
   /// Runs `docker compose` on the host, against the stack laid at [root].
   ///
   /// [documents] are the paths on the host, in the order Compose has to read

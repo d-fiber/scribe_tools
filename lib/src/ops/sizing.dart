@@ -281,6 +281,7 @@ class ComposeRender {
 
     final StackLocation stack = StackLocation(project: project);
     await _carrySecrets(stack.directory);
+    _carryFrameworkSql(stack.directory);
     await GatewayRender(project: project).render(stack.services.childDirectory('gateway'), values, active);
     await ProxyRender(project: project).render(stack.services.childDirectory('proxy'), values);
     await _renderServiceAssets(stack.services, values);
@@ -361,7 +362,7 @@ class ComposeRender {
     return <String, String>{
       'app_name': name,
       'app_name_snake': name.toSnakeCase(),
-      'sdk_root': './${p.basename(project.sdk.path)}',
+      'sdk_root': _sdkSeenByContainers(),
       'alchemy_dir': p.basename(project.generated.path),
       // Absolute, and pointing at the cache. Left relative, Compose resolves a
       // mount against the project root, the daemon creates a directory where
@@ -457,6 +458,52 @@ class ComposeRender {
     return 'WORKDIR $root\n'
         'COPY $sdk/engine $root/functions\n'
         'COPY $derived/sdk/js $root/$derived/sdk/js\n';
+  }
+
+  /// Where a container finds the framework's own files, which is not the checkout.
+  ///
+  /// A package mounts its SQL from `{{sdk_root}}`, and on a host the checkout is
+  /// not there: the mount would be a path the daemon creates as root, which is
+  /// both an empty provisioning and a directory nobody can delete afterwards.
+  /// What those mounts read is copied into the stack instead, and this names it.
+  String _sdkSeenByContainers() => stackRoot == null ? './${p.basename(project.sdk.path)}' : '$stackRoot/sdk';
+
+  /// Copies what a container mounts out of the framework into the stack.
+  ///
+  /// Only the SQL: the code is inside the images by the time a stack ships, and
+  /// what is left mounted is what a package lays into a database.
+  void _carryFrameworkSql(Directory into) {
+    if (stackRoot == null) return;
+
+    final Directory packages = project.sdk.directory.childDirectory('packages');
+    if (!packages.existsSync()) return;
+
+    for (final Directory package in packages.listSync().whereType<Directory>()) {
+      final Directory db = package.childDirectory('db');
+      if (!db.existsSync()) continue;
+
+      _copyInto(
+        db,
+        into
+            .childDirectory('sdk')
+            .childDirectory('packages')
+            .childDirectory(p.basename(package.path))
+            .childDirectory('db'),
+      );
+    }
+  }
+
+  /// Copies every file under [from] into [to], directories included.
+  void _copyInto(Directory from, Directory to) {
+    to.createSync(recursive: true);
+
+    for (final FileSystemEntity entity in from.listSync()) {
+      if (entity is File) {
+        to.childFile(p.basename(entity.path)).writeAsStringSync(entity.readAsStringSync());
+        continue;
+      }
+      if (entity is Directory) _copyInto(entity, to.childDirectory(p.basename(entity.path)));
+    }
   }
 
   /// Puts the project's `.env` beside the documents when the stack ships.
