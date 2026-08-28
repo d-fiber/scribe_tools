@@ -40,6 +40,7 @@ import 'package:path/path.dart' as p;
 import 'package:scribe_tools/src/ops/capacity.dart';
 import 'package:scribe_tools/src/packages.dart';
 import 'package:scribe_tools/src/templates.dart';
+import 'package:yaml/yaml.dart';
 
 /// The framework repository, checked out next to this one.
 const String repository = '../scribe';
@@ -144,3 +145,18 @@ Capacity frameworkCapacityOf(Iterable<String> names, {Set<String> profiles = pac
     profiles: profiles,
   );
 }
+
+/// A compose fragment parsed as YAML, with its placeholders taken out first.
+///
+/// A template is not a YAML document yet: `image: "caddy:2.11.4"{{proxy_ports}}`
+/// is what a fragment legitimately holds, and it is why the merge that assembles
+/// a stack works on lines rather than on a parsed document. A test that reads
+/// the services out of a fragment has to do the same thing the render does,
+/// which is to treat a placeholder as text that is not there yet.
+YamlMap? composeOf(File fragment) {
+  final Object? document = loadYaml(fragment.readAsStringSync().replaceAll(_placeholder, ''));
+
+  return document is YamlMap ? document : null;
+}
+
+final RegExp _placeholder = RegExp(r'\{\{[^}]*\}\}');

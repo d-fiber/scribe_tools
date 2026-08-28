@@ -123,8 +123,7 @@ void main() {
       for (final MapEntry<String, CapacitySource> source in capacitySources().entries) {
         if (!source.value.compose.existsSync()) continue;
 
-        final Object? document = loadYaml(source.value.compose.readAsStringSync());
-        final Object? services = document is YamlMap ? document['services'] : null;
+        final Object? services = composeOf(source.value.compose)?['services'];
         final Set<String> declared = <String>{
           if (services is YamlMap)
             for (final Object? name in services.keys) name! as String,
@@ -151,8 +150,7 @@ void main() {
       for (final MapEntry<String, CapacitySource> ops in capacitySources().entries) {
         if (!ops.value.weights.existsSync()) continue;
 
-        final Object? document = loadYaml(ops.value.compose.readAsStringSync());
-        final Object? services = document is YamlMap ? document['services'] : null;
+        final Object? services = composeOf(ops.value.compose)?['services'];
 
         for (final ServiceCapacity service in Capacity.read(<File>[ops.value.weights], const <File>[]).services) {
           final YamlMap? declared = services is YamlMap ? services[service.name] as YamlMap? : null;
