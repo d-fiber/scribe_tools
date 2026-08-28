@@ -39,6 +39,7 @@ import 'dart:convert';
 import 'package:file/file.dart';
 import 'package:path/path.dart' as pathlib;
 import 'package:scribe_tools/src/base/common.dart';
+import 'package:scribe_tools/src/base/process.dart';
 import 'package:scribe_tools/src/base/template.dart';
 import 'package:scribe_tools/src/commands/gen/code/generate.dart';
 import 'package:scribe_tools/src/commands/gen/routes/routes_command.dart';
@@ -113,6 +114,7 @@ class DeployCommand extends ScribeCommand {
     // every bind mount inside the documents is absolute, so a path that is right
     // here and wrong there is a container that dies three layers from the cause.
     String? root;
+    String platform = '';
     if (remote && !boolArg('plan')) {
       globals.tools
         ..require(ToolCatalog.ssh, reason: 'a ${target.kind.name} target is reached over it')
@@ -120,18 +122,30 @@ class DeployCommand extends ScribeCommand {
 
       root = await _rootOn(target);
       if (root == null) return const ScribeCommandResult.fail();
+
+      platform = target.platform.isNotEmpty ? target.platform : await _platformOf(target);
+      if (platform.isEmpty) return const ScribeCommandResult.fail();
+      globals.logger.printStatus('${target.host} runs $platform');
     }
 
     final Map<String, Map<String, String>>? made = await _provision(target, dryRun: boolArg('plan'));
     if (made == null) return const ScribeCommandResult.fail();
 
-    final ComposeDocuments documents = await ComposeRender(
+    final Hardware hardware = await Hardware.detect();
+
+    Future<ComposeDocuments> renderFor(String? seenAt) => ComposeRender(
       project: project,
       withWorker: boolArg('worker'),
       targetName: targetName,
-      stackRoot: root,
+      stackRoot: seenAt,
+      platform: platform,
       resourceOutputs: made,
-    ).render(await Hardware.detect());
+    ).render(hardware);
+
+    // Rendered for this machine first: the images are built and pushed here, and
+    // `docker compose` reads the whole document to do it, mounts included. A
+    // path that names the host is a path this machine does not have.
+    final ComposeDocuments documents = await renderFor(null);
 
     final DeploymentPlan plan = DeploymentPlan(
       target: target,
@@ -159,7 +173,11 @@ class DeployCommand extends ScribeCommand {
       return const ScribeCommandResult.fail();
     }
 
-    return remote ? _startThere(plan, documents, root!) : _start(plan, documents);
+    if (!remote) return _start(plan, documents);
+
+    // Rendered again, for the host this time: what it mounts is its own, and the
+    // two documents are two readers rather than one document travelling.
+    return _startThere(plan, await renderFor(root), root!);
   }
 
   /// Creates the resources whose recipe is configuration, and returns what they made.
@@ -240,6 +258,35 @@ class DeployCommand extends ScribeCommand {
     return pathlib.posix.join(home, '.scribe_cache', 'stacks', StackLocation(project: project).fingerprint);
   }
 
+  /// The platform the host builds for, empty when it cannot be read.
+  ///
+  /// A workstation and a server are rarely the same architecture, and an image
+  /// built for the wrong one is refused at the pull with a message about a
+  /// manifest that says nothing about the cause.
+  Future<String> _platformOf(Target target) async {
+    final ProcessOutcome outcome = await globals.processRunner.observe(<String>['ssh', target.host, 'uname -m']);
+    if (!outcome.succeeded) {
+      globals.logger.printError('${target.host} did not say what it runs on.');
+
+      return '';
+    }
+
+    return switch (outcome.stdout.trim()) {
+      'x86_64' || 'amd64' => 'linux/amd64',
+      'aarch64' || 'arm64' => 'linux/arm64',
+      final String other => _unknownArchitecture(target, other),
+    };
+  }
+
+  String _unknownArchitecture(Target target, String read) {
+    globals.logger.printError(
+      '${target.host} says it runs on "$read", which is not an architecture images are built for.\n'
+      'Write targets.${target.name}.platform to name one, such as linux/amd64.',
+    );
+
+    return '';
+  }
+
   /// Ships the stack to the host and starts it there.
   ///
   /// Everything a container reads is inside the stack when a target bakes, so
@@ -260,7 +307,9 @@ class DeployCommand extends ScribeCommand {
 
     globals.logger.printStatus('starting it there');
     final int status = await host.compose(
-      <String>['up', '-d', '--remove-orphans', '--pull', 'always'],
+      // Never `--build`: a host that cannot pull an image has to say so, and
+      // not fall back to building from a context that only this machine has.
+      <String>['up', '-d', '--remove-orphans', '--no-build', '--pull', 'always'],
       root: root,
       projectName: documents.projectName,
       documents: documentsThere,

@@ -100,6 +100,7 @@ class Target {
     this.cpuCap = false,
     this.registry = '',
     this.tag = 'latest',
+    this.platform = '',
   });
 
   /// The name `--target` refers to it by.
@@ -139,6 +140,14 @@ class Target {
 
   /// The tag the images of this deployment carry.
   final String tag;
+
+  /// The architecture the images are built for, empty for this machine's own.
+  ///
+  /// A workstation and a server are rarely the same one, and an image built for
+  /// the wrong one is refused at the pull with a message about a manifest, which
+  /// says nothing about the cause. It is read from the host rather than declared,
+  /// because a machine knows its own architecture and a file can be wrong.
+  final String platform;
 }
 
 /// How and where a project runs, read from its `configuration/` directory.
@@ -298,6 +307,7 @@ class ProjectConfiguration {
       cpuCap: entry['cpu_cap'] == true,
       registry: '${entry['registry'] ?? ''}',
       tag: '${entry['tag'] ?? 'latest'}',
+      platform: '${entry['platform'] ?? ''}',
     );
   }
 

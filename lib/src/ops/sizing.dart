@@ -164,8 +164,12 @@ class ComposeRender {
     this.withWorker = false,
     this.targetName,
     this.stackRoot,
+    this.platform = '',
     this.resourceOutputs = const <String, Map<String, String>>{},
   }) : project = project ?? globals.project;
+
+  /// The architecture the images are built for, empty for this machine's own.
+  final String platform;
 
   /// What a recipe already produced, by resource name.
   ///
@@ -276,6 +280,7 @@ class ComposeRender {
     }
 
     final StackLocation stack = StackLocation(project: project);
+    await _carrySecrets(stack.directory);
     await GatewayRender(project: project).render(stack.services.childDirectory('gateway'), values, active);
     await ProxyRender(project: project).render(stack.services.childDirectory('proxy'), values);
     await _renderServiceAssets(stack.services, values);
@@ -363,8 +368,13 @@ class ComposeRender {
       // the file should be, and the container dies on a parse error three
       // layers from the cause.
       'stack_env': _seenAt(StackLocation(project: project).env),
-      for (final String service in SocleOps().serviceNames)
+      for (final String service in SocleOps().serviceNames) ...<String, String>{
+        // What a container mounts is a path on the host it runs on; what a build
+        // reads is a path on the machine that builds, and those part company as
+        // soon as a target names one.
         'service_$service': _seenAt(StackLocation(project: project).services.childDirectory(service)),
+        'local_service_$service': StackLocation(project: project).services.childDirectory(service).absolute.path,
+      },
       'dockerfile_api': StackLocation(
         project: project,
       ).services.childDirectory('api').childFile('Dockerfile').absolute.path,
@@ -405,6 +415,9 @@ class ComposeRender {
       'image_worker': image('api'),
       'image_functions': image('functions'),
       'image_db': image('db'),
+      'image_rest': image('rest'),
+      'image_backup': image('backup'),
+      'build_platform': platform.isEmpty ? '' : 'platforms: ["$platform"]',
       'build_context_api': _bakes
           ? project.directory.absolute.path
           : stack.services.childDirectory('api').absolute.path,
@@ -444,6 +457,24 @@ class ComposeRender {
     return 'WORKDIR $root\n'
         'COPY $sdk/engine $root/functions\n'
         'COPY $derived/sdk/js $root/$derived/sdk/js\n';
+  }
+
+  /// Puts the project's `.env` beside the documents when the stack ships.
+  ///
+  /// Compose reads it from the project directory, and on a host that directory
+  /// is the stack: without it every reference in the documents resolves to
+  /// nothing, and the cluster refuses to initialise on an empty password.
+  ///
+  /// It is written for a host and never for here, because here the project's own
+  /// directory is what Compose is pointed at and the file is already read.
+  Future<void> _carrySecrets(Directory into) async {
+    if (stackRoot == null) return;
+
+    final File declared = project.directory.childFile('.env');
+    if (!declared.existsSync()) return;
+
+    final File carried = into.childFile('.env')..writeAsStringSync(declared.readAsStringSync());
+    await globals.processRunner.run(<String>['chmod', '600', carried.path]);
   }
 
   /// Where a container will see [here], which is elsewhere when the stack ships.
