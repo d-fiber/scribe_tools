@@ -211,7 +211,7 @@ class DeployCommand extends ScribeCommand {
 
       final Tofu tofu = Tofu(_stateOf(target, resource))
         ..write(
-          jsonDecode(renderTemplate(recipe.path, recipe.readAsStringSync(), _paramsOf(placement)))
+          jsonDecode(renderTemplate(recipe.path, recipe.readAsStringSync(), _paramsOf(resource, placement)))
               as Map<String, Object?>,
         );
 
@@ -247,9 +247,24 @@ class DeployCommand extends ScribeCommand {
       .childDirectory(resource.name);
 
   /// What a recipe is given, as the strings a template is rendered with.
-  Map<String, String> _paramsOf(Placement placement) => <String, String>{
-    for (final MapEntry<String, Object?> entry in placement.params.entries) entry.key: '${entry.value}',
+  /// What a recipe of [resource] may reference, its own name included.
+  ///
+  /// The name comes for free rather than being written in `params:`, because a
+  /// project that has already named its resource under `requires:` would be
+  /// naming it a second time to say the same thing. A `params:` entry called
+  /// `name` still wins, for a provider that limits what an identifier may hold.
+  Map<String, String> _paramsOf(Resource resource, Placement placement) => <String, String>{
+    'name': resource.name,
+    for (final MapEntry<String, Object?> entry in placement.params.entries) entry.key: _flat(entry.value),
   };
+
+  /// One param as the recipe receives it.
+  ///
+  /// A list or a map is encoded rather than printed, because a recipe holding
+  /// `"subnets": {{subnet_ids}}` is read back as JSON: Dart printing a list
+  /// gives `[a, b]`, which no parser accepts. A string is passed through, since
+  /// quoting it again would put quotes inside the recipe's own.
+  static String _flat(Object? value) => value is String ? value : jsonEncode(value);
 
   /// Where the stack will sit on the host, null when the host cannot be reached.
   Future<String?> _rootOn(Target target) async {
