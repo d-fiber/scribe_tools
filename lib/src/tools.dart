@@ -219,6 +219,18 @@ class ToolCatalog {
   /// about until the command fails on it, so the list is the catalogue itself
   /// rather than a copy of it kept somewhere else.
   static const List<ExternalTool> all = <ExternalTool>[deno, npm, docker, git, tofu, ssh, rsync];
+
+  /// The tools no command can work without, which every run is stopped for.
+  ///
+  /// The rest are asked for where they are used: `tofu` matters to a target that
+  /// provisions and to no other, `ssh` and `rsync` to one that deploys
+  /// elsewhere, and `node` to the documentation. Demanding them of every run
+  /// would stop a local `run` on a program it never calls, which is what a
+  /// continuous integration runner met first.
+  static const List<ExternalTool> essential = <ExternalTool>[deno, docker, git];
+
+  /// Whether [tool] is one a run is stopped for when it is missing.
+  static bool isEssential(ExternalTool tool) => essential.contains(tool);
 }
 
 /// What looks for the tools a command declared, and offers to install them.

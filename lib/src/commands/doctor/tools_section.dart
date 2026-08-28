@@ -70,16 +70,23 @@ DoctorSection toolsSection(PackageManager? manager, {required bool assumeYes}) {
       continue;
     }
 
+    final String hint = manager == null
+        ? 'Install it from ${tool.homepage}.'
+        : 'Run `${manager.commandFor(tool).join(' ')}` to install it.';
+
+    // A tool only some commands call is reported and does not make the report
+    // red: a machine that never deploys elsewhere is not broken for want of
+    // rsync, and a run that needs one is stopped by the command that needs it.
     findings.add(
-      Finding.problem(
-        '${tool.name} is missing: ${tool.purpose}',
-        hint: manager == null
-            ? 'Install it from ${tool.homepage}.'
-            : 'Run `${manager.commandFor(tool).join(' ')}` to install it.',
-        repair: manager == null
-            ? null
-            : () => globals.tools.ensure(<ExternalTool>[tool], install: true, assumeYes: assumeYes),
-      ),
+      ToolCatalog.isEssential(tool)
+          ? Finding.problem(
+              '${tool.name} is missing: ${tool.purpose}',
+              hint: hint,
+              repair: manager == null
+                  ? null
+                  : () => globals.tools.ensure(<ExternalTool>[tool], install: true, assumeYes: assumeYes),
+            )
+          : Finding.note('${tool.name} is missing: ${tool.purpose}', hint: hint),
     );
   }
 
