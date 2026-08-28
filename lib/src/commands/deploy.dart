@@ -366,6 +366,19 @@ class DeployCommand extends ScribeCommand {
     );
     if (status != 0) return const ScribeCommandResult.fail();
 
+    // The same wait a local target gets: `up -d` returns as soon as the
+    // containers exist, and a host that is still laying its database down has
+    // not deployed anything yet.
+    final bool settled = await StackHealth(
+      () => host.composeSays(
+        <String>['ps', '--format', 'json', '--all'],
+        root: root,
+        projectName: documents.projectName,
+        documents: documentsThere,
+      ),
+    ).settles();
+    if (!settled) return const ScribeCommandResult.fail();
+
     globals.logger.printStatus('ready  ${plan.target.domain}');
 
     return const ScribeCommandResult.success();
@@ -465,7 +478,7 @@ class DeployCommand extends ScribeCommand {
       throwToolExit('The router of this machine did not start, so nothing would be reachable.');
     }
 
-    if (await compose.up() != 0) return const ScribeCommandResult.fail();
+    if (await compose.upUntilHealthy() != 0) return const ScribeCommandResult.fail();
 
     await router.attach('${manifest.projectName}_edge');
     globals.logger.printStatus('ready  ${plan.target.domain.isEmpty ? documents.hostnames.first : plan.target.domain}');

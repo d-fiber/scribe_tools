@@ -34,6 +34,8 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
+import 'dart:convert';
+
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/base/process.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
@@ -76,6 +78,47 @@ class Compose {
 
   /// Starts the stack in the background, and returns its status.
   Future<int> up() => _run(<String>['up', '-d', '--remove-orphans']);
+
+  /// Starts the stack and returns once every container has settled, or fails.
+  ///
+  /// What a deployment needs and a workstation does not: `up -d` returns as
+  /// soon as the containers are created, so a deployment that stops there says
+  /// it is ready while the database is still opening its files, and whoever
+  /// believes it sends the first request into a refusal.
+  ///
+  /// Compose's own `--wait` is not what does it. It calls any container that
+  /// exits a failure, and a stack lays its schema down with two services that
+  /// run once and leave, so every deployment would be reported as failed. What
+  /// settles a container is read here instead: one that runs is settled once it
+  /// is healthy, or straight away when it declares no health check, and one
+  /// that ran once is settled by leaving with nothing to say.
+  Future<int> upUntilHealthy() async {
+    final int status = await up();
+    if (status != 0) return status;
+
+    return await _settled() ? 0 : 1;
+  }
+
+  Future<bool> _settled() => StackHealth(_containers).settles();
+
+  /// Every container of this stack, as Compose describes it.
+  ///
+  /// `--all` because a service that ran once and left is no longer listed
+  /// otherwise, and a stack whose migration has finished would look like a
+  /// stack whose migration never ran.
+  Future<String> _containers() async {
+    final ProcessOutcome outcome = await globals.processRunner.observe(<String>[
+      'docker',
+      'compose',
+      ...manifest.arguments,
+      'ps',
+      '--format',
+      'json',
+      '--all',
+    ]);
+
+    return outcome.stdout;
+  }
 
   /// Builds the images this stack declares, and returns its status.
   ///
@@ -167,4 +210,85 @@ Future<void> refuseForeignCheckout(Compose compose) async {
     'Both would write the same services and the same data. Stop the other one first, '
     'or give this project another name in config.yaml.',
   );
+}
+
+/// Waits for a stack to settle, wherever the stack runs.
+///
+/// It is given a way to ask Compose what the containers are doing rather than a
+/// way to run Compose, because the same waiting has to work here and over a
+/// connection to somebody else's host, and those two differ only in how the
+/// question is asked.
+class StackHealth {
+  /// Waits on the stack [describe] answers for.
+  const StackHealth(this.describe);
+
+  /// Asks Compose for `ps --format json --all`, and returns what it wrote.
+  final Future<String> Function() describe;
+
+  /// How long the stack has to settle before the start is called off.
+  ///
+  /// Five minutes, the same bound the provisioning step waits under: the first
+  /// start of a stack lays a database down and plays every migration into it,
+  /// and a bound that fits the second start would call the first one a failure.
+  static const int timeout = 300;
+
+  /// Whether every container settled before [timeout] ran out.
+  ///
+  /// A container that fails is not waited on: an unhealthy one and one that
+  /// left with a status are both final, and holding the deployment open for
+  /// five minutes afterwards would only delay the message that says so.
+  Future<bool> settles() async {
+    final Stopwatch spent = Stopwatch()..start();
+
+    while (spent.elapsed.inSeconds < timeout) {
+      final List<Map<String, Object?>> containers = read(await describe());
+      final Iterable<Map<String, Object?>> broken = containers.where(hasFailed);
+
+      if (broken.isNotEmpty) {
+        for (final Map<String, Object?> container in broken) {
+          globals.logger.printError('${container['Service']} ${_stateOf(container)}');
+        }
+
+        return false;
+      }
+
+      if (containers.isNotEmpty && containers.every(hasSettled)) return true;
+
+      await Future<void>.delayed(const Duration(seconds: 2));
+    }
+
+    globals.logger.printError(
+      'The stack did not settle within ${timeout}s. '
+      'Run docker compose ps to see which container is still trying.',
+    );
+
+    return false;
+  }
+
+  /// What Compose wrote, one container per line.
+  ///
+  /// Compose writes a line of JSON per container rather than one array, so a
+  /// partial read is a container missing and never a parse error.
+  static List<Map<String, Object?>> read(String written) => <Map<String, Object?>>[
+    for (final String line in const LineSplitter().convert(written))
+      if (line.trim().isNotEmpty) jsonDecode(line) as Map<String, Object?>,
+  ];
+
+  /// Whether this container has finished doing whatever it was going to do.
+  ///
+  /// One that runs is settled once it is healthy, or straight away when it
+  /// declares no health check, and one that ran once is settled by leaving with
+  /// nothing to say.
+  static bool hasSettled(Map<String, Object?> container) {
+    if (container['State'] == 'exited') return container['ExitCode'] == 0;
+
+    return container['State'] == 'running' && (container['Health'] == '' || container['Health'] == 'healthy');
+  }
+
+  /// Whether this container will not settle, however long it is given.
+  static bool hasFailed(Map<String, Object?> container) =>
+      container['Health'] == 'unhealthy' || (container['State'] == 'exited' && container['ExitCode'] != 0);
+
+  static String _stateOf(Map<String, Object?> container) =>
+      container['State'] == 'exited' ? 'left with ${container['ExitCode']}' : 'is ${container['Health']}';
 }

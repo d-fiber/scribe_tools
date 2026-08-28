@@ -119,6 +119,35 @@ class RemoteHost {
     ].join(' '),
   ]);
 
+  /// Asks Compose on the host what the containers of [projectName] are doing.
+  ///
+  /// Its own method rather than a flag on [compose]: this one is read by the
+  /// caller instead of being shown to the operator, and a command whose output
+  /// goes to two places at once would have to be told which.
+  Future<String> composeSays(
+    List<String> arguments, {
+    required String root,
+    required String projectName,
+    required List<String> documents,
+  }) async {
+    final ProcessOutcome outcome = await globals.processRunner.observe(<String>[
+      'ssh',
+      address,
+      <String>[
+        'docker',
+        'compose',
+        '--project-directory',
+        root,
+        '-p',
+        projectName,
+        for (final String document in documents) ...<String>['-f', document],
+        ...arguments,
+      ].join(' '),
+    ]);
+
+    return outcome.stdout;
+  }
+
   Future<int> _run(List<String> command) async {
     globals.logger.printTrace('[remote] ${command.join(' ')}');
 
