@@ -118,9 +118,9 @@ class Settings {
     final StringBuffer out = StringBuffer()
       ..writeln('# configuration/$module.yaml')
       ..writeln('#')
-      ..writeln('# Written by `scribe forge` from the $module $version declaration. Values are')
-      ..writeln('# the package defaults, and this file is yours to edit: `scribe forge` never')
-      ..writeln('# overwrites it.');
+      ..writeln('# Written by `scribe forge` from the ${<String>[module, version].join(' ').trim()}')
+      ..writeln('# declaration. Values are the package defaults, and this file is yours to')
+      ..writeln('# edit: `scribe forge` never overwrites it.');
 
     for (final Setting setting in settings) {
       out

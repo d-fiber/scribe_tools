@@ -39,6 +39,7 @@ import 'package:scribe_tools/runner.dart' as runner;
 import 'package:scribe_tools/src/commands/create.dart';
 import 'package:scribe_tools/src/commands/doctor.dart';
 import 'package:scribe_tools/src/commands/downgrade.dart';
+import 'package:scribe_tools/src/commands/forge.dart';
 import 'package:scribe_tools/src/commands/gen.dart';
 import 'package:scribe_tools/src/commands/pkg.dart';
 import 'package:scribe_tools/src/commands/run.dart';
@@ -55,6 +56,7 @@ Future<void> main(List<String> args) async {
       CreateCommand(),
       DoctorCommand(),
       DowngradeCommand(),
+      ForgeCommand(),
       GenCommand(),
       PkgCommand(),
       RunCommand(),
