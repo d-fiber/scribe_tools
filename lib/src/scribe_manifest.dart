@@ -71,8 +71,16 @@ enum TargetKind {
   /// project on it.
   machine,
 
+  /// A machine of the operator's, reached over SSH rather than through the
+  /// daemon at hand, and holding one router the way a `machine` does.
+  vps,
+
   /// Somebody else's machine, which imposes its sizing and its own way in.
   paas,
+
+  /// Several places at once: part of the stack in containers, part of it on
+  /// services somebody else runs.
+  hybrid,
 }
 
 /// A project's `config.yaml`, read and checked.
