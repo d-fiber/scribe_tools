@@ -150,7 +150,16 @@ void main() {
       await withEnvironment(const <String, String>{}, () {
         expect(
           () => manifestOf(_manifest.replaceFirst('kind: dev', 'kind: laptop')).kindOf('local'),
-          throwsA(isA<ToolExit>().having((ToolExit e) => e.message, 'message', contains('dev, machine, paas'))),
+          throwsA(
+            isA<ToolExit>().having(
+              (ToolExit e) => e.message,
+              'message',
+              allOf(
+                contains('laptop'),
+                contains(TargetKind.values.map((TargetKind kind) => kind.name).join(', ')),
+              ),
+            ),
+          ),
         );
       });
     });
