@@ -280,8 +280,7 @@ class Forge {
 
     return <String>[
       for (final Object? name in deploy.keys)
-        if (!targets.contains('$name'))
-          _noSuchTarget('$name', targets),
+        if (!targets.contains('$name')) _noSuchTarget('$name', targets),
     ];
   }
 

@@ -88,19 +88,20 @@ void main() {
     },
   );
 
-  void write(String name, String source) =>
-      fs.file('/work/notes/$configurationDirectoryName/$name')
-        ..createSync(recursive: true)
-        ..writeAsStringSync(source);
+  void write(String name, String source) => fs.file('/work/notes/$configurationDirectoryName/$name')
+    ..createSync(recursive: true)
+    ..writeAsStringSync(source);
 
   ProjectConfiguration read() => ProjectConfiguration.load(project: Project.current);
 
   setUp(() {
     fs = MemoryFileSystem.test();
     fs.directory('/work/notes').createSync(recursive: true);
-    fs.file('/work/notes/config.yaml').writeAsStringSync(
-      'name: "notes"\ntargets:\n  legacy:\n    kind: machine\napi:\n  url: "https://legacy.example.com"\n',
-    );
+    fs
+        .file('/work/notes/config.yaml')
+        .writeAsStringSync(
+          'name: "notes"\ntargets:\n  legacy:\n    kind: machine\napi:\n  url: "https://legacy.example.com"\n',
+        );
   });
 
   group('a target of a project', () {

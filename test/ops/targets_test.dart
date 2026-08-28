@@ -154,10 +154,7 @@ void main() {
             isA<ToolExit>().having(
               (ToolExit e) => e.message,
               'message',
-              allOf(
-                contains('laptop'),
-                contains(TargetKind.values.map((TargetKind kind) => kind.name).join(', ')),
-              ),
+              allOf(contains('laptop'), contains(TargetKind.values.map((TargetKind kind) => kind.name).join(', '))),
             ),
           ),
         );

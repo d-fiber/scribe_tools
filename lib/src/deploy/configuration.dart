@@ -166,8 +166,7 @@ class ProjectConfiguration {
       modules: <String, YamlMap>{
         if (root.existsSync())
           for (final File file in root.listSync().whereType<File>().toList()..sort(_byPath))
-            if (p.basenameWithoutExtension(file.path) != mainConfigurationName &&
-                p.extension(file.path) == '.yaml')
+            if (p.basenameWithoutExtension(file.path) != mainConfigurationName && p.extension(file.path) == '.yaml')
               p.basenameWithoutExtension(file.path): _mapping(file),
       },
     );

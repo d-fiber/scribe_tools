@@ -79,9 +79,11 @@ void main() {
   setUp(() {
     fs = MemoryFileSystem.test();
     fs.directory('/work/notes').createSync(recursive: true);
-    fs.file('/work/notes/config.yaml').writeAsStringSync(
-      'name: "notes"\ntargets:\n  prod:\n    kind: machine\napi:\n  url: "https://notes.example.com"\n',
-    );
+    fs
+        .file('/work/notes/config.yaml')
+        .writeAsStringSync(
+          'name: "notes"\ntargets:\n  prod:\n    kind: machine\napi:\n  url: "https://notes.example.com"\n',
+        );
   });
 
   group('a forge of a project', () {
@@ -173,10 +175,7 @@ void main() {
     });
 
     test('names a value whose shape is not the one the module declared', () async {
-      expect(
-        await problemsOf('file_size_limit_mb: "five"\n'),
-        contains(allOf(contains('integer'), contains('text'))),
-      );
+      expect(await problemsOf('file_size_limit_mb: "five"\n'), contains(allOf(contains('integer'), contains('text'))));
     });
 
     test('names a target nothing declares, and the ones that exist', () async {

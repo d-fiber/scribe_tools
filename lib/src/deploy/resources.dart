@@ -110,10 +110,7 @@ class Resources {
   /// [placement] answers for one resource by name, and a target that says
   /// nothing about a resource leaves it in a container, which is the stack as it
   /// was before anything could be placed anywhere else.
-  static Resources load({
-    List<Package>? mounted,
-    Placement Function(String resource)? placement,
-  }) {
+  static Resources load({List<Package>? mounted, Placement Function(String resource)? placement}) {
     final Directory root = SocleOps().root;
     final List<Package> found = mounted ?? Packages.load().active;
 
