@@ -165,8 +165,17 @@ class ComposeRender {
     this.targetName,
     this.stackRoot,
     this.platform = '',
+    this.images = const <String, String>{},
     this.resourceOutputs = const <String, Map<String, String>>{},
   }) : project = project ?? globals.project;
+
+  /// The exact reference each built service is to run, by service name.
+  ///
+  /// A tag can be moved, so a host told to run one has no way of knowing which
+  /// build it got. After a push the registry answers with a digest, and pinning
+  /// the document to it makes the reference say what the content is: the host
+  /// then pulls only what it does not have, and can only run what was built.
+  final Map<String, String> images;
 
   /// The architecture the images are built for, empty for this machine's own.
   final String platform;
@@ -409,7 +418,8 @@ class ComposeRender {
     final String tag = prefix.isEmpty ? 'local' : (_configuration.target(targetName!).tag);
     final StackLocation stack = StackLocation(project: project);
 
-    String image(String service) => prefix.isEmpty ? '$name-$service:local' : '$prefix/$name-$service:$tag';
+    String image(String service) =>
+        images[service] ?? (prefix.isEmpty ? '$name-$service:local' : '$prefix/$name-$service:$tag');
 
     return <String, String>{
       'image_api': image('api'),

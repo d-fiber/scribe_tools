@@ -36,6 +36,7 @@
 
 import 'dart:convert';
 
+import 'package:change_case/change_case.dart';
 import 'package:file/file.dart';
 import 'package:path/path.dart' as pathlib;
 import 'package:scribe_tools/src/base/common.dart';
@@ -133,14 +134,16 @@ class DeployCommand extends ScribeCommand {
 
     final Hardware hardware = await Hardware.detect();
 
-    Future<ComposeDocuments> renderFor(String? seenAt) => ComposeRender(
-      project: project,
-      withWorker: boolArg('worker'),
-      targetName: targetName,
-      stackRoot: seenAt,
-      platform: platform,
-      resourceOutputs: made,
-    ).render(hardware);
+    Future<ComposeDocuments> renderFor(String? seenAt, {Map<String, String> images = const <String, String>{}}) =>
+        ComposeRender(
+          project: project,
+          withWorker: boolArg('worker'),
+          targetName: targetName,
+          stackRoot: seenAt,
+          platform: platform,
+          images: images,
+          resourceOutputs: made,
+        ).render(hardware);
 
     // Rendered for this machine first: the images are built and pushed here, and
     // `docker compose` reads the whole document to do it, mounts included. A
@@ -176,8 +179,10 @@ class DeployCommand extends ScribeCommand {
     if (!remote) return _start(plan, documents);
 
     // Rendered again, for the host this time: what it mounts is its own, and the
-    // two documents are two readers rather than one document travelling.
-    return _startThere(plan, await renderFor(root), root!);
+    // two documents are two readers rather than one document travelling. It is
+    // pinned to the digests the push returned, so the host pulls what it lacks
+    // and can only run what was just built.
+    return _startThere(plan, await renderFor(root, images: await _digestsOf(target)), root!);
   }
 
   /// Creates the resources whose recipe is configuration, and returns what they made.
@@ -258,6 +263,34 @@ class DeployCommand extends ScribeCommand {
     return pathlib.posix.join(home, '.scribe_cache', 'stacks', StackLocation(project: project).fingerprint);
   }
 
+  /// The exact reference of each built image, read back from the daemon.
+  ///
+  /// A tag can be moved and a digest cannot, so what the host is told to run is
+  /// what was pushed a second earlier and nothing else. A service the registry
+  /// has no digest for is left on its tag, which is the case before a first push.
+  Future<Map<String, String>> _digestsOf(Target target) async {
+    final String name = project.manifest.name.toSnakeCase();
+    final Map<String, String> pinned = <String, String>{};
+
+    for (final String service in <String>['api', 'functions', 'db', 'rest', 'backup']) {
+      final String reference = '${target.registry}/$name-$service:${target.tag}';
+      final ProcessOutcome outcome = await globals.processRunner.observe(<String>[
+        'docker',
+        'image',
+        'inspect',
+        reference,
+        '--format',
+        '{{index .RepoDigests 0}}',
+      ]);
+      if (!outcome.succeeded) continue;
+
+      final String digest = outcome.stdout.trim();
+      if (digest.contains('@sha256:')) pinned[service] = digest;
+    }
+
+    return pinned;
+  }
+
   /// The platform the host builds for, empty when it cannot be read.
   ///
   /// A workstation and a server are rarely the same architecture, and an image
@@ -309,7 +342,9 @@ class DeployCommand extends ScribeCommand {
     final int status = await host.compose(
       // Never `--build`: a host that cannot pull an image has to say so, and
       // not fall back to building from a context that only this machine has.
-      <String>['up', '-d', '--remove-orphans', '--no-build', '--pull', 'always'],
+      // `missing` rather than `always` because the references are digests: what
+      // the host already holds under that name is what was built.
+      <String>['up', '-d', '--remove-orphans', '--no-build', '--pull', 'missing'],
       root: root,
       projectName: documents.projectName,
       documents: documentsThere,
