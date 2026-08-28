@@ -156,26 +156,6 @@ class Target {
   /// says nothing about the cause. It is read from the host rather than declared,
   /// because a machine knows its own architecture and a file can be wrong.
   final String platform;
-
-  /// Stops a deployment that this target's kind has no way to carry out.
-  ///
-  /// `paas` is a word the manifest accepts and that no driver answers for: a
-  /// provider's own way in is an API and a build of its own, not a compose
-  /// stack carried over SSH. Left unchecked, a `paas` target holding a host
-  /// would be shipped to like a machine, and one holding none would quietly
-  /// deploy to the daemon at hand, which are two wrong answers given without a
-  /// word. It is refused here so that it is refused in one place.
-  void refuseWhatNothingCarriesOut() {
-    if (kind != TargetKind.paas) return;
-
-    throwToolExit(
-      'The target "$name" is a paas, and nothing deploys to a paas yet.\n'
-      'A provider is reached through its own API and builds what it runs itself, '
-      'so a compose stack carried over SSH is not what it accepts.\n'
-      'What works today: kind: vps with a host of your own, and resources placed on a '
-      'provider one by one under deploy:, which is what a recipe is for.',
-    );
-  }
 }
 
 /// How and where a project runs, read from its `configuration/` directory.

@@ -81,7 +81,7 @@ class DestroyCommand extends ScribeCommand {
     }
 
     final ProjectConfiguration configuration = ProjectConfiguration.load(project: project);
-    final Target target = configuration.target(targetName)..refuseWhatNothingCarriesOut();
+    final Target target = configuration.target(targetName);
     final List<Resource> provisioned = _provisionedOn(configuration, target);
 
     if (!_agreed(target, provisioned)) {

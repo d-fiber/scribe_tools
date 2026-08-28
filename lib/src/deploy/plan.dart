@@ -85,8 +85,6 @@ class DeploymentPlan {
         'targets.${target.name}.host names nobody, and a ${target.kind.name} target is reached over SSH.'
       else if (target.registry.isEmpty)
         _needsARegistry(target),
-    if (target.kind == TargetKind.paas)
-      'a paas target needs a driver that pushes to the platform, and there is none yet.',
   ];
 
   /// Why a target reached over SSH cannot be deployed to without a registry.

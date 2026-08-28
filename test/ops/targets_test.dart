@@ -177,15 +177,29 @@ void main() {
       });
     });
 
-    test('names the platform a paas target deploys onto, and nothing for the others', () async {
+    test('names the architecture a target builds for, and nothing for the others', () async {
       await withEnvironment(const <String, String>{}, () {
         final ScribeManifest manifest = manifestOf(
-          _manifest.replaceFirst('  big:', '  cloud:\n    kind: paas\n    platform: fly\n  big:'),
+          _manifest.replaceFirst('  big:', '  arm:\n    kind: vps\n    platform: linux/arm64\n  big:'),
         );
 
-        expect(manifest.kindOf('cloud'), TargetKind.paas);
-        expect(manifest.platformOf('cloud'), 'fly');
+        expect(manifest.platformOf('arm'), 'linux/arm64');
         expect(manifest.platformOf('vps'), '');
+      });
+    });
+
+    test('refuses a kind it does not carry out, and lists the ones it does', () async {
+      await withEnvironment(const <String, String>{}, () {
+        expect(
+          () => manifestOf(_manifest.replaceFirst('  big:', '  cloud:\n    kind: paas\n  big:')).kindOf('cloud'),
+          throwsA(
+            isA<ToolExit>().having(
+              (ToolExit exit) => exit.message,
+              'message',
+              allOf(contains('"paas", which is not a kind of target'), contains('dev, machine, vps, hybrid')),
+            ),
+          ),
+        );
       });
     });
   });

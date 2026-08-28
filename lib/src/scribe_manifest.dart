@@ -75,9 +75,6 @@ enum TargetKind {
   /// daemon at hand, and holding one router the way a `machine` does.
   vps,
 
-  /// Somebody else's machine, which imposes its sizing and its own way in.
-  paas,
-
   /// Several places at once: part of the stack in containers, part of it on
   /// services somebody else runs.
   hybrid,
@@ -284,8 +281,7 @@ class ScribeManifest {
   /// `dev` is a workstation: nothing owns port 80 there, so the stack publishes
   /// a port of its own and no router stands in front of it. `machine` is a host
   /// the operator owns, where the router holds 80 and 443 for every project on
-  /// it. `paas` is somebody else's machine, which imposes its own sizing and its
-  /// own way in.
+  /// it.
   ///
   /// A target that names none is a `machine`, because that is what a target was
   /// for before there was anything to choose.
@@ -302,7 +298,7 @@ class ScribeManifest {
     );
   }
 
-  /// The platform a `paas` target deploys onto, empty when it names none.
+  /// The architecture the images of [target] are built for, empty when it names none.
   String platformOf(String target) => _string(<String>['targets', target, 'platform']) ?? '';
 
   /// Whether [target] asks for a hard CPU ceiling and not only a relative share.
