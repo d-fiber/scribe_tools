@@ -40,9 +40,11 @@ import 'package:scribe_tools/src/deploy/configuration.dart';
 import 'package:scribe_tools/src/deploy/resources.dart';
 import 'package:scribe_tools/src/deploy/settings.dart';
 import 'package:scribe_tools/src/ops/hardware.dart';
+import 'package:scribe_tools/src/ops/socle.dart';
 import 'package:scribe_tools/src/packages.dart';
 import 'package:scribe_tools/src/project.dart';
 import 'package:scribe_tools/src/scribe_manifest.dart';
+import 'package:scribe_tools/src/templates.dart';
 import 'package:yaml/yaml.dart';
 
 /// What one file of `configuration/` came out of a forge as.
@@ -178,12 +180,25 @@ class Forge {
       out.writeln();
     }
 
+    final List<String> resources = <String>[
+      for (final Resource resource in Resources.declaredIn(_socleDeclaration())) resource.name,
+    ];
+
     return (out
           ..writeln('# Where each resource of the socle is placed, per target. A target that is')
           ..writeln('# not named here gets a container alongside the rest of the stack.')
+          ..writeln('#')
+          ..writeln(
+            resources.isEmpty
+                ? '# The socle needs none, so this block stays empty.'
+                : '# The socle needs these, always, on every project: ${resources.join(', ')}.',
+          )
           ..writeln('$deployKey: {}'))
         .toString();
   }
+
+  /// The file the socle declares its own resources in, the way a package does.
+  static File _socleDeclaration() => SocleOps().root.childFile('$configurationFileName$kTemplateSuffix');
 
   static const List<Target> _defaultTargets = <Target>[Target(name: 'local', kind: TargetKind.dev)];
 
