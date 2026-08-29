@@ -42,6 +42,7 @@ import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/package/checks.dart';
 import 'package:scribe_tools/src/package/constraint.dart';
+import 'package:scribe_tools/src/package/imports.dart';
 import 'package:scribe_tools/src/package/layout.dart';
 import 'package:scribe_tools/src/package/manifest.dart';
 import 'package:scribe_tools/src/package/sdk.dart';
@@ -257,18 +258,20 @@ String? directoryOfPackage(String name, String directory, Sdk sdk) {
 ///
 /// What a manifest's dev dependencies hold is walked for the package being resolved
 /// and for nothing else. A consumer does not run somebody else's suite, so what
-/// that suite needed stops at the package that wrote it.
+/// that suite needed stops at the package that wrote it. The same line separates
+/// [external]: `lib/` is scanned for every package the walk meets, since a file of a
+/// dependency is compiled with the package that reached it, while `tests/` is
+/// scanned for the package being resolved alone.
 ///
-/// [external] comes back holding every specifier the walk met, the ones declared by
-/// the packages reached included. A map answers one graph and not one package: a
-/// file of a dependency is compiled with the package that reached it, so a
-/// specifier only that dependency names still has to be in the map, or the check
-/// fails inside a package whose own manifest was right all along.
+/// [external] comes back holding every specifier that scan met, outside the
+/// framework and outside a package, which is everything left once both of those
+/// are read off the manifests instead. Nothing here is declared: it is read
+/// straight from the code that imports it, in [externalSpecifiersIn].
 Map<String, String> packageClosure(
   Manifest manifest,
   String directory,
   Sdk sdk,
-  Map<String, String> external,
+  Set<String> external,
   List<Unresolved> problems,
 ) {
   final Map<String, String> found = <String, String>{};
@@ -279,6 +282,11 @@ Map<String, String> packageClosure(
   bool first = true;
   while (pending.isNotEmpty) {
     final MapEntry<Manifest, String> held = pending.removeAt(0);
+    external.addAll(externalSpecifiersIn(p.join(held.value, kLibraryDirectory)));
+    if (first) {
+      external.addAll(externalSpecifiersIn(p.join(held.value, kTestsDirectory)));
+    }
+
     final Map<String, String> asked = <String, String>{
       ...held.key.dependencies,
       if (first) ...held.key.devDependencies,
@@ -286,10 +294,6 @@ Map<String, String> packageClosure(
     first = false;
 
     asked.forEach((String name, String constraint) {
-      if (constraint == kAny) {
-        external.putIfAbsent(name, () => constraint);
-        return;
-      }
       if (found.containsKey(name) || name == manifest.name) return;
 
       final String? at = directoryOfPackage(name, held.value, sdk);
@@ -320,43 +324,62 @@ Map<String, String> packageClosure(
   return found;
 }
 
-/// What every specifier [asked] names answers to, taken from what the checkout pins.
+/// What every specifier of [asked] answers to, taken from what the checkout pins.
 ///
-/// A package writes the name and never the version, so this is a lookup and not a
+/// A package never writes a version for one of these, so this is a lookup and not a
 /// solve: the checkout's map is the one place a version of anything outside the
-/// framework is decided, and a package naming a second one would be a second place
-/// for the two to disagree.
+/// framework is decided, and a second one written anywhere else would be a second
+/// place for the two to disagree.
 ///
-/// A specifier the checkout does not pin is reported rather than dropped. Dropping
-/// it would leave the package to fail at type check, where nothing points back at
-/// the line that asked for it.
-Map<String, String> externalImports(
-  Map<String, String> asked,
-  Sdk sdk,
-  Map<String, String> pinned,
-  List<Unresolved> problems,
-) {
+/// An entry may answer to an exact key or to the longest prefix of [pinned] that
+/// ends in `/` and that the specifier starts with, the way an import map itself
+/// resolves a path under a scope it was only given the root of: `@scope/pkg/deep`
+/// is carried by an entry written `@scope/pkg/`, and what lands in the result is
+/// that entry, not the deeper specifier nobody pinned on its own.
+///
+/// A specifier the checkout does not pin, by either name, is reported rather than
+/// dropped. Dropping it would leave the package to fail at type check, where
+/// nothing points back at the line that asked for it.
+Map<String, String> externalImports(Set<String> asked, Sdk sdk, Map<String, String> pinned, List<Unresolved> problems) {
   final Map<String, String> imports = <String, String>{};
 
-  asked.forEach((String specifier, String constraint) {
-    if (constraint != kAny) return;
-
-    final String? answer = pinned[specifier];
-    if (answer == null) {
-      problems.add(
-        Unresolved(
-          specifier,
-          'nothing in ${p.join(sdk.root, kSdkImportMapFile)} answers it, so the checkout does not carry it. '
-          'Add it there first, where its version is pinned for everybody.',
-        ),
-      );
-      return;
+  for (final String specifier in asked) {
+    final String? exact = pinned[specifier];
+    if (exact != null) {
+      imports[specifier] = exact;
+      continue;
     }
 
-    imports[specifier] = answer;
-  });
+    final String? prefix = _longestPrefix(specifier, pinned.keys);
+    if (prefix != null) {
+      imports[prefix] = pinned[prefix]!;
+      continue;
+    }
+
+    problems.add(
+      Unresolved(
+        specifier,
+        'nothing in ${p.join(sdk.root, kSdkImportMapFile)} answers it, so the checkout does not carry it. '
+        'Add it there first, where its version is pinned for everybody.',
+      ),
+    );
+  }
 
   return imports;
+}
+
+/// The longest key of [candidates] ending in `/` that [specifier] starts with, or null.
+///
+/// Longest wins because a narrower scope pinned on purpose says more than a wider
+/// one that happens to also match: `@scope/pkg/sub/` beats `@scope/pkg/` for a
+/// specifier both would carry.
+String? _longestPrefix(String specifier, Iterable<String> candidates) {
+  String? found;
+  for (final String candidate in candidates) {
+    if (!candidate.endsWith('/') || !specifier.startsWith(candidate)) continue;
+    if (found == null || candidate.length > found.length) found = candidate;
+  }
+  return found;
 }
 
 /// What resolving a package left behind.
@@ -400,13 +423,13 @@ bool isResolved(String package, Sdk sdk) {
   }
 }
 
-/// Stops the run when anything the manifest asked for could not be answered.
+/// Stops the run when anything the package asked for could not be answered.
 ///
-/// They are reported together rather than one at a time, because a manifest that
-/// names three things the checkout does not carry is three lines to fix, and a
+/// They are reported together rather than one at a time, because a package that
+/// asks for three things the checkout does not carry is three lines to fix, and a
 /// command that stops at the first turns one pass into three.
 ///
-/// Nothing is written when this throws. A map missing what the package declared
+/// Nothing is written when this throws. A map missing what the package needed
 /// would type check against whatever the last run left behind, and the run after
 /// it would report a different set.
 ///
@@ -416,13 +439,16 @@ void _refuseUnresolved(List<Unresolved> problems, Manifest manifest, String dire
   if (problems.isEmpty) return;
 
   final StringBuffer said = StringBuffer(
-    '${manifest.name} declares ${problems.length == 1 ? 'something' : '${problems.length} things'} '
+    '${manifest.name} asks for ${problems.length == 1 ? 'something' : '${problems.length} things'} '
     'that cannot be resolved, so nothing was written.\n',
   );
   for (final Unresolved problem in problems) {
     said.writeln('  $problem');
   }
-  said.write('They are declared in ${p.join(directory, kManifestFile)}.');
+  said.write(
+    'A package is named in ${p.join(directory, kManifestFile)}; a specifier the checkout does not '
+    'pin is named wherever the code imports it.',
+  );
 
   throwToolExit('$said');
 }
@@ -459,12 +485,12 @@ Resolution resolve(String directory, Sdk sdk) {
 
   final List<Unresolved> problems = <Unresolved>[];
   final Map<String, String> pinned = sdkImports(sdk);
-  final Map<String, String> external = <String, String>{};
+  final Set<String> external = <String>{};
   final Map<String, String> reached = packageClosure(manifest, directory, sdk, external, problems);
 
   final Map<String, String> imports = <String, String>{
     ...kAlwaysResolved,
-    ...languageImports(sdk),
+    ...frameworkImports(sdk),
     ...externalImports(external, sdk, pinned, problems),
     for (final MapEntry<String, String> held in reached.entries) ..._doorsOf(held.key, held.value, own: false),
     ..._doorsOf(manifest.name, directory, own: true),
@@ -547,26 +573,38 @@ Map<String, Object?> _settingsIn(File settings) {
   }
 }
 
-/// Every entry the language publishes, from the specifier to the file it answers.
+/// The specifiers a checkout publishes without any package having to ask for them.
 ///
-/// They are read out of the checkout's own map rather than a manifest of the
-/// language's own, because the language is a plain directory of the tree and
-/// carries none. The checkout is the one place that says what it publishes, which
-/// is also where every other version is pinned.
+/// The language, `@scribe/alchemy`, and the checkout's own door, `@scribe/sdk`, are neither
+/// under [kLayersDirectory] nor a package, so nothing discovers them: they are named here and
+/// nowhere else. Every layer [layerImports] finds joins them, which is what makes
+/// `@scribe/contracts/`, `@scribe/runtime/` and the rest reachable the same way, without a
+/// `dependencies:` entry that never had a version to carry in the first place.
+const List<String> kFixedFrameworkImports = <String>[kLanguage, '@scribe/sdk'];
+
+/// Every entry the framework publishes on its own, from the specifier to what it answers.
 ///
-/// Writing one entry and leaving the rest out is what made six of its seven
-/// unreachable, so a package that imported one of them failed to resolve while the
-/// command line reported nothing.
+/// They are read out of the checkout's own map rather than a manifest of the framework's own,
+/// because none of [kFixedFrameworkImports] or a layer carries one: each is a plain directory of
+/// the tree, and the checkout is the one place that says what it publishes, which is also where
+/// every other version is pinned.
 ///
-/// Throws a [ToolExit] when the checkout's map names no entry for the language.
-Map<String, String> languageImports(Sdk sdk) {
+/// Writing one entry of a surface and leaving the rest out is what once made six of the
+/// language's seven unreachable, so a package that imported one of them failed to resolve while
+/// the command line reported nothing. Every entry under a granted root is kept for that reason.
+///
+/// Throws a [ToolExit] when the checkout's map names no entry for the language, since that is the
+/// one surface a package cannot be resolved without.
+Map<String, String> frameworkImports(Sdk sdk) {
   final Map<String, String> held = sdkImports(sdk);
+  final Set<String> roots = <String>{...kFixedFrameworkImports, ...layerImports(sdk).keys};
+
   final Map<String, String> imports = <String, String>{
     for (final MapEntry<String, String> entry in held.entries)
-      if (entry.key == kLanguage || entry.key.startsWith('$kLanguage/')) entry.key: entry.value,
+      if (roots.any((String root) => entry.key == root || entry.key.startsWith('$root/'))) entry.key: entry.value,
   };
 
-  if (imports.isEmpty) {
+  if (!imports.keys.any((String key) => key == kLanguage || key.startsWith('$kLanguage/'))) {
     throwToolExit(
       'The map at ${p.join(sdk.root, kSdkImportMapFile)} names no "$kLanguage", so the language cannot be resolved.\n'
       'A checkout publishes the language through its own import map, one entry per surface a package may import.',

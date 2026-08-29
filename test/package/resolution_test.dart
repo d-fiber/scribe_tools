@@ -97,6 +97,9 @@ void main() {
 
   String packageDeclaring(String blocks, {String name = 'notifications'}) => packageAt(root.path, name, blocks);
 
+  void importing(String at, String name, String specifier) =>
+      File(p.join(at, 'lib', '$name.ts')).writeAsStringSync('\nimport "$specifier";\n', mode: FileMode.append);
+
   String carriedByCheckout(String name, String blocks, {String version = '1.0.0'}) =>
       packageAt(p.join(checkout.path, kPackagesDirectory), name, blocks, version: version);
 
@@ -148,26 +151,34 @@ void main() {
     );
   });
 
-  resolving('what the checkout pins answers the specifiers the package declared', () {
-    final String at = packageDeclaring('dependencies:\n  croner: any\n  "@scribe/contracts/": any\n');
+  resolving('what the checkout pins answers the specifiers the package imports', () {
+    final String at = packageDeclaring('dependencies:\n');
+    importing(at, 'notifications', 'croner');
     resolve(at, sdkOfCheckout());
 
-    final Map<String, Object?> imports = importsOf(at);
-    expect(imports['croner'], 'npm:croner@8', reason: 'a registry pin did not survive');
-    expect(
-      imports['@scribe/contracts/'],
-      Uri.directory(p.join(checkout.path, 'engine', 'contracts')).toString(),
-      reason: 'a path of the checkout was carried over as it was written, so it means nothing here',
-    );
+    expect(importsOf(at)['croner'], 'npm:croner@8', reason: 'a registry pin did not survive');
   });
 
-  resolving('what the checkout pins and the package never named is out of reach', () {
+  resolving('a framework surface is reachable whether or not a package imports it', () {
     final CreatedPackage created = createPackage(root.path, 'notifications', sdkOfCheckout());
     resolve(created.directory, sdkOfCheckout());
 
-    final Map<String, Object?> imports = importsOf(created.directory);
-    expect(imports.containsKey('croner'), isFalse, reason: 'a package reaches what it never declared');
-    expect(imports.containsKey('@scribe/contracts/'), isFalse, reason: 'a package reaches what it never declared');
+    expect(
+      importsOf(created.directory)['@scribe/contracts/'],
+      '${p.join(checkout.path, 'engine', 'contracts')}/',
+      reason: 'a layer the checkout carries was held against what the package happened to import',
+    );
+  });
+
+  resolving('what the checkout pins and the package never imports is out of reach', () {
+    final CreatedPackage created = createPackage(root.path, 'notifications', sdkOfCheckout());
+    resolve(created.directory, sdkOfCheckout());
+
+    expect(
+      importsOf(created.directory).containsKey('croner'),
+      isFalse,
+      reason: 'a package reaches what it never imported',
+    );
   });
 
   resolving('a package reaches its own files under the name it declared', () {
@@ -443,8 +454,9 @@ void main() {
       );
     });
 
-    resolving('a specifier a dependency declared is in the map, not only the ones this package wrote', () {
-      packageDeclaring('dependencies:\n  croner: any\n', name: 'audiences');
+    resolving('a specifier a dependency imports is in the map, not only the ones this package wrote', () {
+      final String reached = packageDeclaring('dependencies:\n', name: 'audiences');
+      importing(reached, 'audiences', 'croner');
       final String at = packageDeclaring('dependencies:\n  audiences: ^1.0.0\n');
 
       resolve(at, sdkOfCheckout());
@@ -473,18 +485,20 @@ void main() {
     });
 
     resolving('a specifier the checkout does not pin', () {
-      final String at = packageDeclaring('dependencies:\n  ioredis: any\n');
+      final String at = packageDeclaring('dependencies:\n');
+      importing(at, 'notifications', 'left-pad');
 
-      expect(() => resolve(at, sdkOfCheckout()), refuses(allOf(contains('ioredis'), contains(kSdkImportMapFile))));
+      expect(() => resolve(at, sdkOfCheckout()), refuses(allOf(contains('left-pad'), contains(kSdkImportMapFile))));
       expect(Directory(p.join(at, kResolutionDirectory)).existsSync(), isFalse);
     });
 
     resolving('everything that could not be answered, in one refusal', () {
-      final String at = packageDeclaring('dependencies:\n  audiences: ^1.0.0\n  ioredis: any\n');
+      final String at = packageDeclaring('dependencies:\n  audiences: ^1.0.0\n');
+      importing(at, 'notifications', 'left-pad');
 
       expect(
         () => resolve(at, sdkOfCheckout()),
-        refuses(allOf(contains('2 things'), contains('audiences'), contains('ioredis'))),
+        refuses(allOf(contains('2 things'), contains('audiences'), contains('left-pad'))),
       );
     });
   });

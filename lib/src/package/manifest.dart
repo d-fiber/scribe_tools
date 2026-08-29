@@ -95,16 +95,12 @@ class Manifest {
   /// hand and fail at type check, where nothing points back at the version.
   final String scribe;
 
-  /// What this package may import, from a name to the constraint it accepts.
+  /// The packages this one may import, from a name to the constraint it accepts.
   ///
-  /// Two kinds share the block, the way they do in a `pubspec.yaml`, and the
-  /// constraint says which is which. A name carrying a version is another package,
-  /// checked against the copy on hand. A name carrying [kAny] is a specifier the
-  /// checkout pins, and the package names it without naming a version because the
-  /// checkout is the one place a version of anything outside the framework lives.
-  ///
-  /// Nothing outside this block resolves. A package that imports what it did not
-  /// declare fails to resolve, which is the whole reason the block is read at all.
+  /// Every entry names another package, the way it does in a `pubspec.yaml`: nothing else has a
+  /// place here. What a package imports beyond the framework and beyond another package is not
+  /// declared at all, it is read off the code that imports it, the way `deno` itself would read
+  /// it, in `packageClosure`.
   final Map<String, String> dependencies;
 
   /// What the package's own suite may import, on top of [dependencies].
@@ -247,11 +243,10 @@ String? _optionalText(Map<Object?, Object?> document, String key, String where) 
 
 /// The block at [key], read as a name against the constraint it accepts.
 ///
-/// A name is only held to the rules of a package name when it carries a version,
-/// because that is the entry that names a package. An entry written [kAny] names a
-/// specifier the checkout pins, and a specifier is whatever an import map may
-/// hold: a scope, a slash, a registry prefix. Refusing those here would mean a
-/// package could not declare the redis client it plainly imports.
+/// Every name is held to the rules a package name follows, whatever the constraint: an entry
+/// here always names a package, checked against the copy on hand, and a specifier that is not
+/// one, a redis client, a scope, a registry prefix, is refused the same way a misspelt name is.
+/// What a package imports beyond another package is not declared, it is read off the code.
 Map<String, String> _dependencies(Map<Object?, Object?> document, String key, String where) {
   final Object? value = document[key];
   if (value == null) return const <String, String>{};
@@ -270,10 +265,8 @@ Map<String, String> _dependencies(Map<Object?, Object?> document, String key, St
     final String? written = constraintProblem(constraint);
     if (written != null) throwToolExit('$where, at "$key.$name:": $written');
 
-    if (constraint != kAny) {
-      final String? named = packageNameProblem(name);
-      if (named != null) throwToolExit('$where, at "$key.$name:": $named');
-    }
+    final String? named = packageNameProblem(name);
+    if (named != null) throwToolExit('$where, at "$key.$name:": $named');
 
     asked[name] = constraint;
   }

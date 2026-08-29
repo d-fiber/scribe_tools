@@ -120,20 +120,15 @@ List<Problem> _misplaced(DiscoveredPackage found) {
 
 /// Everything [found] asked another package for that the tree cannot answer.
 ///
-/// What a package needs to run its own suite is held to the same rule as what it
-/// depends on: it names a package or it names nothing, and a suite written
-/// against a package nobody wrote fails the same way a consumer would.
-///
-/// An entry written [kAny] is skipped, because it names a specifier the checkout
-/// pins rather than a package. Looking one up here would report every redis
-/// client a package plainly imports as a package nobody wrote.
+/// What a package needs to run its own suite is held to the same rule as what it depends on: it
+/// names a package or it names nothing, and a suite written against a package nobody wrote fails
+/// the same way a consumer would. Every entry is checked, since `dependencies:` no longer holds
+/// anything but packages: a redis client a package plainly imports is not named here at all.
 List<Problem> _dependencies(DiscoveredPackage found, Map<String, DiscoveredPackage> known) {
   final List<Problem> problems = <Problem>[];
   final Map<String, String> asked = <String, String>{...found.manifest.dependencies, ...found.manifest.devDependencies};
 
   for (final MapEntry<String, String> entry in asked.entries) {
-    if (entry.value == kAny) continue;
-
     final DiscoveredPackage? target = known[entry.key];
     if (target == null) {
       problems.add(Problem(found.name, 'it depends on "${entry.key}", and no package of that name exists.'));

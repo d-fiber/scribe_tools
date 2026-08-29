@@ -184,15 +184,10 @@ void main() {
     expect(problemsUnder().single, contains('the copy on hand is 0.2.0'));
   });
 
-  test('a specifier the checkout pins is not looked for among the packages', () {
-    written(
-      'realtime',
-      manifest:
-          'name: realtime\nversion: 1.0.0\n\n${environment}dependencies:\n'
-          '  ioredis: any\n  "@scribe/core/": any\n',
-    );
+  test('a name that reads as a package but names none is reported like any other unknown dependency', () {
+    written('realtime', manifest: 'name: realtime\nversion: 1.0.0\n\n${environment}dependencies:\n  ioredis: any\n');
 
-    expect(problemsUnder(), isEmpty, reason: 'what the checkout answers for was held against the package');
+    expect(problemsUnder().single, contains('no package of that name exists'));
   });
 
   test('a dependency of the suite on a package nobody wrote is reported', () {

@@ -195,7 +195,7 @@ Map<String, String> sdkImports(Sdk sdk) {
     held[specifier] = _absolute(answer, beside);
   });
 
-  held.addAll(_layersOf(sdk));
+  held.addAll(layerImports(sdk));
 
   return held;
 }
@@ -213,7 +213,14 @@ const String kLayersDirectory = 'engine';
 /// A package resolved outside a checkout still has to reach them, so they are
 /// read back from the tree here. A directory counts as a layer when it carries a
 /// `deno.json`, which is what makes it a member.
-Map<String, String> _layersOf(Sdk sdk) {
+///
+/// This is also what tells a package's own resolution which specifiers are the
+/// framework's own and need no `dependencies:` entry at all: `resolution.dart`
+/// reads the keys of what this answers to grant every one of them, the way it
+/// already grants `@scribe/alchemy`. A layer added under [kLayersDirectory] is
+/// therefore reachable the moment it carries a `deno.json`, without anything
+/// elsewhere naming it.
+Map<String, String> layerImports(Sdk sdk) {
   final Directory layers = globals.fs.directory(p.join(sdk.root, kLayersDirectory));
   if (!layers.existsSync()) return const <String, String>{};
 

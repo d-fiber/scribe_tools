@@ -73,6 +73,15 @@ void writeCheckout(Directory root, {String version = '3.0.1', Map<String, String
       ..writeAsStringSync('export {};\n');
   }
 
+  // A directory under `engine/` is a layer once it carries its own `deno.json`, and a package's
+  // resolution grants every layer without being asked. `@scribe/contracts/` is the one this
+  // checkout answers for, so it needs the marker `layerImports` looks for.
+  if (imports.containsKey('@scribe/contracts/')) {
+    File(p.join(root.path, 'engine', 'contracts', 'deno.json'))
+      ..createSync(recursive: true)
+      ..writeAsStringSync('{}\n');
+  }
+
   final String written = imports.entries
       .map((MapEntry<String, String> entry) => '"${entry.key}":"${entry.value}"')
       .join(',');
