@@ -34,23 +34,31 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
+import 'package:file/file.dart';
+import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/deploy/configuration.dart';
 import 'package:scribe_tools/src/deploy/forge.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
+import 'package:scribe_tools/src/package/layout.dart';
+import 'package:scribe_tools/src/package/resolution.dart';
+import 'package:scribe_tools/src/package/sdk.dart';
 import 'package:scribe_tools/src/packages.dart';
+import 'package:scribe_tools/src/project.dart';
 import 'package:scribe_tools/src/runner/scribe_command.dart';
 
-/// Brings the project back in line with what it declares.
+/// Gives a project or a package everything it derives from what it declares.
 ///
 /// It is the command to reach for when something is missing without having to
-/// know what: a project whose `configuration/` was deleted whole is rebuilt by
-/// one run of it.
+/// know what. In a project it owns `configuration/`: a file that is not there is
+/// written with the defaults its module declares, one that is there is left
+/// exactly as it is, and what is wrong inside it is named rather than corrected,
+/// because correcting a file somebody filled in would destroy an intention
+/// nobody understood. In a package it resolves what the manifest reaches against
+/// the checkout and writes it down for the tools, which is the one place a
+/// package and a checkout meet.
 ///
-/// It owns what nobody edits and audits what the developer edits. A file that is
-/// not there is written with the defaults its module declares; one that is there
-/// is left exactly as it is, and what is wrong inside it is named rather than
-/// corrected, because correcting a file somebody filled in would destroy an
-/// intention nobody understood.
+/// Which of the two it does is read from the directory it runs in: a
+/// `config.yaml` makes it a project, a `package.yaml` makes it a package.
 class ForgeCommand extends ScribeCommand {
   /// Declares the flag that looks without writing.
   ForgeCommand() {
@@ -58,7 +66,7 @@ class ForgeCommand extends ScribeCommand {
       'dry-run',
       abbr: 'n',
       negatable: false,
-      help: 'Say what is missing and what is wrong, and write nothing.',
+      help: 'In a project, say what is missing and what is wrong and write nothing.',
     );
   }
 
@@ -66,10 +74,37 @@ class ForgeCommand extends ScribeCommand {
   String get name => 'forge';
 
   @override
-  String get description => 'Write what this project declares and is missing, and say what is wrong.';
+  String get description => 'Give this project or package everything it declares and does not yet carry.';
+
+  @override
+  String get invocation => 'scribe forge [--dry-run]';
+
+  /// It decides for itself whether it is in a project or a package.
+  @override
+  bool get requiresProject => false;
 
   @override
   Future<ScribeCommandResult> runCommand() async {
+    final Directory here = globals.fs.currentDirectory;
+
+    if (Project.isProjectRoot(here)) return _forgeProject();
+    if (here.childFile(kManifestFile).existsSync()) return _resolvePackage(here.path);
+
+    throwToolExit(
+      'forge runs at the root of a scribe project or of a package, and ${here.path} is neither: '
+      'it holds no ${Project.configFileName} and no $kManifestFile.',
+    );
+  }
+
+  Future<ScribeCommandResult> _forgeProject() async {
+    final List<String> missing = project.missingEntries;
+    if (missing.isNotEmpty) {
+      throwToolExit(
+        '${project.directory.path} holds a ${Project.configFileName} but is missing ${missing.join(', ')}.\n'
+        'A project needs its three entries: ${Project.configFileName}, lib/ and the derived directory.',
+      );
+    }
+
     final bool dryRun = boolArg('dry-run');
     final ForgeReport report = Forge(project: project, packages: Packages.load().active).run(write: !dryRun);
 
@@ -85,6 +120,36 @@ class ForgeCommand extends ScribeCommand {
     globals.logger.printStatus(_summaryOf(report, dryRun: dryRun));
 
     return report.hasProblems ? const ScribeCommandResult.fail() : const ScribeCommandResult.success();
+  }
+
+  /// Resolves the package in [directory] against the checkout and writes it down.
+  ///
+  /// A package asking for what it needs is the same act as a project asking for
+  /// what it declares, so one word covers both. What resolving contains and why
+  /// is in `package/resolution.dart`.
+  Future<ScribeCommandResult> _resolvePackage(String directory) async {
+    if (boolArg('dry-run')) {
+      throwUsageError(
+        '--dry-run only means something in a project, where a file may be missing. '
+        'A package is resolved or it is not.',
+        command: invocationName,
+      );
+    }
+
+    final Sdk sdk = findSdk(from: directory);
+    final Resolution resolution = resolve(directory, sdk);
+
+    globals.logger.printStatus('Resolved against scribe ${sdk.version} in ${sdk.root}');
+    for (final MapEntry<String, String> held in resolution.imports.entries) {
+      globals.logger.printStatus('  ${held.key} ${held.value}');
+    }
+    globals.logger.printStatus('');
+    globals.logger.printStatus('Written to ${resolution.file}, which git ignores and nobody edits.');
+    globals.logger.printStatus(
+      'What the runtime is handed was built outside the package, in ${resolution.runtimeConfig}.',
+    );
+
+    return const ScribeCommandResult.success();
   }
 
   String _lineOf(ForgeEntry entry, {required bool dryRun}) {

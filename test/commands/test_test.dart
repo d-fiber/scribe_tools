@@ -36,48 +36,48 @@
 
 import 'package:test/test.dart';
 
-import 'pkg_source.dart';
+import 'package_source.dart';
 
 void main() {
-  late PkgHarness machine;
+  late PackageHarness machine;
 
-  setUp(() => machine = PkgHarness());
+  setUp(() => machine = PackageHarness());
 
-  Future<void> create(String name) => machine.run(<String>['pkg', 'create', name, '--in', kWorkDirectory]);
+  Future<String> created(String name) async {
+    await machine.run(<String>['create', name, '--package', '--in', kWorkDirectory]);
+    return '$kWorkDirectory/$name';
+  }
 
-  test('a sound package leaves the status of a run that worked', () async {
-    await create('audiences');
+  test('the tests run against a package resolved for the occasion', () async {
+    final String package = await created('notifications');
 
-    expect(await machine.run(<String>['pkg', 'analyze', kWorkDirectory]), 0);
-    expect(machine.logger.statusText, contains('1 package, nothing to report.'));
+    expect(await machine.run(<String>['test', package]), 0);
+    expect(machine.processRunner.commands.single, containsAll(<String>['deno', 'test', 'tests']));
   });
 
-  test('a package missing a piece of the layout leaves the status of a fault', () async {
-    await create('audiences');
-    machine.fs.file('$kWorkDirectory/audiences/.gitignore').deleteSync();
+  test('a package that does not hold together is refused before it is resolved', () async {
+    final String package = await created('notifications');
+    machine.fs.directory('$package/tests').deleteSync(recursive: true);
 
-    expect(await machine.run(<String>['pkg', 'analyze', kWorkDirectory]), 1);
-    expect(machine.logger.errorText, contains('would be committed with the source'));
-    expect(machine.logger.errorText, contains('1 problem across 1 package.'));
+    expect(await machine.run(<String>['test', package]), 1);
+    expect(machine.logger.errorText, contains('does not hold together'));
+    expect(machine.logger.errorText, contains('a package nobody tested is not one'));
   });
 
-  test('every package under the root is read, not only the first', () async {
-    await create('audiences');
-    await create('storage');
+  test('a package whose tests went after it was resolved is refused by the runner', () async {
+    final String package = await created('notifications');
+    machine.fs.currentDirectory = machine.fs.directory(package);
+    await machine.run(<String>['forge']);
+    machine.fs.directory('$package/tests').deleteSync(recursive: true);
 
-    expect(await machine.run(<String>['pkg', 'analyze', kWorkDirectory]), 0);
-    expect(machine.logger.statusText, contains('2 packages, nothing to report.'));
+    expect(await machine.run(<String>['test', package]), 1);
+    expect(machine.logger.errorText, contains('nothing to run'));
   });
 
-  test('analysing where there is no package says so', () async {
-    expect(await machine.run(<String>['pkg', 'analyze', kWorkDirectory]), 1);
-    expect(machine.logger.errorText, contains('No package under'));
-  });
+  test('--filter is passed through to the runner', () async {
+    final String package = await created('notifications');
 
-  test('the family on its own is a misuse, answered with what sits under it', () async {
-    expect(await machine.run(<String>['pkg']), 64);
-    expect(machine.logger.errorText, contains('Missing subcommand'));
-    expect(machine.logger.statusText, contains('create'));
-    expect(machine.logger.statusText, contains('analyze'));
+    expect(await machine.run(<String>['test', package, '--filter', 'signup']), 0);
+    expect(machine.processRunner.commands.single, containsAllInOrder(<String>['--filter', 'signup']));
   });
 }

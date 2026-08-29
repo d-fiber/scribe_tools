@@ -40,38 +40,61 @@ import 'package:scribe_tools/src/base/context.dart';
 import 'package:scribe_tools/src/base/logger.dart';
 import 'package:scribe_tools/src/commands/create/create_report.dart';
 import 'package:scribe_tools/src/commands/create/project_scaffold.dart';
+import 'package:scribe_tools/src/commands/create/project_templates.dart';
 import 'package:scribe_tools/src/commands/create/sdk_choice.dart';
 import 'package:scribe_tools/src/deploy/forge.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
+import 'package:scribe_tools/src/package/scaffold.dart';
 import 'package:scribe_tools/src/package/sdk.dart';
 import 'package:scribe_tools/src/packages.dart';
 import 'package:scribe_tools/src/project.dart';
-import 'package:scribe_tools/src/project_templates.dart';
 import 'package:scribe_tools/src/runner/scribe_command.dart';
 import 'package:scribe_tools/src/runner/scribe_command_runner.dart';
 import 'package:scribe_tools/src/sdk_target.dart';
 import 'package:scribe_tools/src/templates.dart';
 
-/// Scaffolds a project in `./<name>`, and nothing else.
+/// Scaffolds a project in `./<name>`, or a package of the framework with `--package`.
 ///
 /// No repository is initialised and no generator is run: what this writes is
-/// what the templates hold.
+/// what the templates hold. The two modes share nothing but the word: `--sdk`
+/// belongs to a project, `--in` to a package.
 class CreateCommand extends ScribeCommand {
-  /// Declares `--sdk`, whose help lists the SDKs the framework on disk carries.
+  /// Declares `--sdk`, whose help lists the SDKs the framework on disk carries,
+  /// and the two flags that pick and place a package instead.
   CreateCommand() {
-    argParser.addOption(
-      sdkOption,
-      abbr: 's',
-      valueHelp: 'name',
-      help:
-          'The SDK the endpoints are written against${_sdksOnDisk()}. '
-          'The choices are the directories of scribe/sdk/, so they follow the framework. '
-          'Asked interactively when left out.',
-    );
+    argParser
+      ..addOption(
+        sdkOption,
+        abbr: 's',
+        valueHelp: 'name',
+        help:
+            'The SDK the endpoints are written against${_sdksOnDisk()}. '
+            'The choices are the directories of scribe/sdk/, so they follow the framework. '
+            'Asked interactively when left out. Belongs to a project, not a package.',
+      )
+      ..addFlag(
+        packageFlag,
+        abbr: 'p',
+        negatable: false,
+        help:
+            'Write a package of the framework rather than a project. A package needs a framework '
+            'checkout, is always TypeScript, and lands where --in says.',
+      )
+      ..addOption(
+        inOption,
+        valueHelp: 'directory',
+        help: 'With --package, the directory the package is written into. The current one when left out.',
+      );
   }
 
   /// The option that settles the SDK without asking.
   static const String sdkOption = 'sdk';
+
+  /// The flag that writes a package of the framework instead of a project.
+  static const String packageFlag = 'package';
+
+  /// The option that says where a package is written, used with [packageFlag].
+  static const String inOption = 'in';
 
   /// What a project may be called.
   ///
@@ -92,6 +115,15 @@ class CreateCommand extends ScribeCommand {
       '\n'
       '  scribe create my_app\n'
       '  scribe create my_app --sdk ${sdkSpelling(kDefaultSdkName)}';
+
+  /// What the missing `<name>` is under `--package`, printed above the usage.
+  ///
+  /// A package name is spelled more narrowly than a project one, so the two
+  /// explanations differ: no dashes, single underscores.
+  static const String _packageNameExplained =
+      'It is the name of the package, and it becomes the directory, the segment of every import '
+      'specifier that reaches the package, and the key a project writes to mount it. Lowercase '
+      'letters and single underscores, as in "dynamic_links".';
 
   final CreateReport _report = const CreateReport();
 
@@ -125,16 +157,49 @@ class CreateCommand extends ScribeCommand {
   String get name => 'create';
 
   @override
-  String get description => 'Scaffold a project in ./<name>.';
+  String get description => 'Scaffold a project in ./<name>, or a package with --package.';
 
   @override
-  String get invocation => 'scribe create <name> [--sdk <name>]';
+  String get invocation => 'scribe create <name> [--sdk <name>], or --package <name> [--in <directory>]';
 
   @override
   bool get requiresProject => false;
 
   @override
-  Future<ScribeCommandResult> runCommand() async {
+  Future<ScribeCommandResult> runCommand() async => boolArg(packageFlag) ? _createPackage() : _createProject();
+
+  /// Writes the package named on the line into what `--in` points at.
+  ///
+  /// The checkout is found the way `scribe forge` finds it for a package, since
+  /// that is what the manifest's framework constraint is written from.
+  Future<ScribeCommandResult> _createPackage() async {
+    if (stringArg(sdkOption) != null) {
+      throwUsageError(
+        '--$sdkOption belongs to a project. A package is written in TypeScript whatever the '
+        'checkout, so there is nothing to pick.',
+        command: invocationName,
+      );
+    }
+
+    final String packageName = requirePositional('name', explain: _packageNameExplained);
+
+    final String inside = stringArg(inOption) ?? globals.fs.currentDirectory.path;
+    final Sdk sdk = findSdk(from: inside);
+    final CreatedPackage created = createPackage(inside, packageName, sdk);
+
+    _report.package(created);
+    return const ScribeCommandResult.success();
+  }
+
+  Future<ScribeCommandResult> _createProject() async {
+    if (stringArg(inOption) != null) {
+      throwUsageError(
+        '--$inOption goes with --$packageFlag: it says where a package lands, and a project is '
+        'always written into ./<name>.',
+        command: invocationName,
+      );
+    }
+
     final SdkChoice choice = SdkChoice(
       catalog: SdkCatalog.discover(from: globals.fs.currentDirectory),
       commandName: name,

@@ -94,12 +94,17 @@ Future<int> runScribe(List<String> args) => runner.run(
 /// it counts as ready. [templates] names the layers of `templates/project/`,
 /// `common` included, so a test can drop the one it wants missing. They sit
 /// apart from the checkout because they ship with the tool, not the framework.
+/// [version] is what the checkout publishes, read back by a package's manifest.
 void writeFramework({
   Map<String, String> sdks = const <String, String>{'js': '.ts', 'dart': '.dart'},
   List<String> templates = const <String>['common', 'js'],
+  String version = '1.0.0',
 }) {
   fs.directory('/framework/engine').createSync(recursive: true);
   fs.directory('/framework/protocol').createSync(recursive: true);
+  fs.file('/framework/deno.json')
+    ..createSync(recursive: true)
+    ..writeAsStringSync('{"version":"$version"}\n');
 
   sdks.forEach((String name, String extension) {
     fs.file('/framework/sdk/$name/client$extension').createSync(recursive: true);
@@ -124,6 +129,28 @@ void writeFramework({
       ..createSync(recursive: true)
       ..writeAsStringSync('the $layer entrypoint of {{name}}\n');
   }
+}
+
+/// Writes the package templates the tool ships, under `/tools`.
+///
+/// A flat layer, the way `templates/package/` is: the manifest that names the
+/// framework version, the ignore file, the one way in, the directory the code
+/// goes in, and a test directory that already holds a test.
+void writePackageTemplates() {
+  fs.file('/tools/templates/package/package.yaml.tmpl')
+    ..createSync(recursive: true)
+    ..writeAsStringSync('name: {{name}}\nscribe: "^{{scribe}}"\n');
+  fs.file('/tools/templates/package/.gitignore.tmpl')
+    ..createSync(recursive: true)
+    ..writeAsStringSync('/.scribe/\n');
+  fs.file('/tools/templates/package/lib/{{name}}.ts.tmpl')
+    ..createSync(recursive: true)
+    ..writeAsStringSync('export {};\n');
+  fs.file('/tools/templates/package/lib/src/.gitkeep.tmpl').createSync(recursive: true);
+  fs.file('/tools/templates/package/tests/{{name}}.test.ts.tmpl')
+    ..createSync(recursive: true)
+    ..writeAsStringSync('import { assert } from "@std/assert";\n');
+  fs.file('/tools/templates/package/tests/e2e/.gitkeep.tmpl').createSync(recursive: true);
 }
 
 String contentOf(String path) => fs.file(path).readAsStringSync();
@@ -441,6 +468,86 @@ void main() {
         command.argParser.usage.split('\n').map((String line) => line.length),
         everyElement(lessThanOrEqualTo(kDefaultTerminalColumns)),
       );
+    });
+  });
+
+  group('--package writes a package instead of a project', () {
+    setUp(() {
+      writeFramework(version: '3.0.1');
+      writePackageTemplates();
+    });
+
+    test('the layout lands under the directory the name gives', () async {
+      expect(await runScribe(<String>['create', 'audiences', '--package']), 0);
+
+      expect(fs.file('$workDirectory/audiences/package.yaml').existsSync(), isTrue);
+      expect(fs.file('$workDirectory/audiences/lib/audiences.ts').existsSync(), isTrue);
+      expect(fs.file('$workDirectory/audiences/tests/e2e/.gitkeep').existsSync(), isTrue);
+    });
+
+    test('-p is the short spelling', () async {
+      expect(await runScribe(<String>['create', 'audiences', '-p']), 0);
+      expect(fs.directory('$workDirectory/audiences').existsSync(), isTrue);
+    });
+
+    test('--in says which directory to write into', () async {
+      fs.directory('/framework/packages').createSync(recursive: true);
+
+      expect(await runScribe(<String>['create', 'audiences', '-p', '--in', '/framework/packages']), 0);
+      expect(fs.file('/framework/packages/audiences/package.yaml').existsSync(), isTrue);
+    });
+
+    test('the manifest is written against the checkout that wrote it', () async {
+      await runScribe(<String>['create', 'audiences', '-p']);
+
+      expect(contentOf('$workDirectory/audiences/package.yaml'), contains('"^3.0.1"'));
+    });
+
+    test('it says what it wrote', () async {
+      await runScribe(<String>['create', 'audiences', '-p']);
+
+      expect(logger.statusText, contains('package.yaml'));
+      expect(logger.statusText, contains('lib/audiences.ts'));
+    });
+
+    test('a name the package rule refuses stops the command', () async {
+      expect(await runScribe(<String>['create', 'Audiences', '-p']), 1);
+      expect(logger.errorText, contains('cannot name a package'));
+    });
+
+    test('a name with a dash is a package name too far', () async {
+      expect(await runScribe(<String>['create', 'my-pkg', '-p']), 1);
+      expect(logger.errorText, contains('cannot name a package'));
+    });
+
+    test('writing over something already there refuses rather than merging', () async {
+      fs.directory('$workDirectory/audiences').createSync(recursive: true);
+
+      expect(await runScribe(<String>['create', 'audiences', '-p']), 1);
+      expect(logger.errorText, contains('already exists'));
+    });
+
+    test('no name under --package explains what a package name becomes', () async {
+      expect(await runScribe(<String>['create', '-p']), 64);
+      expect(logger.errorText, contains('needs a <name>'));
+      expect(logger.errorText, contains('mount it'));
+    });
+
+    test('--sdk alongside --package is refused, since a package has no SDK to pick', () async {
+      expect(await runScribe(<String>['create', 'audiences', '-p', '--sdk', 'ts']), 64);
+      expect(logger.errorText, contains('--sdk belongs to a project'));
+    });
+
+    test('--in without --package is refused', () async {
+      expect(await runScribe(<String>['create', 'app', '--in', '/elsewhere', '--sdk', 'js']), 64);
+      expect(logger.errorText, contains('--in goes with --package'));
+    });
+
+    test('a package needs a checkout, and says so when there is none', () async {
+      fs.currentDirectory = fs.directory('/nowhere')..createSync();
+
+      expect(await runScribe(<String>['create', 'audiences', '-p']), 1);
+      expect(logger.errorText, contains('SCRIBE_ROOT'));
     });
   });
 }

@@ -40,7 +40,7 @@ import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/package/name.dart';
 import 'package:scribe_tools/src/package/sdk.dart';
-import 'package:scribe_tools/src/package_templates.dart';
+import 'package:scribe_tools/src/package/templates.dart';
 import 'package:scribe_tools/src/templates.dart';
 
 /// What writing a package left on disk.

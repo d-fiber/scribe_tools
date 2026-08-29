@@ -11,9 +11,11 @@ runs on, keeps its secrets, and moves the framework checkout the project sits ne
 `scribe` renders a project. Somebody building an application runs it, and never opens the
 framework.
 
-The `pkg` family works on the framework's own packages: it writes one, checks it, and says what
-is wrong inside it. It reads a framework checkout rather than a project, which is why it sits
-under its own family rather than beside `create` and `gen`.
+It also works on the framework's own packages: `scribe create --package` writes one, `scribe
+forge` resolves it, `scribe analyze` says what is wrong inside it, `scribe test` runs its suite.
+These read a framework checkout rather than a project. There is no `pkg` family: `create` and
+`forge` serve both sides, because a name on the line, or a directory to make whole, is the same
+act either way.
 
 ## Getting it
 
@@ -77,6 +79,22 @@ what the templates hold.
 
 The SDKs it offers come from `scribe/sdk/` of the framework next to you, never from a list inside
 the tool, so a target that appears there appears in the menu.
+
+With `--package` it writes a package of the framework instead: the mandatory layout, ready to pass
+the checks. `--sdk` does not apply there, `--in` says where it lands.
+
+### `forge`
+
+Gives a project or a package everything it derives from what it declares, reading the current
+directory to know which. In a project it owns `configuration/`: it writes a missing file with its
+module's defaults and audits, never touches, one the developer wrote. In a package it resolves what
+the manifest reaches against the checkout and writes it down for the tools.
+
+### `analyze` and `test`
+
+`analyze` reads the framework packages under a directory and reports what is wrong with them.
+`test` runs a package's suite, resolving it first when it has to. Both work on a framework checkout,
+never on a project.
 
 ### `gen`
 

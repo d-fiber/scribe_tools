@@ -43,10 +43,14 @@ import 'package:scribe_tools/src/package/sdk.dart';
 import 'package:scribe_tools/src/runner/scribe_command.dart';
 import 'package:scribe_tools/src/tools.dart';
 
-/// Runs a package's tests, resolving it first when it has not been.
-class PkgTestCommand extends ScribeCommand {
+/// Runs a framework package's tests, resolving it first when it has not been.
+///
+/// It works on a checkout of the framework, never on a project, which is why it
+/// asks for no project root. It resolves the package the way `scribe forge`
+/// does when `.scribe/resolution.json` does not already name the checkout found.
+class TestCommand extends ScribeCommand {
   /// Takes the arguments the runtime is handed after the ones this reads.
-  PkgTestCommand() {
+  TestCommand() {
     argParser.addOption('filter', valueHelp: 'text', help: 'Only the cases whose name holds this.');
   }
 
@@ -54,10 +58,10 @@ class PkgTestCommand extends ScribeCommand {
   String get name => 'test';
 
   @override
-  String get description => "Run this package's tests.";
+  String get description => "Run a framework package's tests.";
 
   @override
-  String get invocation => 'scribe pkg test [directory] [--filter <text>]';
+  String get invocation => 'scribe test [directory] [--filter <text>]';
 
   @override
   bool get requiresProject => false;

@@ -144,10 +144,9 @@ class ScribeCommandRunner extends CommandRunner<void> {
 
   /// The command [path] spells, walking one word at a time from [among].
   ///
-  /// This is what tells apart two commands that end on the same word: `scribe
-  /// create` and `scribe pkg create` are both `create`, and searching by that
-  /// word alone answered whichever came first, so a refusal from one printed the
-  /// options of the other.
+  /// A subcommand is reached by its full path rather than its leaf word, so
+  /// `scribe gen code` finds the emitter under `gen` and prints its options,
+  /// not those of whatever else ends on `code`.
   static Command<void>? _descend(List<String> path, Map<String, Command<void>> among) {
     Command<void>? found;
     Map<String, Command<void>> here = among;

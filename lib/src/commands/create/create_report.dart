@@ -34,19 +34,29 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
+import 'package:scribe_tools/src/commands/create/project_templates.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
+import 'package:scribe_tools/src/package/scaffold.dart';
 import 'package:scribe_tools/src/project.dart';
-import 'package:scribe_tools/src/project_templates.dart';
 import 'package:scribe_tools/src/sdk_target.dart';
 
-/// Everything `scribe create` prints once the project is on disk.
+/// Everything `scribe create` prints once what it wrote is on disk.
 ///
-/// The shape is the one `flutter create` ends on: how much was written, then
-/// the commands to type next, one per line behind a `$` so a reader can copy
-/// them, then where the code they will edit sits.
+/// For a project the shape is the one `flutter create` ends on: how much was
+/// written, then the commands to type next, one per line behind a `$` so a
+/// reader can copy them, then where the code they will edit sits. For a package
+/// it is the shorter list of what landed, since a package has no next command.
 class CreateReport {
   /// Holds nothing, since every sentence is built from what it is handed.
   const CreateReport();
+
+  /// Lists the files [created] left, under the directory they were written to.
+  void package(CreatedPackage created) {
+    globals.logger.printStatus('Wrote ${created.directory}');
+    for (final String file in created.files) {
+      globals.logger.printStatus('  $file');
+    }
+  }
 
   /// Says how many of [files] were written, and traces which ones.
   ///

@@ -34,53 +34,43 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
-import 'package:scribe_tools/src/globals.dart' as globals;
-import 'package:scribe_tools/src/package/scaffold.dart';
-import 'package:scribe_tools/src/package/sdk.dart';
-import 'package:scribe_tools/src/runner/scribe_command.dart';
+import 'package:test/test.dart';
 
-/// Writes the mandatory layout of a new package, ready to pass the checks.
-class PkgCreateCommand extends ScribeCommand {
-  /// Takes the directory to write into, since it is not always the current one.
-  PkgCreateCommand() {
-    argParser.addOption(
-      'in',
-      valueHelp: 'directory',
-      help: 'Where the package is written. The current directory when left out.',
-    );
-  }
+import 'package_source.dart';
 
-  @override
-  String get name => 'create';
+void main() {
+  late PackageHarness machine;
 
-  @override
-  String get description => 'Write a new package, laid out the way every package has to be.';
+  setUp(() => machine = PackageHarness());
 
-  @override
-  String get invocation => 'scribe pkg create <name> [--in <directory>]';
+  Future<void> create(String name) => machine.run(<String>['create', name, '--package', '--in', kWorkDirectory]);
 
-  @override
-  bool get requiresProject => false;
+  test('a sound package leaves the status of a run that worked', () async {
+    await create('audiences');
 
-  @override
-  Future<ScribeCommandResult> runCommand() async {
-    final String named = requirePositional(
-      'name',
-      explain:
-          'The name becomes the directory, the segment of every import specifier that reaches the '
-          'package, and the key a project writes to mount it. Lowercase letters and single '
-          'underscores, as in "dynamic_links".',
-    );
+    expect(await machine.run(<String>['analyze', kWorkDirectory]), 0);
+    expect(machine.logger.statusText, contains('1 package, nothing to report.'));
+  });
 
-    final String inside = stringArg('in') ?? globals.fs.currentDirectory.path;
-    final Sdk sdk = findSdk(from: inside);
-    final CreatedPackage created = createPackage(inside, named, sdk);
+  test('a package missing a piece of the layout leaves the status of a fault', () async {
+    await create('audiences');
+    machine.fs.file('$kWorkDirectory/audiences/.gitignore').deleteSync();
 
-    globals.logger.printStatus('Wrote ${created.directory}');
-    for (final String file in created.files) {
-      globals.logger.printStatus('  $file');
-    }
+    expect(await machine.run(<String>['analyze', kWorkDirectory]), 1);
+    expect(machine.logger.errorText, contains('would be committed with the source'));
+    expect(machine.logger.errorText, contains('1 problem across 1 package.'));
+  });
 
-    return const ScribeCommandResult.success();
-  }
+  test('every package under the root is read, not only the first', () async {
+    await create('audiences');
+    await create('storage');
+
+    expect(await machine.run(<String>['analyze', kWorkDirectory]), 0);
+    expect(machine.logger.statusText, contains('2 packages, nothing to report.'));
+  });
+
+  test('analysing where there is no package says so', () async {
+    expect(await machine.run(<String>['analyze', kWorkDirectory]), 1);
+    expect(machine.logger.errorText, contains('No package under'));
+  });
 }

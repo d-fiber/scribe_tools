@@ -36,9 +36,8 @@
 
 import 'package:file/file.dart';
 import 'package:path/path.dart' as p;
-
+import 'package:scribe_tools/src/commands/create/project_templates.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
-import 'package:scribe_tools/src/project_templates.dart';
 import 'package:scribe_tools/src/sdk_target.dart';
 import 'package:scribe_tools/src/templates.dart';
 

@@ -35,41 +35,57 @@
 // LICENSE file, the LICENSE file governs.
 
 import 'package:path/path.dart' as p;
+import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
-import 'package:scribe_tools/src/package/resolution.dart';
-import 'package:scribe_tools/src/package/sdk.dart';
+import 'package:scribe_tools/src/package/checks.dart';
+import 'package:scribe_tools/src/package/workspace.dart';
 import 'package:scribe_tools/src/runner/scribe_command.dart';
 
-/// Works out what a package's specifiers answer to, and writes it down.
-class PkgGetCommand extends ScribeCommand {
+/// Reads every package of the framework under the roots and says what is wrong with them.
+///
+/// It works on a checkout of the framework, never on a project, which is why it
+/// asks for no project root. What it reads is what is on disk: it opens no
+/// checkout and resolves nothing.
+class AnalyzeCommand extends ScribeCommand {
   @override
-  String get name => 'get';
+  String get name => 'analyze';
 
   @override
-  String get description => 'Work out what this package reaches, and write it down for the tools.';
+  String get description => 'Read the framework packages under a directory and report what is wrong with them.';
 
   @override
-  String get invocation => 'scribe pkg get [directory]';
+  String get invocation => 'scribe analyze <directory>...';
 
   @override
   bool get requiresProject => false;
 
   @override
   Future<ScribeCommandResult> runCommand() async {
-    final String directory = p.absolute(optionalPositional('directory') ?? globals.fs.currentDirectory.path);
-    final Sdk sdk = findSdk(from: directory);
-    final Resolution resolution = resolve(directory, sdk);
+    final List<String> roots = <String>[
+      for (final String given in argResults?.rest ?? const <String>[]) p.absolute(given),
+    ];
 
-    globals.logger.printStatus('Resolved against scribe ${sdk.version} in ${sdk.root}');
-    for (final MapEntry<String, String> held in resolution.imports.entries) {
-      globals.logger.printStatus('  ${held.key} ${held.value}');
+    if (roots.isEmpty) roots.add(globals.fs.currentDirectory.path);
+
+    final List<DiscoveredPackage> packages = discover(roots);
+    if (packages.isEmpty) throwToolExit('No package under ${roots.join(', ')}.');
+
+    final List<Problem> problems = check(packages);
+    for (final Problem problem in problems) {
+      globals.logger.printError('$problem');
     }
-    globals.logger.printStatus('');
-    globals.logger.printStatus('Written to ${resolution.file}, which git ignores and nobody edits.');
-    globals.logger.printStatus(
-      'What the runtime is handed was built outside the package, in ${resolution.runtimeConfig}.',
-    );
 
-    return const ScribeCommandResult.success();
+    if (problems.isEmpty) {
+      globals.logger.printStatus('${_counted(packages.length, 'package')}, nothing to report.');
+      return const ScribeCommandResult.success();
+    }
+
+    globals.logger.printError('');
+    globals.logger.printError(
+      '${_counted(problems.length, 'problem')} across ${_counted(packages.length, 'package')}.',
+    );
+    return const ScribeCommandResult.fail();
   }
+
+  String _counted(int many, String what) => many == 1 ? '1 $what' : '$many ${what}s';
 }

@@ -36,6 +36,7 @@
 
 import 'dart:io';
 import 'package:scribe_tools/runner.dart' as runner;
+import 'package:scribe_tools/src/commands/analyze.dart';
 import 'package:scribe_tools/src/commands/create.dart';
 import 'package:scribe_tools/src/commands/deploy.dart';
 import 'package:scribe_tools/src/commands/destroy.dart';
@@ -43,11 +44,11 @@ import 'package:scribe_tools/src/commands/doctor.dart';
 import 'package:scribe_tools/src/commands/downgrade.dart';
 import 'package:scribe_tools/src/commands/forge.dart';
 import 'package:scribe_tools/src/commands/gen.dart';
-import 'package:scribe_tools/src/commands/pkg.dart';
 import 'package:scribe_tools/src/commands/run.dart';
 import 'package:scribe_tools/src/commands/secrets.dart';
 import 'package:scribe_tools/src/commands/shutdown.dart';
 import 'package:scribe_tools/src/commands/status.dart';
+import 'package:scribe_tools/src/commands/test.dart';
 import 'package:scribe_tools/src/commands/upgrade.dart';
 import 'package:scribe_tools/src/runner/scribe_command.dart';
 import 'package:scribe_tools/src/self/tool_version.dart';
@@ -56,6 +57,7 @@ Future<void> main(List<String> args) async {
   final int code = await runner.run(
     args,
     () => <ScribeCommand>[
+      AnalyzeCommand(),
       CreateCommand(),
       DeployCommand(),
       DestroyCommand(),
@@ -63,11 +65,11 @@ Future<void> main(List<String> args) async {
       DowngradeCommand(),
       ForgeCommand(),
       GenCommand(),
-      PkgCommand(),
       RunCommand(),
       SecretsCommand(),
       ShutdownCommand(),
       StatusCommand(),
+      TestCommand(),
       UpgradeCommand(),
     ],
     toolVersion: kToolVersion,

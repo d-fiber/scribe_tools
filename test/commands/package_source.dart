@@ -45,7 +45,10 @@ import 'package:scribe_tools/src/base/io.dart';
 import 'package:scribe_tools/src/base/logger.dart';
 import 'package:scribe_tools/src/base/platform.dart';
 import 'package:scribe_tools/src/base/process.dart';
-import 'package:scribe_tools/src/commands/pkg.dart';
+import 'package:scribe_tools/src/commands/analyze.dart';
+import 'package:scribe_tools/src/commands/create.dart';
+import 'package:scribe_tools/src/commands/forge.dart';
+import 'package:scribe_tools/src/commands/test.dart';
 import 'package:scribe_tools/src/package/sdk.dart';
 import 'package:scribe_tools/src/runner/scribe_command.dart';
 import 'package:scribe_tools/src/templates.dart';
@@ -71,9 +74,9 @@ const String kToolRootDirectory = '/tools';
 /// convenience: a resolution writes under the home directory, so a suite let
 /// through to the real one would write into the directory of whoever ran it and
 /// read back whatever was already there.
-class PkgHarness {
+class PackageHarness {
   /// Opens a machine carrying every tool a command looks for, and a checkout at [kCheckoutDirectory].
-  PkgHarness() {
+  PackageHarness() {
     for (final String executable in <String>['git', 'deno', 'npm', 'docker', 'tofu', 'ssh', 'rsync']) {
       fs.file('$kBinDirectory/$executable').createSync(recursive: true);
     }
@@ -117,8 +120,8 @@ class PkgHarness {
   /// Copies the templates that ship into [fs], under [kToolRootDirectory].
   ///
   /// The ones on disk rather than a fixture, so that a template edited in this
-  /// package moves these tests: what `pkg create` writes is exactly what a user
-  /// gets.
+  /// package moves these tests: what `scribe create --package` writes is exactly
+  /// what a user gets.
   void _vendorTemplates() {
     const String source = 'templates/package';
 
@@ -135,7 +138,7 @@ class PkgHarness {
   /// Runs `scribe` with [args] against this machine, and answers the status it left with.
   Future<int> run(List<String> args) => runner.run(
     args,
-    () => <ScribeCommand>[PkgCommand()],
+    () => <ScribeCommand>[AnalyzeCommand(), CreateCommand(), ForgeCommand(), TestCommand()],
     toolVersion: 'test',
     overrides: <Type, Generator>{
       FileSystem: () => fs,
