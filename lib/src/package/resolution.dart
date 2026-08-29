@@ -196,8 +196,14 @@ Map<String, String> _doorsOf(String name, String directory, {required bool own})
     ..putIfAbsent(
       '@scribe/$name/testing/settings',
       () => Uri.file(p.absolute(p.join(directory, kHarnessSettings))).toString(),
-    )
-    ..putIfAbsent('@scribe/$name/e2e', () => Uri.file(p.absolute(p.join(directory, kE2eStack))).toString());
+    );
+
+  // Only a package whose e2e is a Deno suite publishes this door. One whose
+  // `tests/e2e/` is a shell scenario has no `stack.ts` to point at.
+  if (globals.fs.file(p.join(directory, kE2eStack)).existsSync()) {
+    doors.putIfAbsent('@scribe/$name/e2e', () => Uri.file(p.absolute(p.join(directory, kE2eStack))).toString());
+  }
+
   return doors;
 }
 
