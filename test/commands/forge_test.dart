@@ -49,7 +49,7 @@ void main() {
   setUp(() => machine = PackageHarness());
 
   Future<String> package(String name) async {
-    await machine.run(<String>['create', name, '--package', '--in', kWorkDirectory]);
+    await machine.run(<String>['create', name, '--package']);
     final String at = '$kWorkDirectory/$name';
     machine.fs.currentDirectory = machine.fs.directory(at);
     return at;

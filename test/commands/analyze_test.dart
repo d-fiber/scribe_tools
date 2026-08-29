@@ -43,7 +43,7 @@ void main() {
 
   setUp(() => machine = PackageHarness());
 
-  Future<void> create(String name) => machine.run(<String>['create', name, '--package', '--in', kWorkDirectory]);
+  Future<void> create(String name) => machine.run(<String>['create', name, '--package']);
 
   test('a sound package leaves the status of a run that worked', () async {
     await create('audiences');

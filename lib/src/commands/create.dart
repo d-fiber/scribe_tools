@@ -56,11 +56,11 @@ import 'package:scribe_tools/src/templates.dart';
 /// Scaffolds a project in `./<name>`, or a package of the framework with `--package`.
 ///
 /// No repository is initialised and no generator is run: what this writes is
-/// what the templates hold. The two modes share nothing but the word: `--sdk`
-/// belongs to a project, `--in` to a package.
+/// what the templates hold. Both modes write into `./<name>`; `--sdk` is the
+/// project's alone, and is refused with `--package`.
 class CreateCommand extends ScribeCommand {
   /// Declares `--sdk`, whose help lists the SDKs the framework on disk carries,
-  /// and the two flags that pick and place a package instead.
+  /// and `--package`, which writes a package of the framework instead.
   CreateCommand() {
     argParser
       ..addOption(
@@ -78,12 +78,7 @@ class CreateCommand extends ScribeCommand {
         negatable: false,
         help:
             'Write a package of the framework rather than a project. A package needs a framework '
-            'checkout, is always TypeScript, and lands where --in says.',
-      )
-      ..addOption(
-        inOption,
-        valueHelp: 'directory',
-        help: 'With --package, the directory the package is written into. The current one when left out.',
+            'checkout and is always TypeScript, so --sdk does not apply.',
       );
   }
 
@@ -92,9 +87,6 @@ class CreateCommand extends ScribeCommand {
 
   /// The flag that writes a package of the framework instead of a project.
   static const String packageFlag = 'package';
-
-  /// The option that says where a package is written, used with [packageFlag].
-  static const String inOption = 'in';
 
   /// What a project may be called.
   ///
@@ -160,7 +152,7 @@ class CreateCommand extends ScribeCommand {
   String get description => 'Scaffold a project in ./<name>, or a package with --package.';
 
   @override
-  String get invocation => 'scribe create <name> [--sdk <name>], or --package <name> [--in <directory>]';
+  String get invocation => 'scribe create <name> [--sdk <name>], or --package <name>';
 
   @override
   bool get requiresProject => false;
@@ -168,7 +160,7 @@ class CreateCommand extends ScribeCommand {
   @override
   Future<ScribeCommandResult> runCommand() async => boolArg(packageFlag) ? _createPackage() : _createProject();
 
-  /// Writes the package named on the line into what `--in` points at.
+  /// Writes the package named on the line into `./<name>`.
   ///
   /// The checkout is found the way `scribe forge` finds it for a package, since
   /// that is what the manifest's framework constraint is written from.
@@ -183,23 +175,15 @@ class CreateCommand extends ScribeCommand {
 
     final String packageName = requirePositional('name', explain: _packageNameExplained);
 
-    final String inside = stringArg(inOption) ?? globals.fs.currentDirectory.path;
-    final Sdk sdk = findSdk(from: inside);
-    final CreatedPackage created = createPackage(inside, packageName, sdk);
+    final String here = globals.fs.currentDirectory.path;
+    final Sdk sdk = findSdk(from: here);
+    final CreatedPackage created = createPackage(here, packageName, sdk);
 
     _report.package(created);
     return const ScribeCommandResult.success();
   }
 
   Future<ScribeCommandResult> _createProject() async {
-    if (stringArg(inOption) != null) {
-      throwUsageError(
-        '--$inOption goes with --$packageFlag: it says where a package lands, and a project is '
-        'always written into ./<name>.',
-        command: invocationName,
-      );
-    }
-
     final SdkChoice choice = SdkChoice(
       catalog: SdkCatalog.discover(from: globals.fs.currentDirectory),
       commandName: name,

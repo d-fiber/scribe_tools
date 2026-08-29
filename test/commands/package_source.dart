@@ -81,7 +81,7 @@ class PackageHarness {
       fs.file('$kBinDirectory/$executable').createSync(recursive: true);
     }
 
-    fs.directory(kWorkDirectory).createSync(recursive: true);
+    fs.currentDirectory = fs.directory(kWorkDirectory)..createSync(recursive: true);
     writeCheckout();
     _vendorTemplates();
   }

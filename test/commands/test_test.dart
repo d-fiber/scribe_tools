@@ -44,7 +44,7 @@ void main() {
   setUp(() => machine = PackageHarness());
 
   Future<String> created(String name) async {
-    await machine.run(<String>['create', name, '--package', '--in', kWorkDirectory]);
+    await machine.run(<String>['create', name, '--package']);
     return '$kWorkDirectory/$name';
   }
 

@@ -485,16 +485,9 @@ void main() {
       expect(fs.file('$workDirectory/audiences/tests/e2e/.gitkeep').existsSync(), isTrue);
     });
 
-    test('-p is the short spelling', () async {
+    test('-p is the short spelling, and it lands in the current directory', () async {
       expect(await runScribe(<String>['create', 'audiences', '-p']), 0);
       expect(fs.directory('$workDirectory/audiences').existsSync(), isTrue);
-    });
-
-    test('--in says which directory to write into', () async {
-      fs.directory('/framework/packages').createSync(recursive: true);
-
-      expect(await runScribe(<String>['create', 'audiences', '-p', '--in', '/framework/packages']), 0);
-      expect(fs.file('/framework/packages/audiences/package.yaml').existsSync(), isTrue);
     });
 
     test('the manifest is written against the checkout that wrote it', () async {
@@ -536,11 +529,6 @@ void main() {
     test('--sdk alongside --package is refused, since a package has no SDK to pick', () async {
       expect(await runScribe(<String>['create', 'audiences', '-p', '--sdk', 'ts']), 64);
       expect(logger.errorText, contains('--sdk belongs to a project'));
-    });
-
-    test('--in without --package is refused', () async {
-      expect(await runScribe(<String>['create', 'app', '--in', '/elsewhere', '--sdk', 'js']), 64);
-      expect(logger.errorText, contains('--in goes with --package'));
     });
 
     test('a package needs a checkout, and says so when there is none', () async {

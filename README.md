@@ -80,8 +80,8 @@ what the templates hold.
 The SDKs it offers come from `scribe/sdk/` of the framework next to you, never from a list inside
 the tool, so a target that appears there appears in the menu.
 
-With `--package` it writes a package of the framework instead: the mandatory layout, ready to pass
-the checks. `--sdk` does not apply there, `--in` says where it lands.
+With `--package` it writes a package of the framework into `./<name>` instead: the mandatory
+layout, ready to pass the checks. `--sdk` does not apply there.
 
 ### `forge`
 
