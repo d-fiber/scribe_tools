@@ -53,11 +53,11 @@ const FileSystem _fs = LocalFileSystem();
 /// checkout root, which is the only place a render looks for them.
 Directory get packagesRoot => _fs.directory(p.join(repository, 'packages'));
 
-/// Where the socle's ops templates live, which is this package rather than the framework.
+/// Where the socle's service templates live, which is this package rather than the framework.
 ///
 /// One directory per service, each holding its `capacity.yaml.tmpl` beside the
 /// compose it weighs, so the two cannot come to describe different services.
-Directory get socleOps => _fs.directory('templates/ops/services');
+Directory get socleOps => _fs.directory('templates/deploy/services');
 
 /// Every service directory of the socle, sorted so a run never depends on the file system.
 List<Directory> get socleServices =>
@@ -88,26 +88,26 @@ Map<String, CapacitySource> capacitySources() => <String, CapacitySource>{
     ),
   for (final MapEntry<String, Directory> package in frameworkPackages().entries)
     for (final Directory subject in opsDirectories(package.value))
-      _sourceKey(package.key, package.value, subject): CapacitySource(
+      _sourceKey(package.key, subject): CapacitySource(
         weights: subject.childFile(capacityFileName),
         compose: subject.childFile('docker-compose.yaml'),
       ),
 };
 
-/// The directories of [package] that may hold a `capacity.yaml`.
+/// The service directories of [package] that may hold a `capacity.yaml`.
 ///
-/// A package groups its ops by subject, so the weights of the cache sit in
-/// `ops/valkery/` while a package that ships one container keeps them in `ops/`.
+/// A package groups its services under `deploy/services/`, one directory each,
+/// so the weights of a container sit in `deploy/services/<service>/`.
 List<Directory> opsDirectories(Directory package) {
-  final Directory ops = package.childDirectory('ops');
-  if (!ops.existsSync()) return const <Directory>[];
+  final Directory services = package.childDirectory('deploy').childDirectory('services');
+  if (!services.existsSync()) return const <Directory>[];
 
-  return <Directory>[if (ops.childFile(capacityFileName).existsSync()) ops, ...ops.listSync().whereType<Directory>()];
+  return services.listSync().whereType<Directory>().toList();
 }
 
 /// How a mismatch names the file to open.
-String _sourceKey(String package, Directory root, Directory subject) =>
-    subject.path == root.childDirectory('ops').path ? package : '$package/${p.basename(subject.path)}';
+String _sourceKey(String package, Directory subject) =>
+    p.basename(subject.path) == package ? package : '$package/${p.basename(subject.path)}';
 
 /// Every package of the framework, by name.
 ///

@@ -46,7 +46,7 @@ import 'package:scribe_tools/src/base/common.dart';
 const String kArtefactsKey = 'scribe';
 
 /// The keys the artefacts block may carry, and no others.
-const List<String> kArtefactsKeys = <String>['db', 'protocol', 'ops', 'declarations'];
+const List<String> kArtefactsKeys = <String>['db', 'protocol', 'services', 'declarations'];
 
 /// The key, inside the artefacts block, holding the kinds a package lets a project declare.
 const String kDeclarationsKey = 'declarations';
@@ -57,18 +57,17 @@ const String kDeclarationsKey = 'declarations';
 /// an imported name, so neither can be anything a source file could not spell.
 final RegExp _identifier = RegExp(r'^[A-Za-z_$][A-Za-z0-9_$]*$');
 
-/// The names a fragment of the ops templates goes by, and the whole of them.
+/// The names a service fragment goes by, and the whole of them.
 ///
 /// A fragment's name is what pairs it with the file of the base it completes, and
 /// there is no table relating the two. The list belongs to the framework, and the
 /// other copy is in `lib/src/ops/`, so a package never repeats it and never
 /// invents one: a file under another name is reached through a path written
 /// inside a fragment, and nothing looks it up.
-const List<String> kOpsFragments = <String>[
+const List<String> kServiceFragments = <String>[
   'capacity.yaml',
   'docker-compose.yaml',
   'kong.yml',
-  'overlay.yaml',
   'replicas.yaml',
   'resources.yaml',
   'tuning.yaml',
@@ -125,10 +124,15 @@ class Database {
 /// makes leaving the block out the way to hand over nothing.
 class Artefacts {
   /// Holds what an artefacts block named, empty for each part it left out.
-  const Artefacts({required this.db, required this.protocol, required this.ops, required this.declarations});
+  const Artefacts({required this.db, required this.protocol, required this.services, required this.declarations});
 
   /// What a manifest with no artefacts block declares, which is nothing.
-  static const Artefacts none = Artefacts(db: null, protocol: null, ops: <String>[], declarations: <String, String>{});
+  static const Artefacts none = Artefacts(
+    db: null,
+    protocol: null,
+    services: <String>[],
+    declarations: <String, String>{},
+  );
 
   /// The SQL this package poses, or null when it poses none.
   final Database? db;
@@ -139,19 +143,19 @@ class Artefacts {
   /// the root of the repository and resolves everything against it.
   final String? protocol;
 
-  /// The ops directories this package contributes, one per service, in the order written.
+  /// The service directories this package contributes, one per service, in the order written.
   ///
-  /// An entry is a directory, and what it hands over is the fragments it holds:
-  /// `docker-compose.yaml`, `capacity.yaml`, `resources.yaml`, `tuning.yaml`,
-  /// `replicas.yaml`, `overlay.yaml`. That list belongs to the framework and a
-  /// package never repeats it, because a fragment's name is what pairs it with
-  /// the template it completes.
+  /// An entry is a directory under `deploy/services/`, and what it hands over is
+  /// the fragments it holds: `docker-compose.yaml`, `capacity.yaml`,
+  /// `resources.yaml`, `tuning.yaml`, `replicas.yaml`, `kong.yml`. That list
+  /// belongs to the framework and a package never repeats it, because a
+  /// fragment's name is what pairs it with the template it completes.
   ///
   /// Everything else a service needs, a Dockerfile or a script, is reached
   /// through a path written inside a fragment, so nothing looks it up by name and
-  /// nothing has to declare it. An entry may also be a single fragment, for a
-  /// package whose ops are a handful of files rather than a service of its own.
-  final List<String> ops;
+  /// nothing has to declare it. `overlay.yaml` and `configuration.yaml` are not
+  /// here: they sit at `deploy/` and are found where they are, not declared.
+  final List<String> services;
 
   /// The kinds of declaration this package lets a project write, bucket to marker.
   ///
@@ -163,7 +167,7 @@ class Artefacts {
   final Map<String, String> declarations;
 
   /// Whether the block named nothing at all.
-  bool get isEmpty => (db == null || db!.isEmpty) && protocol == null && ops.isEmpty && declarations.isEmpty;
+  bool get isEmpty => (db == null || db!.isEmpty) && protocol == null && services.isEmpty && declarations.isEmpty;
 
   /// Every path this block named, from the key that named it.
   ///
@@ -173,7 +177,7 @@ class Artefacts {
     for (final MapEntry<String, String> entry in db?.declared.entries ?? const <MapEntry<String, String>>[])
       '$kArtefactsKey.db.${entry.key}': entry.value,
     '$kArtefactsKey.protocol': ?protocol,
-    for (int index = 0; index < ops.length; index++) '$kArtefactsKey.ops[$index]': ops[index],
+    for (int index = 0; index < services.length; index++) '$kArtefactsKey.services[$index]': services[index],
   };
 
   /// The artefacts [value] spells, where [value] is what `scribe:` held in [where].
@@ -197,7 +201,7 @@ class Artefacts {
     return Artefacts(
       db: _database(value['db'], where),
       protocol: value.containsKey('protocol') ? _path(value['protocol'], '$kArtefactsKey.protocol', where) : null,
-      ops: _ops(value['ops'], where),
+      services: _services(value['services'], where),
       declarations: _declarations(value[kDeclarationsKey], where),
     );
   }
@@ -230,19 +234,19 @@ Database? _database(Object? value, String where) {
   return read.isEmpty ? null : read;
 }
 
-List<String> _ops(Object? value, String where) {
+List<String> _services(Object? value, String where) {
   if (value == null) return const <String>[];
   if (value is! List) {
     throwToolExit(
-      '$where holds "$kArtefactsKey.ops:" as something other than a list. One entry per service, '
+      '$where holds "$kArtefactsKey.services:" as something other than a list. One entry per service, '
       "each the directory holding that service's fragments.",
     );
   }
   final List<String> found = <String>[];
   for (int index = 0; index < value.length; index++) {
-    final String written = _path(value[index], '$kArtefactsKey.ops[$index]', where);
+    final String written = _path(value[index], '$kArtefactsKey.services[$index]', where);
     if (found.contains(written)) {
-      throwToolExit('$where names "$written" twice under "$kArtefactsKey.ops:".');
+      throwToolExit('$where names "$written" twice under "$kArtefactsKey.services:".');
     }
     found.add(written);
   }

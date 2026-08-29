@@ -67,7 +67,10 @@ void main() {
   Package package(String name, String declaration) {
     final Directory directory = fs.directory('/work/notes/scribe/packages/$name')..createSync(recursive: true);
     directory.childFile('package.yaml').writeAsStringSync('name: $name\nversion: 1.2.0\n');
-    if (declaration.isNotEmpty) directory.childFile(configurationFileName).writeAsStringSync(declaration);
+    if (declaration.isNotEmpty) {
+      (directory.childDirectory(deployDirectory).childFile(configurationFileName)..parent.createSync(recursive: true))
+          .writeAsStringSync(declaration);
+    }
 
     return Package(name: name, directory: directory);
   }

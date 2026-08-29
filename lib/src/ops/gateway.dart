@@ -105,7 +105,7 @@ class GatewayRender {
   /// of the project is written once and read here.
   Future<File> render(Directory target, Map<String, String> values, List<Package> active) async {
     final File source = globals.templatePaths
-        .directoryInPackage(kOpsTemplatesDirectoryName, globals.fs)
+        .directoryInPackage(kSocleTemplatesDirectoryName, globals.fs)
         .childDirectory(servicesDirectoryName)
         .childDirectory('gateway')
         .childFile('$gatewayFileName$kTemplateSuffix');
@@ -138,7 +138,7 @@ class GatewayRender {
   /// and a mount does not add one.
   Future<void> _renderEntrypoint(Directory target, Map<String, String> values) async {
     final File source = globals.templatePaths
-        .directoryInPackage(kOpsTemplatesDirectoryName, globals.fs)
+        .directoryInPackage(kSocleTemplatesDirectoryName, globals.fs)
         .childDirectory(servicesDirectoryName)
         .childDirectory('gateway')
         .childFile('$gatewayEntrypointName$kTemplateSuffix');

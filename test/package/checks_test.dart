@@ -118,12 +118,13 @@ void main() {
     expect(problemsUnder().single, contains('names "protocol", and nothing is there'));
   });
 
-  test('a declared ops entry may be a fragment rather than a directory', () {
+  test('a declared service entry may be a fragment rather than a directory', () {
     final String audiences = written(
       'audiences',
-      manifest: 'name: audiences\nversion: 1.0.0\n${environment}scribe:\n  ops:\n    - ./ops/docker-compose.yaml\n',
+      manifest:
+          'name: audiences\nversion: 1.0.0\n${environment}scribe:\n  services:\n    - ./deploy/services/db/docker-compose.yaml\n',
     );
-    _fragment(p.join(audiences, 'ops', 'docker-compose.yaml'));
+    _fragment(p.join(audiences, 'deploy', 'services', 'db', 'docker-compose.yaml'));
 
     expect(problemsUnder(), isEmpty);
   });
@@ -134,7 +135,7 @@ void main() {
       manifest:
           'name: audiences\nversion: 1.0.0\n${environment}scribe:\n'
           '  db:\n    init: ./sql/bootstrap/\n'
-          '  ops:\n    - ./infra/listener/\n',
+          '  services:\n    - ./infra/listener/\n',
     );
     _sql(p.join(audiences, 'sql', 'bootstrap', '01_tables.sql'));
     _fragment(p.join(audiences, 'infra', 'listener', 'docker-compose.yaml'));
@@ -144,7 +145,7 @@ void main() {
 
   test('a directory nothing declares is not a problem, it is a package handing that part over to nothing', () {
     final String audiences = written('audiences');
-    Directory(p.join(audiences, 'ops', 'queue')).createSync(recursive: true);
+    Directory(p.join(audiences, 'deploy', 'services', 'queue')).createSync(recursive: true);
 
     expect(problemsUnder(), isEmpty);
   });

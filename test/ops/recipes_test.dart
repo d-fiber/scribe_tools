@@ -68,9 +68,9 @@ class RecipeFamily {
 /// Two roots, because a type comes either from the socle or from the package
 /// that introduced it, and a project resolves both the same way.
 List<RecipeFamily> get families => <RecipeFamily>[
-  ..._familiesUnder(_fs.directory('templates/ops/recipes')),
+  ..._familiesUnder(_fs.directory('templates/deploy/recipes')),
   for (final Directory package in packagesRoot.listSync().whereType<Directory>())
-    ..._familiesUnder(package.childDirectory('ops').childDirectory('recipes')),
+    ..._familiesUnder(package.childDirectory('deploy').childDirectory('recipes')),
 ];
 
 List<RecipeFamily> _familiesUnder(Directory root) {

@@ -64,6 +64,9 @@ void main() {
 
     expect(created.files..sort(), <String>[
       '.gitignore',
+      'deploy/configuration.yaml',
+      'deploy/db/init/.gitkeep',
+      'deploy/db/migrations/.gitkeep',
       'lib/audiences.ts',
       'lib/src/.gitkeep',
       'package.yaml',
@@ -95,8 +98,8 @@ void main() {
 
     expect(found.single.manifest.artefacts.isEmpty, isTrue);
     expect(manifest, contains('# scribe:'));
-    expect(manifest, contains('#     init: ./db/init/'));
-    expect(manifest, contains('#     - ./ops/database/'));
+    expect(manifest, contains('#     init: ./deploy/db/init/'));
+    expect(manifest, contains('#     - ./deploy/services/'));
   });
 
   test('a name that cannot be a package cannot be created', () {

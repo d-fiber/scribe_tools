@@ -47,15 +47,19 @@ const String kTemplatesDirectoryName = 'templates';
 ///
 /// It sits under its own name rather than at the top so that the directories
 /// next to it are SDK names and nothing else: `ProjectTemplates.sdkNames` reads
-/// that level, and `templates/ops/` would otherwise answer as an SDK called
-/// `ops`.
+/// that level, and `templates/deploy/` would otherwise answer as an SDK called
+/// `deploy`.
 const String kProjectTemplatesDirectoryName = 'project';
 
-/// The layer of [kTemplatesDirectoryName] holding what `pkg create` copies.
+/// The layer of [kTemplatesDirectoryName] holding what `scribe create --package` copies.
 const String kPackageTemplatesDirectoryName = 'package';
 
 /// The layer of [kTemplatesDirectoryName] holding what the stack is rendered from.
-const String kOpsTemplatesDirectoryName = 'ops';
+///
+/// It carries the socle's fragments, its recipes and its configuration, laid in
+/// by `scribe_ops`. It shares the name a package uses for the same thing,
+/// `deploy/`.
+const String kSocleTemplatesDirectoryName = 'deploy';
 
 /// The suffix every file under [kTemplatesDirectoryName] carries, and what it buys.
 ///

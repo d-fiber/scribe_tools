@@ -55,33 +55,35 @@ void main() {
     final Manifest manifest = parse(
       'scribe:\n'
       '  db:\n'
-      '    init: ./db/init/\n'
-      '    migrations: ./db/migrations/\n'
-      '    provisioning: ./db/provisioning/\n',
+      '    init: ./deploy/db/init/\n'
+      '    migrations: ./deploy/db/migrations/\n'
+      '    provisioning: ./deploy/db/provisioning/\n',
     );
 
-    expect(manifest.artefacts.db!.init, 'db/init');
-    expect(manifest.artefacts.db!.migrations, 'db/migrations');
-    expect(manifest.artefacts.db!.provisioning, 'db/provisioning');
+    expect(manifest.artefacts.db!.init, 'deploy/db/init');
+    expect(manifest.artefacts.db!.migrations, 'deploy/db/migrations');
+    expect(manifest.artefacts.db!.provisioning, 'deploy/db/provisioning');
   });
 
   test('a db block may name one moment and leave the others out', () {
-    final Manifest manifest = parse('scribe:\n  db:\n    init: ./db/init/\n');
+    final Manifest manifest = parse('scribe:\n  db:\n    init: ./deploy/db/init/\n');
 
-    expect(manifest.artefacts.db!.init, 'db/init');
+    expect(manifest.artefacts.db!.init, 'deploy/db/init');
     expect(manifest.artefacts.db!.migrations, isNull);
   });
 
-  test('ops reads one entry per service, in the order written', () {
-    final Manifest manifest = parse('scribe:\n  ops:\n    - ./ops/database/\n    - ./ops/queue/\n');
+  test('services reads one entry per service, in the order written', () {
+    final Manifest manifest = parse(
+      'scribe:\n  services:\n    - ./deploy/services/database/\n    - ./deploy/services/queue/\n',
+    );
 
-    expect(manifest.artefacts.ops, <String>['ops/database', 'ops/queue']);
+    expect(manifest.artefacts.services, <String>['deploy/services/database', 'deploy/services/queue']);
   });
 
-  test('an ops entry may be a single fragment rather than a directory', () {
-    final Manifest manifest = parse('scribe:\n  ops:\n    - ./ops/docker-compose.yaml\n');
+  test('a service entry may be a single fragment rather than a directory', () {
+    final Manifest manifest = parse('scribe:\n  services:\n    - ./deploy/services/db/docker-compose.yaml\n');
 
-    expect(manifest.artefacts.ops, <String>['ops/docker-compose.yaml']);
+    expect(manifest.artefacts.services, <String>['deploy/services/db/docker-compose.yaml']);
   });
 
   test('protocol reads the directory the proto files sit in', () {
@@ -89,9 +91,14 @@ void main() {
   });
 
   test('every declared path is named with the key that named it', () {
-    final Manifest manifest = parse('scribe:\n  db:\n    init: ./db/init/\n  ops:\n    - ./ops/queue/\n');
+    final Manifest manifest = parse(
+      'scribe:\n  db:\n    init: ./deploy/db/init/\n  services:\n    - ./deploy/services/queue/\n',
+    );
 
-    expect(manifest.artefacts.declared, <String, String>{'scribe.db.init': 'db/init', 'scribe.ops[0]': 'ops/queue'});
+    expect(manifest.artefacts.declared, <String, String>{
+      'scribe.db.init': 'deploy/db/init',
+      'scribe.services[0]': 'deploy/services/queue',
+    });
   });
 
   test('declarations read one bucket per kind, the value marking a file', () {
@@ -139,19 +146,19 @@ void main() {
   });
 
   test('a block with nothing under it hands over nothing, the way an empty dependencies does', () {
-    final Manifest manifest = parse('scribe:\n  db:\n  ops: []\n  protocol: ./protocol/\n');
+    final Manifest manifest = parse('scribe:\n  db:\n  services: []\n  protocol: ./protocol/\n');
 
     expect(manifest.artefacts.db, isNull);
-    expect(manifest.artefacts.ops, isEmpty);
+    expect(manifest.artefacts.services, isEmpty);
     expect(manifest.artefacts.protocol, 'protocol');
   });
 
-  test('ops written as a single path instead of a list is refused', () {
-    expect(() => parse('scribe:\n  ops: ./ops/\n'), throwsToolExit('something other than a list'));
+  test('services written as a single path instead of a list is refused', () {
+    expect(() => parse('scribe:\n  services: ./deploy/services/\n'), throwsToolExit('something other than a list'));
   });
 
   test('a scribe block that is not a mapping is refused', () {
-    expect(() => parse('scribe: ./ops/\n'), throwsToolExit('something other than a block of paths'));
+    expect(() => parse('scribe: ./deploy/\n'), throwsToolExit('something other than a block of paths'));
   });
 
   test('an absolute path is refused', () {
@@ -162,10 +169,10 @@ void main() {
     expect(() => parse('scribe:\n  protocol: ../auth/protocol/\n'), throwsToolExit('which climbs out of the package'));
   });
 
-  test('the same ops entry named twice is refused', () {
+  test('the same service entry named twice is refused', () {
     expect(
-      () => parse('scribe:\n  ops:\n    - ./ops/queue/\n    - ./ops/queue\n'),
-      throwsToolExit('names "ops/queue" twice'),
+      () => parse('scribe:\n  services:\n    - ./deploy/services/queue/\n    - deploy/services/queue\n'),
+      throwsToolExit('names "deploy/services/queue" twice'),
     );
   });
 }

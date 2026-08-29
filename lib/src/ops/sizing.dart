@@ -319,7 +319,7 @@ class ComposeRender {
   Map<String, String> _settings(List<Package> mounted) => <String, String>{
     for (final Package package in mounted)
       ...Settings.read(
-        package.directory.childFile(configurationFileName),
+        package.directory.childDirectory(deployDirectory).childFile(configurationFileName),
       ).valuesFor(package.name, _configuration.settingsOf(package.name)),
   };
 
@@ -708,7 +708,7 @@ class ComposeRender {
     Set<String> gone = const <String>{},
   }) async {
     final File source = globals.templatePaths
-        .directoryInPackage(kOpsTemplatesDirectoryName, globals.fs)
+        .directoryInPackage(kSocleTemplatesDirectoryName, globals.fs)
         .childFile('$stackTemplate$kTemplateSuffix');
     if (!source.existsSync()) {
       throwToolExit('No stack template at ${source.path}');

@@ -77,7 +77,7 @@ const String databaseServiceName = 'database';
 class SocleOps {
   /// Reads the ops templates that ship with the tool.
   SocleOps({Directory? root})
-    : root = root ?? globals.templatePaths.directoryInPackage(kOpsTemplatesDirectoryName, globals.fs);
+    : root = root ?? globals.templatePaths.directoryInPackage(kSocleTemplatesDirectoryName, globals.fs);
 
   /// The `ops/` directory of the templates, holding `services/` and `env/`.
   final Directory root;

@@ -140,12 +140,13 @@ class Resources {
     return read(
       <File>[
         root.childFile('$configurationFileName$kTemplateSuffix'),
-        for (final Package package in found) package.directory.childFile(configurationFileName),
+        for (final Package package in found)
+          package.directory.childDirectory(deployDirectory).childFile(configurationFileName),
       ],
       recipes: <Directory>[
         root.childDirectory(recipesDirectoryName),
         for (final Package package in found)
-          package.directory.childDirectory(fragmentDirectory).childDirectory(recipesDirectoryName),
+          package.directory.childDirectory(deployDirectory).childDirectory(recipesDirectoryName),
       ],
       placement: placement ?? (String _) => Placement.inContainer,
       outputs: outputs,
@@ -165,7 +166,8 @@ class Resources {
 
     return <Resource>[
       ..._readFile(SocleOps().root.childFile('$configurationFileName$kTemplateSuffix')),
-      for (final Package package in found) ..._readFile(package.directory.childFile(configurationFileName)),
+      for (final Package package in found)
+        ..._readFile(package.directory.childDirectory(deployDirectory).childFile(configurationFileName)),
     ];
   }
 
@@ -182,7 +184,7 @@ class Resources {
     return <Directory>[
       SocleOps().root.childDirectory(recipesDirectoryName),
       for (final Package package in found)
-        package.directory.childDirectory(fragmentDirectory).childDirectory(recipesDirectoryName),
+        package.directory.childDirectory(deployDirectory).childDirectory(recipesDirectoryName),
     ];
   }
 
@@ -251,7 +253,7 @@ class Resources {
       throwToolExit(
         'No $className recipe for a ${resource.type}, which ${resource.declaredBy} needs as "${resource.name}". '
         'Whoever owns the type carries it, so it goes under '
-        '${resource.declaredBy}/$fragmentDirectory/$recipesDirectoryName/${resource.type}/$className.yaml',
+        '${resource.declaredBy}/$deployDirectory/$recipesDirectoryName/${resource.type}/$className.yaml',
       );
     }
 

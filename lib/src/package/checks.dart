@@ -164,8 +164,8 @@ List<Problem> _artefacts(DiscoveredPackage found) {
   final Map<String, String> declared = found.manifest.artefacts.declared;
 
   for (final MapEntry<String, String> entry in declared.entries) {
-    final String? problem = entry.key.startsWith('$kArtefactsKey.ops')
-        ? _opsProblem(found.directory, entry.key, entry.value)
+    final String? problem = entry.key.startsWith('$kArtefactsKey.services')
+        ? _serviceProblem(found.directory, entry.key, entry.value)
         : _harvestProblem(found.directory, entry.key, entry.value);
     if (problem != null) problems.add(Problem(found.name, problem));
   }
@@ -196,25 +196,25 @@ String? _harvestProblem(String directory, String key, String path) {
       'reaches a stack from there, and nothing does.';
 }
 
-/// What is wrong with the ops entry [key] names at [path], or null when nothing.
+/// What is wrong with the service entry [key] names at [path], or null when nothing.
 ///
 /// An entry may be a directory, which is a service, or a single fragment. Either
 /// way what makes it worth declaring is that a fragment is reachable through it,
 /// since a fragment's name is the only thing that pairs it with a template.
-String? _opsProblem(String directory, String key, String path) {
+String? _serviceProblem(String directory, String key, String path) {
   final String target = p.join(directory, path);
 
   if (globals.fs.file(target).existsSync()) {
-    if (kOpsFragments.contains(p.basename(path))) return null;
+    if (kServiceFragments.contains(p.basename(path))) return null;
     return 'its "$key:" names "$path", which is not a fragment. A fragment goes by one of '
-        '${kOpsFragments.join(', ')}, and nothing else is ever looked up by name.';
+        '${kServiceFragments.join(', ')}, and nothing else is ever looked up by name.';
   }
 
   if (!globals.fs.directory(target).existsSync()) return 'its "$key:" names "$path", and nothing is there.';
 
-  if (_holdsA(globals.fs.directory(target), kOpsFragments.contains)) return null;
+  if (_holdsA(globals.fs.directory(target), kServiceFragments.contains)) return null;
   return 'its "$key:" names "$path", which holds no fragment. A service is declared by the files '
-      'that carry the names the templates pair with: ${kOpsFragments.join(', ')}.';
+      'that carry the names the templates pair with: ${kServiceFragments.join(', ')}.';
 }
 
 /// Whether [directory] holds a file [wanted] accepts, at any depth beneath it.

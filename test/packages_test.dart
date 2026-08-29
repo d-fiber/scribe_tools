@@ -51,8 +51,10 @@ Directory _package(Directory root, String name) {
 
 /// Gives [package] a compose fragment holding [services].
 void _compose(Directory package, String services) {
-  final Directory ops = package.childDirectory('ops')..createSync(recursive: true);
-  ops.childFile('docker-compose.yaml').writeAsStringSync('services:\n$services');
+  final Directory svc =
+      package.childDirectory('deploy').childDirectory('services').childDirectory(p.basename(package.path))
+        ..createSync(recursive: true);
+  svc.childFile('docker-compose.yaml').writeAsStringSync('services:\n$services');
 }
 
 Directory _root() => fs.directory(p.join('/tree', 'packages'))..createSync(recursive: true);
@@ -106,7 +108,11 @@ void main() {
     test('the subjects inside a package are not packages of their own', () {
       final Directory root = _root();
       final Directory package = _package(root, 'foundation');
-      package.childDirectory('ops').childDirectory('database').createSync(recursive: true);
+      package
+          .childDirectory('deploy')
+          .childDirectory('services')
+          .childDirectory('database')
+          .createSync(recursive: true);
       package.childDirectory('lib').childDirectory('queue').childDirectory('protocol').createSync(recursive: true);
 
       expect(_namesOf(Packages.load(root: root).all), <String>['foundation']);
@@ -192,16 +198,19 @@ void main() {
   });
 
   group('what a package ships', () {
-    test('the sql it adds is the db/init it carries', () {
+    test('the sql it adds is the deploy/db/init it carries', () {
       final Directory root = _root();
       final Directory package = _package(root, 'auth');
-      package.childDirectory('db').childDirectory('init').createSync(recursive: true);
-      package.childDirectory('db').childDirectory('migrations').createSync(recursive: true);
+      package.childDirectory('deploy').childDirectory('db').childDirectory('init').createSync(recursive: true);
+      package.childDirectory('deploy').childDirectory('db').childDirectory('migrations').createSync(recursive: true);
 
-      expect(Packages.load(root: root).all.single.sql?.path, package.childDirectory('db').childDirectory('init').path);
+      expect(
+        Packages.load(root: root).all.single.sql?.path,
+        package.childDirectory('deploy').childDirectory('db').childDirectory('init').path,
+      );
     });
 
-    test('a package without a db directory adds no sql', () {
+    test('a package without a deploy/db directory adds no sql', () {
       final Directory root = _root();
       _package(root, 'audience');
 
@@ -240,10 +249,11 @@ void main() {
       expect(Packages.profilesOf(Packages.load(root: root).all), <String>['realtime', 'search']);
     });
 
-    test('a fragment in a subject directory is labelled with the subject', () {
+    test('a fragment in a service directory is labelled with the service', () {
       final Directory root = _root();
       final Directory package = _package(root, 'foundation');
-      final Directory subject = package.childDirectory('ops').childDirectory('valkery')..createSync(recursive: true);
+      final Directory subject = package.childDirectory('deploy').childDirectory('services').childDirectory('valkery')
+        ..createSync(recursive: true);
       subject.childFile('docker-compose.yaml').writeAsStringSync('services:\n  redis:\n');
 
       expect(

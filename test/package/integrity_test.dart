@@ -59,13 +59,13 @@ dependencies:
 
 scribe:
   db:
-    init: ./db/init/
-    migrations: ./db/migrations/
-    provisioning: ./db/provisioning/
+    init: ./deploy/db/init/
+    migrations: ./deploy/db/migrations/
+    provisioning: ./deploy/db/provisioning/
   protocol: ./protocol/
-  ops:
-    - ./ops/listener/
-    - ./ops/reader/
+  services:
+    - ./deploy/services/listener/
+    - ./deploy/services/reader/
 ''';
 
 void main() {
@@ -101,15 +101,15 @@ void main() {
     final String at = p.join(root.path, 'audiences');
 
     write(p.join(at, 'package.yaml'), manifest);
-    write(p.join(at, 'db', 'init', '00_tables.sql'), 'create table audiences ();\n');
-    write(p.join(at, 'db', 'migrations', '20260101_open.sql'), 'select 1;\n');
-    write(p.join(at, 'db', 'provisioning', 'roles.sql'), 'select 1;\n');
+    write(p.join(at, 'deploy', 'db', 'init', '00_tables.sql'), 'create table audiences ();\n');
+    write(p.join(at, 'deploy', 'db', 'migrations', '20260101_open.sql'), 'select 1;\n');
+    write(p.join(at, 'deploy', 'db', 'provisioning', 'roles.sql'), 'select 1;\n');
     write(p.join(at, 'protocol', 'audiences.proto'), 'syntax = "proto3";\n');
-    write(p.join(at, 'ops', 'listener', 'docker-compose.yaml'), 'services: {}\n');
-    write(p.join(at, 'ops', 'listener', 'capacity.yaml'), 'weight: 1\n');
-    write(p.join(at, 'ops', 'listener', 'Dockerfile'), 'FROM scratch\n');
-    write(p.join(at, 'ops', 'listener', 'run-migrations.sh'), 'exit 0\n');
-    write(p.join(at, 'ops', 'reader', 'docker-compose.yaml'), 'services: {}\n');
+    write(p.join(at, 'deploy', 'services', 'listener', 'docker-compose.yaml'), 'services: {}\n');
+    write(p.join(at, 'deploy', 'services', 'listener', 'capacity.yaml'), 'weight: 1\n');
+    write(p.join(at, 'deploy', 'services', 'listener', 'Dockerfile'), 'FROM scratch\n');
+    write(p.join(at, 'deploy', 'services', 'listener', 'run-migrations.sh'), 'exit 0\n');
+    write(p.join(at, 'deploy', 'services', 'reader', 'docker-compose.yaml'), 'services: {}\n');
 
     return at;
   }
@@ -143,8 +143,8 @@ void main() {
     holding('keeps the files a fragment reaches by path, which nothing declares', () {
       final String at = sound();
 
-      expect(File(p.join(at, 'ops', 'listener', 'Dockerfile')).existsSync(), isTrue);
-      expect(File(p.join(at, 'ops', 'listener', 'run-migrations.sh')).existsSync(), isTrue);
+      expect(File(p.join(at, 'deploy', 'services', 'listener', 'Dockerfile')).existsSync(), isTrue);
+      expect(File(p.join(at, 'deploy', 'services', 'listener', 'run-migrations.sh')).existsSync(), isTrue);
       expect(reported(at), isEmpty, reason: 'a file nothing looks up by name was held against the package');
     });
   });
@@ -265,10 +265,15 @@ void main() {
       );
     });
 
-    holding('ops written as one path instead of a list', () {
+    holding('services written as one path instead of a list', () {
       expect(
         () => loadManifest(
-          broken(_sound.replaceFirst('  ops:\n    - ./ops/listener/\n    - ./ops/reader/\n', '  ops: ./ops/\n')),
+          broken(
+            _sound.replaceFirst(
+              '  services:\n    - ./deploy/services/listener/\n    - ./deploy/services/reader/\n',
+              '  services: ./deploy/services/\n',
+            ),
+          ),
         ),
         refuses('something other than a list'),
       );
@@ -276,8 +281,8 @@ void main() {
 
     holding('the same service named twice', () {
       expect(
-        () => loadManifest(broken(replacing('- ./ops/reader/', '    - ./ops/listener'))),
-        refuses('names "ops/listener" twice'),
+        () => loadManifest(broken(replacing('- ./deploy/services/reader/', '    - ./deploy/services/listener'))),
+        refuses('names "deploy/services/listener" twice'),
       );
     });
   });
@@ -299,7 +304,9 @@ void main() {
 
     holding('a declared sql directory holding files of another kind', () {
       final String at = sound();
-      File(p.join(at, 'db', 'init', '00_tables.sql')).renameSync(p.join(at, 'db', 'init', 'notes.md'));
+      File(
+        p.join(at, 'deploy', 'db', 'init', '00_tables.sql'),
+      ).renameSync(p.join(at, 'deploy', 'db', 'init', 'notes.md'));
 
       expect(reported(at).single, contains('carries no .sql file'));
     });
@@ -314,23 +321,29 @@ void main() {
 
     holding('a service directory holding no fragment', () {
       final String at = sound();
-      File(p.join(at, 'ops', 'reader', 'docker-compose.yaml')).deleteSync();
-      write(p.join(at, 'ops', 'reader', 'Dockerfile'), 'FROM scratch\n');
+      File(p.join(at, 'deploy', 'services', 'reader', 'docker-compose.yaml')).deleteSync();
+      write(p.join(at, 'deploy', 'services', 'reader', 'Dockerfile'), 'FROM scratch\n');
 
       expect(reported(at).single, contains('holds no fragment'));
     });
 
     holding('an ops entry naming a file no template pairs with', () {
       final String at = sound();
-      write(p.join(at, 'ops', 'reader', 'settings.yaml'), 'a: 1\n');
-      write(p.join(at, 'package.yaml'), replacing('- ./ops/reader/', '    - ./ops/reader/settings.yaml'));
+      write(p.join(at, 'deploy', 'services', 'reader', 'settings.yaml'), 'a: 1\n');
+      write(
+        p.join(at, 'package.yaml'),
+        replacing('- ./deploy/services/reader/', '    - ./deploy/services/reader/settings.yaml'),
+      );
 
       expect(reported(at).single, contains('is not a fragment'));
     });
 
     holding('an ops entry naming a fragment by its own name is taken', () {
       final String at = sound();
-      write(p.join(at, 'package.yaml'), replacing('- ./ops/reader/', '    - ./ops/reader/docker-compose.yaml'));
+      write(
+        p.join(at, 'package.yaml'),
+        replacing('- ./deploy/services/reader/', '    - ./deploy/services/reader/docker-compose.yaml'),
+      );
 
       expect(reported(at), isEmpty);
     });
@@ -360,7 +373,7 @@ void main() {
     holding('every fault is reported at once, not one run per fault', () {
       final String at = sound();
       Directory(p.join(at, 'protocol')).deleteSync(recursive: true);
-      Directory(p.join(at, 'ops', 'reader')).deleteSync(recursive: true);
+      Directory(p.join(at, 'deploy', 'services', 'reader')).deleteSync(recursive: true);
       File(p.join(at, 'lib', 'audiences.ts')).deleteSync();
 
       expect(reported(at).length, 3);
@@ -370,14 +383,14 @@ void main() {
   group('a package that does not hold together reaches nothing', () {
     holding('a declared directory that is not there stops the resolution', () {
       final String at = sound();
-      Directory(p.join(at, 'ops', 'reader')).deleteSync(recursive: true);
+      Directory(p.join(at, 'deploy', 'services', 'reader')).deleteSync(recursive: true);
 
       expect(() => resolve(at, sdk), refuses('does not hold together'));
     });
 
     holding('nothing is written when the resolution is refused', () {
       final String at = sound();
-      Directory(p.join(at, 'ops', 'reader')).deleteSync(recursive: true);
+      Directory(p.join(at, 'deploy', 'services', 'reader')).deleteSync(recursive: true);
 
       expect(() => resolve(at, sdk), throwsA(isA<ToolExit>()));
       expect(

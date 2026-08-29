@@ -80,11 +80,11 @@ Future<T> _withContext<T>(FileSystem fs, Future<T> Function() body) => AppContex
 /// from this package because that is where an installed tool carries them, and
 /// everything else from the framework checked out next door.
 void _vendorFramework(FileSystem fs, String root) {
-  for (final io.FileSystemEntity entity in io.Directory('templates/ops').listSync(recursive: true)) {
+  for (final io.FileSystemEntity entity in io.Directory('templates/deploy').listSync(recursive: true)) {
     if (entity is! io.File) continue;
 
-    final String relative = p.relative(entity.path, from: 'templates/ops');
-    _copy(fs, entity.path, p.join(_toolRoot, 'templates/ops', relative));
+    final String relative = p.relative(entity.path, from: 'templates/deploy');
+    _copy(fs, entity.path, p.join(_toolRoot, 'templates/deploy', relative));
   }
 
   final io.Directory packages = io.Directory(p.join(_repository, 'packages'));
@@ -96,7 +96,7 @@ void _vendorFramework(FileSystem fs, String root) {
     final String relative = p.relative(entity.path, from: packages.path);
     final List<String> segments = p.split(relative);
     final bool wanted =
-        segments.contains('ops') || segments.contains('protocol') || segments.last == configurationFileName;
+        segments.contains('deploy') || segments.contains('protocol') || segments.last == configurationFileName;
     if (!wanted) continue;
 
     _copy(fs, entity.path, p.join(root, 'packages', relative));

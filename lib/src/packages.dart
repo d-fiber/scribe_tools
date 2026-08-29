@@ -42,16 +42,24 @@ import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/ops/fragments.dart';
 
-/// The directory, inside a package, holding its slices of the ops templates.
-const String fragmentDirectory = 'ops';
+/// The directory, inside a package, holding everything the stack reads.
+///
+/// The SQL, the compose fragments, the recipes and the configuration all sit
+/// under it, and nothing the stack consumes sits anywhere else. `protocol/` is
+/// not one of them: a `.proto` is compiled at build, not read by a running
+/// stack.
+const String deployDirectory = 'deploy';
 
-/// The directory, inside a package, holding its SQL.
+/// The subdirectory of [deployDirectory] holding one directory per service.
+const String servicesDirectory = 'services';
+
+/// The subdirectory of [deployDirectory] holding a package's SQL.
 const String sqlDirectory = 'db';
 
-/// The subdirectory of [sqlDirectory] played when the stack is built.
+/// The subdirectory of `deploy/db/` played when the stack is built.
 ///
-/// A package's `db/` also holds `migrations/` and `provisioning/`, which are
-/// played by other hands and at another moment.
+/// A package's `deploy/db/` also holds `migrations/` and `provisioning/`, which
+/// are played by other hands and at another moment.
 const String sqlInitDirectory = 'init';
 
 /// The directory, inside a package, holding its contract.
@@ -68,17 +76,11 @@ const String composeTemplate = 'docker-compose.yaml';
 
 /// What a directory has to carry to be a package.
 ///
-/// These are the five things the tools read from a package, and a directory
+/// These are the four things the tools read from a package, and a directory
 /// that carries none of them holds nothing a project could mount. Nothing is
 /// declared anywhere: a package is recognised by what it is made of, so there
 /// is no second place where the list of packages could disagree with the tree.
-const Set<String> packageArtefacts = <String>{
-  fragmentDirectory,
-  sqlDirectory,
-  protocolDirectory,
-  registrationFile,
-  packageFile,
-};
+const Set<String> packageArtefacts = <String>{deployDirectory, protocolDirectory, registrationFile, packageFile};
 
 /// The one package a project gets whether or not it names it.
 ///
@@ -104,7 +106,10 @@ class Package {
 
   /// The SQL this package adds to the database, null when it ships none.
   Directory? get sql {
-    final Directory found = directory.childDirectory(sqlDirectory).childDirectory(sqlInitDirectory);
+    final Directory found = directory
+        .childDirectory(deployDirectory)
+        .childDirectory(sqlDirectory)
+        .childDirectory(sqlInitDirectory);
     return found.existsSync() ? found : null;
   }
 
@@ -120,17 +125,21 @@ class Package {
 
   /// The files this package's slices of [template] would be read from.
   ///
-  /// A package groups its ops by subject, so `ops/valkery/docker-compose.yaml`
-  /// counts as much as `ops/docker-compose.yaml`. None of them is required to
-  /// exist: a package contributes to the templates it has something to say
-  /// about and to no others.
+  /// Two places carry one: `deploy/<template>` for what the package hands over
+  /// as a whole, `overlay.yaml` and its `packages.env` slice, and
+  /// `deploy/services/<service>/<template>` for a service's own fragments. None
+  /// is required to exist: a package contributes to the templates it has
+  /// something to say about and to no others.
   List<File> fragments(String template) {
-    final Directory ops = directory.childDirectory(fragmentDirectory);
-    if (!ops.existsSync()) return const <File>[];
+    final Directory deploy = directory.childDirectory(deployDirectory);
+    if (!deploy.existsSync()) return const <File>[];
 
-    final List<File> found = <File>[ops.childFile(template)];
-    for (final Directory subject in ops.listSync().whereType<Directory>()) {
-      found.add(subject.childFile(template));
+    final List<File> found = <File>[deploy.childFile(template)];
+    final Directory services = deploy.childDirectory(servicesDirectory);
+    if (services.existsSync()) {
+      for (final Directory service in services.listSync().whereType<Directory>()) {
+        found.add(service.childFile(template));
+      }
     }
 
     return found.where((File file) => file.existsSync()).toList()..sort((File a, File b) => a.path.compareTo(b.path));
@@ -143,12 +152,14 @@ class Package {
 
   /// The name written into the merged document above a fragment's block.
   ///
-  /// A fragment that sits in a subject directory names the subject too, so a
+  /// A fragment that sits in a service directory names the service too, so a
   /// reader of the generated compose can tell `foundation/valkery` from
-  /// `foundation/queue`.
+  /// `foundation/queue`. A service directory called like the package, the usual
+  /// case for a package with one service, is written as the package alone.
   String _labelOf(File file) {
     final String subject = p.basename(file.parent.path);
-    return subject == fragmentDirectory ? name : '$name/$subject';
+    if (subject == deployDirectory || subject == name) return name;
+    return '$name/$subject';
   }
 }
 
@@ -164,8 +175,8 @@ class Packages {
   ///
   /// The walk goes one level deep and no further: the packages sit side by side
   /// under the root, and a package's own subdirectories carry the same names it
-  /// does. `foundation/ops/database/` holds a compose fragment, and it is a
-  /// subject of `foundation` rather than a package of its own.
+  /// does. `realtime/deploy/services/realtime/` holds a compose fragment, and it
+  /// is a service of `realtime` rather than a package of its own.
   ///
   /// A root that does not exist yields nothing rather than failing, since a
   /// project can be read before its framework is vendored in.

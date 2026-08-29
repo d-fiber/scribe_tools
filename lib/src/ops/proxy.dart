@@ -67,7 +67,7 @@ class ProxyRender {
   /// Writes the configuration into [target], and returns the file.
   Future<File> render(Directory target, Map<String, String> values) async {
     final File source = globals.templatePaths
-        .directoryInPackage(kOpsTemplatesDirectoryName, globals.fs)
+        .directoryInPackage(kSocleTemplatesDirectoryName, globals.fs)
         .childDirectory(servicesDirectoryName)
         .childDirectory('proxy')
         .childFile('$proxyFileName$kTemplateSuffix');

@@ -126,7 +126,7 @@ class Forge {
     final Set<String> known = <String>{mainConfigurationName};
 
     for (final Package package in packages) {
-      final File declaration = package.directory.childFile(configurationFileName);
+      final File declaration = package.directory.childDirectory(deployDirectory).childFile(configurationFileName);
       final Settings declared = Settings.read(declaration);
       final List<String> resources = <String>[
         for (final Resource resource in Resources.declaredIn(declaration)) resource.name,
