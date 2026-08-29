@@ -137,16 +137,13 @@ const String kEditorConfigSetting = 'deno.config';
 /// The setting that turns the language server on for this directory.
 const String kEditorEnableSetting = 'deno.enable';
 
-/// What a package needs from outside itself, beyond the language.
+/// What a package needs from outside itself, beyond the language and the test harness.
 ///
-/// The test harness is the only one so far. It is not a dependency a package
-/// declares, for the same reason the language is not: a package that could
-/// decline it could not be tested.
-///
-/// The checkout pins it too, and what the checkout pins wins. This is the floor
-/// for a checkout whose map has lost it, so that a package still has something to
-/// assert with.
-const Map<String, String> kAlwaysResolved = <String, String>{'@std/assert': 'jsr:@std/assert@1'};
+/// Empty today. A package's test harness is `@scribe/alchemy/test`, reached the same way
+/// as the language: through [frameworkImports], which reads it straight out of the
+/// checkout's own map rather than pinning a version here. There is nothing left that a
+/// package needs and the checkout would not already publish.
+const Map<String, String> kAlwaysResolved = <String, String>{};
 
 /// The directory, inside a checkout, holding the packages it carries.
 const String kPackagesDirectory = 'packages';

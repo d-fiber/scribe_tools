@@ -1,6 +1,7 @@
-import { assertExists } from "@std/assert";
+import "@scribe/testing/runner.ts";
+import { expect, isNotNull, Scribe } from "@scribe/alchemy/test";
 import * as {{name}} from "../lib/{{name}}.ts";
 
-Deno.test("{{name}} can be reached through its entry", () => {
-  assertExists({{name}}, "the entry did not load");
+Scribe.test("{{name}} can be reached through its entry", () => {
+  expect({{name}}, isNotNull, "the entry did not load");
 });
