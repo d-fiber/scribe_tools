@@ -34,11 +34,9 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
-import 'package:file/file.dart';
 import 'package:path/path.dart' as p;
-import 'package:scribe_tools/src/globals.dart' as globals;
-import 'package:scribe_tools/src/package/artefacts.dart';
 import 'package:scribe_tools/src/package/constraint.dart';
+import 'package:scribe_tools/src/package/declares.dart';
 import 'package:scribe_tools/src/package/layout.dart';
 import 'package:scribe_tools/src/package/workspace.dart';
 
@@ -68,7 +66,9 @@ List<Problem> check(List<DiscoveredPackage> packages) {
     for (final DiscoveredPackage found in packages) found.name: found,
   };
 
-  problems.addAll(_duplicates(packages));
+  problems
+    ..addAll(_duplicates(packages))
+    ..addAll(_declares(packages));
 
   for (final DiscoveredPackage found in packages) {
     problems
@@ -81,13 +81,12 @@ List<Problem> check(List<DiscoveredPackage> packages) {
 
 /// Everything wrong with [found] on its own, without looking at its neighbours.
 ///
-/// It is what a package has to answer before it is resolved into anything. The
-/// checks left out are the ones that need the other packages, a duplicate name
-/// and a dependency, and neither can be judged from a single directory.
+/// It is what a package has to answer before it is resolved into anything. The checks left out are
+/// the ones that need the other packages, a duplicate name, a dependency and a bucket two entries
+/// both open, none of which can be judged from a single directory.
 List<Problem> problemsWithin(DiscoveredPackage found) => <Problem>[
   ..._misplaced(found),
   ...layoutProblems(found.directory, found.name).map((String missing) => Problem(found.name, missing)),
-  ..._artefacts(found),
 ];
 
 List<Problem> _duplicates(List<DiscoveredPackage> packages) {
@@ -153,75 +152,26 @@ List<Problem> _dependencies(DiscoveredPackage found, Map<String, DiscoveredPacka
   return problems;
 }
 
-/// Whether every path [found] declares under `scribe:` is a path it carries.
+/// Every bucket two packages of [packages] both open through their entry's `declares`.
 ///
-/// Only that direction is checkable. A package names its own directories and puts
-/// them where it likes, so a directory nobody declared is not a mistake the tool
-/// can recognise: it reads as a package that hands that part over to nothing,
-/// which is exactly what leaving a path out means.
-List<Problem> _artefacts(DiscoveredPackage found) {
+/// A bucket is a name a project reaches by mounting a package, so two packages that open the same
+/// one leave a project that mounts both with a file loaded for two meanings at once. Only that
+/// collision is checkable here: `scribe gen code` throws the same refusal, but only for the
+/// packages a project actually mounts, which is a subset [check] does not see.
+List<Problem> _declares(List<DiscoveredPackage> packages) {
+  final Map<String, String> openedBy = <String, String>{};
   final List<Problem> problems = <Problem>[];
-  final Map<String, String> declared = found.manifest.artefacts.declared;
 
-  for (final MapEntry<String, String> entry in declared.entries) {
-    final String? problem = entry.key.startsWith('$kArtefactsKey.services')
-        ? _serviceProblem(found.directory, entry.key, entry.value)
-        : _harvestProblem(found.directory, entry.key, entry.value);
-    if (problem != null) problems.add(Problem(found.name, problem));
+  for (final DiscoveredPackage found in packages) {
+    for (final String bucket in readDeclares(found.directory, found.name).keys) {
+      final String? first = openedBy[bucket];
+      if (first == null) {
+        openedBy[bucket] = found.name;
+        continue;
+      }
+      problems.add(Problem(found.name, 'it opens "$bucket", and so does "$first".'));
+    }
   }
 
   return problems;
-}
-
-/// What is wrong with the directory [key] names at [path], or null when nothing.
-///
-/// Two ways to be wrong and they are different mistakes. A path that is not there
-/// is a stack that fails to build. A path that is there and carries nothing of the
-/// kind it promised builds and hands over nothing, which is the one the manifest
-/// was added to close.
-String? _harvestProblem(String directory, String key, String path) {
-  final String suffix = key.startsWith('$kArtefactsKey.protocol') ? kProtocolSuffix : kSqlSuffix;
-  final String target = p.join(directory, path);
-
-  if (!globals.fs.directory(target).existsSync()) {
-    if (globals.fs.file(target).existsSync()) {
-      return 'its "$key:" names "$path", which is a file. It names the directory the files are '
-          'harvested from, not one of them.';
-    }
-    return 'its "$key:" names "$path", and nothing is there.';
-  }
-
-  if (_holdsA(globals.fs.directory(target), (String name) => name.endsWith(suffix))) return null;
-  return 'its "$key:" names "$path", which carries no $suffix file. Declaring it says something '
-      'reaches a stack from there, and nothing does.';
-}
-
-/// What is wrong with the service entry [key] names at [path], or null when nothing.
-///
-/// An entry may be a directory, which is a service, or a single fragment. Either
-/// way what makes it worth declaring is that a fragment is reachable through it,
-/// since a fragment's name is the only thing that pairs it with a template.
-String? _serviceProblem(String directory, String key, String path) {
-  final String target = p.join(directory, path);
-
-  if (globals.fs.file(target).existsSync()) {
-    if (kServiceFragments.contains(p.basename(path))) return null;
-    return 'its "$key:" names "$path", which is not a fragment. A fragment goes by one of '
-        '${kServiceFragments.join(', ')}, and nothing else is ever looked up by name.';
-  }
-
-  if (!globals.fs.directory(target).existsSync()) return 'its "$key:" names "$path", and nothing is there.';
-
-  if (_holdsA(globals.fs.directory(target), kServiceFragments.contains)) return null;
-  return 'its "$key:" names "$path", which holds no fragment. A service is declared by the files '
-      'that carry the names the templates pair with: ${kServiceFragments.join(', ')}.';
-}
-
-/// Whether [directory] holds a file [wanted] accepts, at any depth beneath it.
-bool _holdsA(Directory directory, bool Function(String name) wanted) {
-  for (final FileSystemEntity entry in directory.listSync(followLinks: false)) {
-    if (entry is File && wanted(p.basename(entry.path))) return true;
-    if (entry is Directory && _holdsA(entry, wanted)) return true;
-  }
-  return false;
 }

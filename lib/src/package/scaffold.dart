@@ -60,9 +60,11 @@ class CreatedPackage {
 ///
 /// What it writes is what `templates/package/` holds, which is the mandatory
 /// layout and nothing else: the manifest, the ignore file, the one way in, the
-/// directory the code goes in, and a test directory that already holds a test.
-/// A skeleton that stopped short of any of those would produce a package the
-/// checks refuse, which is the one thing a scaffold must not do.
+/// directory the code goes in, a test directory that already holds a test, and
+/// the closed `deploy/` tree empty, with a `.gitkeep` under each directory
+/// nothing has filled yet. A skeleton that stopped short of any of those would
+/// produce a package the checks refuse, which is the one thing a scaffold must
+/// not do.
 ///
 /// The checkout is needed for the manifest alone, which has to name the framework
 /// versions the package accepts. A skeleton that left that out would be a package

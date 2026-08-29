@@ -37,6 +37,7 @@
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
+import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/package/checks.dart';
 import 'package:scribe_tools/src/package/scaffold.dart';
 import 'package:scribe_tools/src/package/sdk.dart';
@@ -112,52 +113,36 @@ void main() {
     expect(problemsUnder().single, contains('have to match'));
   });
 
-  test('a declared directory that is not there is reported', () {
+  test('a scribe block in the manifest is refused, since what a package hands over is read from its tree', () {
     written('audiences', manifest: 'name: audiences\nversion: 1.0.0\n${environment}scribe:\n  protocol: ./protocol/\n');
 
-    expect(problemsUnder().single, contains('names "protocol", and nothing is there'));
+    expect(
+      problemsUnder,
+      throwsA(isA<ToolExit>().having((ToolExit error) => error.message, 'message', contains('"scribe"'))),
+    );
   });
 
-  test('a declared service entry may be a fragment rather than a directory', () {
-    final String audiences = written(
-      'audiences',
-      manifest:
-          'name: audiences\nversion: 1.0.0\n${environment}scribe:\n  services:\n    - ./deploy/services/db/docker-compose.yaml\n',
-    );
+  test('a missing deploy tree directory is reported through the ordinary layout check', () {
+    final String audiences = written('audiences');
+    Directory(p.join(audiences, 'deploy', 'db', 'init')).deleteSync(recursive: true);
+
+    expect(problemsUnder().single, contains('it has no deploy/db/init/'));
+  });
+
+  test('a service directory carrying a fragment is not reported', () {
+    final String audiences = written('audiences');
     _fragment(p.join(audiences, 'deploy', 'services', 'db', 'docker-compose.yaml'));
 
     expect(problemsUnder(), isEmpty);
   });
 
-  test('a package names its own directories, and puts them where it likes', () {
-    final String audiences = written(
-      'audiences',
-      manifest:
-          'name: audiences\nversion: 1.0.0\n${environment}scribe:\n'
-          '  db:\n    init: ./sql/bootstrap/\n'
-          '  services:\n    - ./infra/listener/\n',
-    );
-    _sql(p.join(audiences, 'sql', 'bootstrap', '01_tables.sql'));
-    _fragment(p.join(audiences, 'infra', 'listener', 'docker-compose.yaml'));
-
-    expect(problemsUnder(), isEmpty);
-  });
-
-  test('a directory nothing declares is not a problem, it is a package handing that part over to nothing', () {
+  test('two packages opening the same bucket through their entry are both named', () {
     final String audiences = written('audiences');
-    Directory(p.join(audiences, 'deploy', 'services', 'queue')).createSync(recursive: true);
+    final String realtime = written('realtime');
+    File(p.join(audiences, 'lib', 'audiences.ts')).writeAsStringSync('export const declares = { accounts: Role };\n');
+    File(p.join(realtime, 'lib', 'realtime.ts')).writeAsStringSync('export const declares = { accounts: Grant };\n');
 
-    expect(problemsUnder(), isEmpty);
-  });
-
-  test('a directory one of whose subdirectories is declared is not reported', () {
-    final String audiences = written(
-      'audiences',
-      manifest: 'name: audiences\nversion: 1.0.0\n${environment}scribe:\n  db:\n    init: ./db/init/\n',
-    );
-    _sql(p.join(audiences, 'db', 'init', '01_tables.sql'));
-
-    expect(problemsUnder(), isEmpty);
+    expect(problemsUnder().single, contains('it opens "accounts", and so does'));
   });
 
   test('a dependency on a package nobody wrote is reported', () {
@@ -219,10 +204,6 @@ void main() {
     expect(problemsUnder().single, contains('no package of that name exists'));
   });
 }
-
-void _sql(String path) => File(path)
-  ..parent.createSync(recursive: true)
-  ..writeAsStringSync('create table audiences ();\n');
 
 void _fragment(String path) => File(path)
   ..parent.createSync(recursive: true)

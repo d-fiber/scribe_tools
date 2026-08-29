@@ -56,16 +56,6 @@ environment:
   scribe: "^3.0.0"
 
 dependencies:
-
-scribe:
-  db:
-    init: ./deploy/db/init/
-    migrations: ./deploy/db/migrations/
-    provisioning: ./deploy/db/provisioning/
-  protocol: ./protocol/
-  services:
-    - ./deploy/services/listener/
-    - ./deploy/services/reader/
 ''';
 
 void main() {
@@ -244,79 +234,27 @@ void main() {
       expect(() => loadManifest(broken('$_sound\nprovides:\n  sql: db\n')), refuses('which means nothing'));
     });
 
-    holding('a key the scribe block does not hold', () {
+    holding('a scribe block, since what a package hands over is read from its tree, never declared', () {
       expect(
-        () => loadManifest(broken('$_sound  seeds: ./db/seeds/\n')),
-        refuses('"scribe.seeds:", which means nothing'),
-      );
-    });
-
-    holding('an absolute path', () {
-      expect(
-        () => loadManifest(broken(replacing('protocol: ./protocol/', '  protocol: /srv/protocol/'))),
-        refuses('is an absolute path'),
-      );
-    });
-
-    holding('a path that reaches into a neighbour', () {
-      expect(
-        () => loadManifest(broken(replacing('protocol: ./protocol/', '  protocol: ../auth/protocol/'))),
-        refuses('climbs out of the package'),
-      );
-    });
-
-    holding('services written as one path instead of a list', () {
-      expect(
-        () => loadManifest(
-          broken(
-            _sound.replaceFirst(
-              '  services:\n    - ./deploy/services/listener/\n    - ./deploy/services/reader/\n',
-              '  services: ./deploy/services/\n',
-            ),
-          ),
-        ),
-        refuses('something other than a list'),
-      );
-    });
-
-    holding('the same service named twice', () {
-      expect(
-        () => loadManifest(broken(replacing('- ./deploy/services/reader/', '    - ./deploy/services/listener'))),
-        refuses('names "deploy/services/listener" twice'),
+        () => loadManifest(broken('$_sound\nscribe:\n  protocol: ./protocol/\n')),
+        refuses('"scribe", which means nothing'),
       );
     });
   });
 
   group('a manifest the tree contradicts is reported by the checks', () {
-    holding('a declared directory that is not there', () {
-      final String at = sound();
-      Directory(p.join(at, 'protocol')).deleteSync(recursive: true);
-
-      expect(reported(at).single, contains('names "protocol", and nothing is there'));
-    });
-
-    holding('a declared directory that is there and empty', () {
+    holding('a protocol directory that carries no proto file', () {
       final String at = sound();
       File(p.join(at, 'protocol', 'audiences.proto')).deleteSync();
 
-      expect(reported(at).single, contains('carries no .proto file'));
+      expect(reported(at).single, contains('holds no .proto file'));
     });
 
-    holding('a declared sql directory holding files of another kind', () {
+    holding('the mandatory deploy tree missing a moment', () {
       final String at = sound();
-      File(
-        p.join(at, 'deploy', 'db', 'init', '00_tables.sql'),
-      ).renameSync(p.join(at, 'deploy', 'db', 'init', 'notes.md'));
+      Directory(p.join(at, 'deploy', 'db', 'init')).deleteSync(recursive: true);
 
-      expect(reported(at).single, contains('carries no .sql file'));
-    });
-
-    holding('a declared directory that turned out to be a file', () {
-      final String at = sound();
-      Directory(p.join(at, 'protocol')).deleteSync(recursive: true);
-      write(p.join(at, 'protocol'), 'syntax = "proto3";\n');
-
-      expect(reported(at).single, contains('which is a file'));
+      expect(reported(at).single, contains('it has no deploy/db/init/'));
     });
 
     holding('a service directory holding no fragment', () {
@@ -325,27 +263,6 @@ void main() {
       write(p.join(at, 'deploy', 'services', 'reader', 'Dockerfile'), 'FROM scratch\n');
 
       expect(reported(at).single, contains('holds no fragment'));
-    });
-
-    holding('an ops entry naming a file no template pairs with', () {
-      final String at = sound();
-      write(p.join(at, 'deploy', 'services', 'reader', 'settings.yaml'), 'a: 1\n');
-      write(
-        p.join(at, 'package.yaml'),
-        replacing('- ./deploy/services/reader/', '    - ./deploy/services/reader/settings.yaml'),
-      );
-
-      expect(reported(at).single, contains('is not a fragment'));
-    });
-
-    holding('an ops entry naming a fragment by its own name is taken', () {
-      final String at = sound();
-      write(
-        p.join(at, 'package.yaml'),
-        replacing('- ./deploy/services/reader/', '    - ./deploy/services/reader/docker-compose.yaml'),
-      );
-
-      expect(reported(at), isEmpty);
     });
 
     holding('a package whose entry file went', () {
@@ -372,8 +289,8 @@ void main() {
 
     holding('every fault is reported at once, not one run per fault', () {
       final String at = sound();
-      Directory(p.join(at, 'protocol')).deleteSync(recursive: true);
-      Directory(p.join(at, 'deploy', 'services', 'reader')).deleteSync(recursive: true);
+      Directory(p.join(at, 'deploy', 'db', 'init')).deleteSync(recursive: true);
+      File(p.join(at, 'protocol', 'audiences.proto')).deleteSync();
       File(p.join(at, 'lib', 'audiences.ts')).deleteSync();
 
       expect(reported(at).length, 3);
@@ -381,16 +298,16 @@ void main() {
   });
 
   group('a package that does not hold together reaches nothing', () {
-    holding('a declared directory that is not there stops the resolution', () {
+    holding('a missing part of the mandatory deploy tree stops the resolution', () {
       final String at = sound();
-      Directory(p.join(at, 'deploy', 'services', 'reader')).deleteSync(recursive: true);
+      Directory(p.join(at, 'deploy', 'db', 'migrations')).deleteSync(recursive: true);
 
       expect(() => resolve(at, sdk), refuses('does not hold together'));
     });
 
     holding('nothing is written when the resolution is refused', () {
       final String at = sound();
-      Directory(p.join(at, 'deploy', 'services', 'reader')).deleteSync(recursive: true);
+      Directory(p.join(at, 'deploy', 'db', 'migrations')).deleteSync(recursive: true);
 
       expect(() => resolve(at, sdk), throwsA(isA<ToolExit>()));
       expect(
@@ -402,10 +319,10 @@ void main() {
 
     holding('the refusal names every fault, so one run says all of it', () {
       final String at = sound();
-      Directory(p.join(at, 'protocol')).deleteSync(recursive: true);
+      Directory(p.join(at, 'deploy', 'db', 'init')).deleteSync(recursive: true);
       File(p.join(at, 'lib', 'audiences.ts')).deleteSync();
 
-      expect(() => resolve(at, sdk), refuses('names "protocol", and nothing is there'));
+      expect(() => resolve(at, sdk), refuses('it has no deploy/db/init/'));
       expect(() => resolve(at, sdk), refuses('the one file everything else reaches it through'));
     });
 

@@ -35,7 +35,6 @@
 // LICENSE file, the LICENSE file governs.
 
 import 'package:scribe_tools/src/base/common.dart';
-import 'package:scribe_tools/src/package/artefacts.dart';
 import 'package:scribe_tools/src/package/constraint.dart';
 import 'package:scribe_tools/src/package/name.dart';
 import 'package:yaml/yaml.dart';
@@ -49,11 +48,10 @@ const String kDefaultDescription = 'Say in one sentence what this package does.'
 
 /// The keys a manifest may carry, and no others.
 ///
-/// What a package is made of is read off its tree: the one way in is
-/// `lib/<name>.ts` because a package has one, it is named after the package, and
-/// a manifest able to point elsewhere would only be a chance for the two to
-/// disagree. What it hands the stack is the other way round, and [kArtefactsKey]
-/// is where it says so.
+/// What a package is made of, and what it hands the stack, are both read off its tree: the one way
+/// in is `lib/<name>.ts` because a package has one and it is named after the package, and what it
+/// hands over sits at the fixed places `deploy/` and `protocol/` name. A manifest able to point
+/// elsewhere would only be a chance for the two to disagree.
 const List<String> kManifestKeys = <String>[
   'name',
   'description',
@@ -61,7 +59,6 @@ const List<String> kManifestKeys = <String>[
   'environment',
   'dependencies',
   'dev_dependencies',
-  kArtefactsKey,
 ];
 
 /// The key holding what a package needs to run its own suite and nothing else.
@@ -80,7 +77,6 @@ class Manifest {
     required this.scribe,
     required this.dependencies,
     required this.devDependencies,
-    required this.artefacts,
   });
 
   /// The name the package is mounted, imported and written into a project under.
@@ -118,14 +114,6 @@ class Manifest {
   /// else's tests.
   final Map<String, String> devDependencies;
 
-  /// What this package hands the stack: its SQL, its `.proto` files, its ops.
-  ///
-  /// A manifest with no [kArtefactsKey] block hands over nothing, and that is the
-  /// whole of the rule. Nothing falls back on a conventional path, so a directory
-  /// the manifest does not name is one nothing plays, mounts or compiles, and a
-  /// package that needs none of it says so by leaving the block out.
-  final Artefacts artefacts;
-
   /// The manifest [source] spells, where [source] is the text of a `package.yaml`.
   ///
   /// [where] is the path the text came from, named in whatever is thrown. Throws a
@@ -156,7 +144,6 @@ class Manifest {
       scribe: _environment(document, where),
       dependencies: _dependencies(document, 'dependencies', where),
       devDependencies: _dependencies(document, kDevDependenciesKey, where),
-      artefacts: Artefacts.parse(document[kArtefactsKey], where),
     );
   }
 
@@ -172,11 +159,9 @@ class Manifest {
   /// nothing under it says so, rather than leaving a reader to wonder whether the
   /// key was forgotten, and the empty block reads the same as no block at all.
   ///
-  /// The [kArtefactsKey] block is written commented out, which is the one place a
-  /// manifest carries prose. A fresh package hands the stack nothing, and an empty
-  /// block would be a claim it does; commented out, it says what the keys are and
-  /// what the paths could be, for whoever comes to fill one in, the way a fresh
-  /// pubspec does. Every line of it is in [_artefacts].
+  /// What the package hands the stack is not part of this text at all: `createPackage`
+  /// scaffolds the fixed `deploy/` tree beside it, empty, and a package fills it in by
+  /// adding files rather than by writing a path.
 }
 
 final RegExp _release = RegExp(r'^\d+\.\d+\.\d+$');

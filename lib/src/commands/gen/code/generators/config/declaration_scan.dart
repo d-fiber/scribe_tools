@@ -38,18 +38,15 @@ import 'package:file/file.dart';
 import 'package:path/path.dart' as p;
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
-import 'package:scribe_tools/src/package/artefacts.dart';
-import 'package:scribe_tools/src/package/layout.dart';
-import 'package:scribe_tools/src/package/manifest.dart';
-import 'package:scribe_tools/src/package/workspace.dart';
+import 'package:scribe_tools/src/package/declares.dart';
 import 'package:scribe_tools/src/packages.dart';
 
 /// One kind of declaration a project may write, as the package that offers it spells it.
 ///
-/// Nothing about a kind is known here. A package says in its manifest which
-/// buckets it opens and what marks a file as belonging to one, and this is that
-/// entry with the package it came from kept alongside, so a collision between two
-/// packages can name them both.
+/// Nothing about a kind is known here. A package says in its entry's `$kDeclaresExport` export
+/// which buckets it opens and what marks a file as belonging to one, and this is that entry with
+/// the package it came from kept alongside, so a collision between two packages can name them
+/// both.
 class DeclaredKind {
   /// Holds the kind [package] declared, loaded by [bucket] and marked by [marker].
   const DeclaredKind({required this.bucket, required this.package, required this.marker});
@@ -90,38 +87,36 @@ final RegExp _namedImport = RegExp('''import\\s+(type\\s+)?\\{([^}]*)\\}\\s*from
 
 /// The kinds the packages a project mounts let it declare, sorted by bucket.
 ///
-/// A mounted package carrying no manifest opens no bucket, the way one whose
-/// manifest leaves the block out does. What a package hands over is what it says
-/// it hands over, and saying nothing is a package that declares nothing.
+/// A mounted package carrying no entry, or one exporting no `$kDeclaresExport`, opens no bucket.
+/// What a package hands over is what its code says it hands over, and saying nothing is a package
+/// that declares nothing.
 ///
-/// Throws a [ToolExit] when two mounted packages open the same bucket. One file
-/// would then be imported for two meanings, and picking either one silently is
-/// the one answer that cannot be right.
+/// Throws a [ToolExit] when two mounted packages open the same bucket. One file would then be
+/// imported for two meanings, and picking either one silently is the one answer that cannot be
+/// right.
 List<DeclaredKind> mountedKinds() {
-  final Map<String, Manifest> manifests = <String, Manifest>{};
+  final Map<String, Map<String, String>> opened = <String, Map<String, String>>{
+    for (final Package package in Packages.load().active)
+      package.name: readDeclares(package.directory.path, package.name),
+  };
 
-  for (final Package package in Packages.load().active) {
-    if (!package.directory.childFile(kManifestFile).existsSync()) continue;
-    manifests[package.name] = loadManifest(package.directory.path);
-  }
-
-  return kindsOf(manifests);
+  return kindsOf(opened);
 }
 
-/// The kinds [manifests] open, from a package name to what that package declares.
+/// The kinds [opened] declares, from a package name to the buckets its entry opens.
 ///
 /// Throws a [ToolExit] when two of them open the same bucket.
-List<DeclaredKind> kindsOf(Map<String, Manifest> manifests) {
+List<DeclaredKind> kindsOf(Map<String, Map<String, String>> opened) {
   final Map<String, DeclaredKind> byBucket = <String, DeclaredKind>{};
 
-  for (final MapEntry<String, Manifest> entry in manifests.entries) {
-    for (final MapEntry<String, String> declared in entry.value.artefacts.declarations.entries) {
+  for (final MapEntry<String, Map<String, String>> entry in opened.entries) {
+    for (final MapEntry<String, String> declared in entry.value.entries) {
       final DeclaredKind? taken = byBucket[declared.key];
       if (taken != null) {
         throwToolExit(
-          '[gen:code] "${entry.key}" and "${taken.package}" both declare '
-          '"$kArtefactsKey.$kDeclarationsKey.${declared.key}:". A project file would be loaded '
-          'for two meanings at once, so one of the two has to name its bucket something else.',
+          '[gen:code] "${entry.key}" and "${taken.package}" both open "${declared.key}" through their '
+          'entry\'s "$kDeclaresExport". A project file would be loaded for two meanings at once, so one '
+          'of the two has to name its bucket something else.',
         );
       }
 

@@ -37,6 +37,7 @@
 import 'package:file/file.dart';
 import 'package:path/path.dart' as p;
 import 'package:scribe_tools/src/globals.dart' as globals;
+import 'package:scribe_tools/src/package/deploy.dart';
 
 /// The file whose presence makes a directory a package, and the only thing that says so.
 const String kManifestFile = 'package.yaml';
@@ -104,7 +105,9 @@ List<String> layoutProblems(String directory, String name) {
     }
   }
 
-  missing.addAll(_testProblems(directory));
+  missing
+    ..addAll(_testProblems(directory))
+    ..addAll(deployProblems(directory));
   return missing;
 }
 

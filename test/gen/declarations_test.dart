@@ -67,26 +67,25 @@ Matcher throwsToolExit(String saying) =>
 Future<T> _run<T>(T Function() body) =>
     AppContext.current.run<T>(overrides: <Type, Generator>{FileSystem: () => fs, Logger: BufferLogger.new}, body: body);
 
-/// Writes a package into the vendored checkout, opening the buckets of [declarations].
-void _package(String name, {Map<String, String> declarations = const <String, String>{}}) {
-  final StringBuffer manifest = StringBuffer()
-    ..writeln('name: $name')
-    ..writeln('version: 1.0.0')
-    ..writeln('environment:')
-    ..writeln('  scribe: "^1.0.0"');
-
-  if (declarations.isNotEmpty) {
-    manifest
-      ..writeln('scribe:')
-      ..writeln('  declarations:');
-    declarations.forEach((String bucket, String marker) => manifest.writeln('    $bucket: $marker'));
-  }
-
+/// Writes a package into the vendored checkout, opening the buckets of [declares] through its entry.
+void _package(String name, {Map<String, String> declares = const <String, String>{}}) {
   fs.file('/work/notes/scribe/packages/$name/package.yaml')
     ..parent.createSync(recursive: true)
-    ..writeAsStringSync(manifest.toString());
+    ..writeAsStringSync('name: $name\nversion: 1.0.0\nenvironment:\n  scribe: "^1.0.0"\n');
 
   fs.file('/work/notes/scribe/packages/$name/deno.json').writeAsStringSync('{}');
+
+  final File entry = fs.file('/work/notes/scribe/packages/$name/lib/$name.ts')..parent.createSync(recursive: true);
+
+  if (declares.isEmpty) {
+    entry.writeAsStringSync('export {};\n');
+    return;
+  }
+
+  final StringBuffer body = StringBuffer('export const declares = {\n');
+  declares.forEach((String bucket, String marker) => body.writeln('  $bucket: $marker,'));
+  body.writeln('};');
+  entry.writeAsStringSync(body.toString());
 }
 
 /// Writes the project's `config.yaml`, mounting [wanted].
@@ -128,15 +127,15 @@ void main() {
     fs = MemoryFileSystem.test();
     fs.directory('/work/notes/lib').createSync(recursive: true);
     fs.currentDirectory = '/work/notes';
-    _package('foundation', declarations: <String, String>{'queues': 'Queue', 'crons': 'Cron'});
-    _package('auth', declarations: <String, String>{'accounts': 'Account'});
-    _package('search', declarations: <String, String>{'searchers': 'Search'});
+    _package('foundation', declares: <String, String>{'queues': 'Queue', 'crons': 'Cron'});
+    _package('auth', declares: <String, String>{'accounts': 'Account'});
+    _package('search', declares: <String, String>{'searchers': 'Search'});
     _package('storage');
     _mount(const <String>['auth', 'search', 'storage']);
   });
 
   group('the kinds a project may declare', () {
-    test('a mounted package opens the buckets its manifest names', () async {
+    test('a mounted package opens the buckets its entry names', () async {
       expect((await _kinds()).map((DeclaredKind kind) => kind.bucket), <String>[
         'accounts',
         'crons',
@@ -160,12 +159,12 @@ void main() {
     });
 
     test('two mounted packages opening one bucket are refused, naming both and the bucket', () async {
-      _package('audience', declarations: <String, String>{'accounts': 'Audience'});
+      _package('audience', declares: <String, String>{'accounts': 'Audience'});
       _mount(const <String>['auth', 'audience']);
 
       await expectLater(_kinds(), throwsToolExit('"auth"'));
       await expectLater(_kinds(), throwsToolExit('"audience"'));
-      await expectLater(_kinds(), throwsToolExit('scribe.declarations.accounts'));
+      await expectLater(_kinds(), throwsToolExit('"accounts"'));
     });
   });
 

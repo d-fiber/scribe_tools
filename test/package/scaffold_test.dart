@@ -67,6 +67,9 @@ void main() {
       'deploy/configuration.yaml',
       'deploy/db/init/.gitkeep',
       'deploy/db/migrations/.gitkeep',
+      'deploy/db/provisioning/.gitkeep',
+      'deploy/recipes/.gitkeep',
+      'deploy/services/.gitkeep',
       'lib/audiences.ts',
       'lib/src/.gitkeep',
       'package.yaml',
@@ -91,15 +94,13 @@ void main() {
     expect(ignored, contains('.scribe/'));
   });
 
-  test('a fresh package hands the stack nothing, and carries the block to say what it could', () {
+  test('a fresh package hands the stack nothing, and its manifest carries no scribe block', () {
     final CreatedPackage created = createPackage(root.path, 'audiences', sdk);
     final String manifest = File(p.join(created.directory, 'package.yaml')).readAsStringSync();
-    final List<DiscoveredPackage> found = discover(<String>[root.path]);
 
-    expect(found.single.manifest.artefacts.isEmpty, isTrue);
-    expect(manifest, contains('# scribe:'));
-    expect(manifest, contains('#     init: ./deploy/db/init/'));
-    expect(manifest, contains('#     - ./deploy/services/'));
+    expect(manifest, isNot(contains('\nscribe:')));
+    expect(File(p.join(created.directory, 'deploy', 'db', 'init', '.gitkeep')).existsSync(), isTrue);
+    expect(File(p.join(created.directory, 'deploy', 'db', 'migrations', '.gitkeep')).existsSync(), isTrue);
   });
 
   test('a name that cannot be a package cannot be created', () {
