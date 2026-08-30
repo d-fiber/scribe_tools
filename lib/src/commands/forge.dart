@@ -146,7 +146,8 @@ class ForgeCommand extends ScribeCommand {
     globals.logger.printStatus('');
     globals.logger.printStatus('Written to ${resolution.file}, which git ignores and nobody edits.');
     globals.logger.printStatus(
-      'What the runtime is handed was built outside the package, in ${resolution.runtimeConfig}.',
+      'Every package here now resolves through ${resolution.config}, which git ignores; the editor '
+      'reads it on its own.',
     );
 
     return const ScribeCommandResult.success();

@@ -104,7 +104,7 @@ void writeFramework({
   fs.directory('/framework/protocol').createSync(recursive: true);
   fs.file('/framework/deno.json')
     ..createSync(recursive: true)
-    ..writeAsStringSync('{"version":"$version"}\n');
+    ..writeAsStringSync('{"version":"$version","imports":{"@scribe/alchemy":"./engine/alchemy/mod.ts"}}\n');
 
   sdks.forEach((String name, String extension) {
     fs.file('/framework/sdk/$name/client$extension').createSync(recursive: true);

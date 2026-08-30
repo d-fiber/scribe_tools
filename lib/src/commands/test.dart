@@ -88,7 +88,9 @@ class TestCommand extends ScribeCommand {
     final String directory = p.absolute(optionalPositional('directory') ?? globals.fs.currentDirectory.path);
     final Sdk sdk = findSdk(from: directory);
 
-    if (!isResolved(directory, sdk)) {
+    if (isResolved(directory, sdk)) {
+      linkPackages(directory, sdk);
+    } else {
       globals.logger.printStatus('Resolving against scribe ${sdk.version} first.');
       resolve(directory, sdk);
     }
@@ -102,7 +104,7 @@ class TestCommand extends ScribeCommand {
       'deno',
       'test',
       '--config',
-      p.join(runtimeHomeOf(directory), kRuntimeConfigFile),
+      p.join(p.dirname(directory), kPackagesConfigFile),
       ...kTestPermissions,
       if (filter != null) ...<String>['--filter', filter],
       kTestsDirectory,

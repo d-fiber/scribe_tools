@@ -89,17 +89,18 @@ void main() {
       expect(resolutionOf(at)[kEnvironmentKey], containsPair('version', '3.0.1'));
     });
 
-    test('what the runtime is handed is built outside the package', () async {
+    test('the map a language server reads sits beside the packages, not in one', () async {
       final String at = await package('notifications');
 
       await machine.run(<String>['forge']);
 
-      expect(machine.logger.statusText, contains('$kHomeDirectory/$kToolDirectory/$kRuntimesDirectory'));
+      expect(machine.fs.file('$kWorkDirectory/$kPackagesConfigFile').existsSync(), isTrue);
       expect(
-        machine.fs.file('$at/$kRuntimeConfigFile').existsSync(),
+        machine.fs.file('$at/$kPackagesConfigFile').existsSync(),
         isFalse,
-        reason: "the runtime's name leaked into the package",
+        reason: 'a package was made to carry a runtime config',
       );
+      expect(machine.logger.statusText, contains(kPackagesConfigFile));
     });
 
     test('a checkout the package does not accept is refused, naming both versions', () async {

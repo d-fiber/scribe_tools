@@ -84,7 +84,9 @@ void main() {
 
   Map<String, Object?> importsOf(String package) => resolutionOf(package)['reaches']! as Map<String, Object?>;
 
-  Map<String, Object?> runtimeConfigOf(String package) => decoded(p.join(runtimeHomeOf(package), kRuntimeConfigFile));
+  Map<String, Object?> sharedMap(String beside) => decoded(p.join(beside, kPackagesConfigFile));
+
+  Map<String, Object?> sharedReaches(String beside) => sharedMap(beside)['imports']! as Map<String, Object?>;
 
   String packageAt(String parent, String name, String blocks, {String version = '1.0.0'}) {
     final CreatedPackage created = createPackage(parent, name, sdkOfCheckout());
@@ -137,6 +139,18 @@ void main() {
       importsOf(created.directory)['@scribe/notifications'],
       Uri.file(p.join(created.directory, 'lib', 'notifications.ts')).toString(),
       reason: 'the entry a package publishes was the one nobody could import',
+    );
+  });
+
+  resolving('a package reaches its own subjects, one door per file in lib/', () {
+    final CreatedPackage created = createPackage(root.path, 'notifications', sdkOfCheckout());
+    File(p.join(created.directory, 'lib', 'digest.ts')).writeAsStringSync('export {};\n');
+    resolve(created.directory, sdkOfCheckout());
+
+    expect(
+      importsOf(created.directory)['@scribe/notifications/digest'],
+      Uri.file(p.join(created.directory, 'lib', 'digest.ts')).toString(),
+      reason: 'a subject door the package publishes was left out',
     );
   });
 
@@ -258,16 +272,30 @@ void main() {
     expect(written.containsKey('lock'), isFalse, reason: 'a lock the runtime names itself was named again');
   });
 
-  resolving('what the runtime is handed is built beside it, under its own name', () {
+  resolving('the map a language server reads sits beside the packages, not in one', () {
     final CreatedPackage created = createPackage(root.path, 'notifications', sdkOfCheckout());
     final Resolution resolution = resolve(created.directory, sdkOfCheckout());
 
-    expect(File(resolution.runtimeConfig).existsSync(), isTrue, reason: 'the runtime was handed nothing');
-    expect(runtimeConfigOf(created.directory).keys, <String>['imports']);
+    expect(resolution.config, p.join(root.path, kPackagesConfigFile));
+    expect(File(resolution.config).existsSync(), isTrue, reason: 'the editor was handed nothing');
+    expect(sharedMap(root.path).keys, <String>['imports']);
     expect(
-      runtimeConfigOf(created.directory)['imports'],
-      importsOf(created.directory),
-      reason: 'the two documents disagree on what the package reaches',
+      File(p.join(created.directory, kPackagesConfigFile)).existsSync(),
+      isFalse,
+      reason: 'a package was made to carry a runtime config after all',
+    );
+  });
+
+  resolving('the shared map folds in every package beside the one resolved', () {
+    createPackage(root.path, 'audiences', sdkOfCheckout());
+    final CreatedPackage created = createPackage(root.path, 'notifications', sdkOfCheckout());
+    resolve(created.directory, sdkOfCheckout());
+
+    expect(sharedReaches(root.path)['@scribe/notifications'], isNotNull);
+    expect(
+      sharedReaches(root.path)['@scribe/audiences'],
+      Uri.file(p.join(root.path, 'audiences', 'lib', 'audiences.ts')).toString(),
+      reason: 'a package that was not the one resolved dropped out of the map the editor reads',
     );
   });
 
@@ -284,37 +312,20 @@ void main() {
     );
   });
 
-  resolving('resolving points the editor at what it just wrote', () {
+  resolving('the shared map is rewritten whole, so a package taken away leaves the map', () {
+    createPackage(root.path, 'audiences', sdkOfCheckout());
     final CreatedPackage created = createPackage(root.path, 'notifications', sdkOfCheckout());
     resolve(created.directory, sdkOfCheckout());
+    expect(sharedReaches(root.path).containsKey('@scribe/audiences'), isTrue);
 
-    final File settings = File(p.join(created.directory, kEditorDirectory, kEditorSettingsFile));
-    final Map<String, Object?> held = jsonDecode(settings.readAsStringSync()) as Map<String, Object?>;
-
-    expect(held[kEditorEnableSetting], isTrue);
-    expect(held[kEditorConfigSetting], p.join(runtimeHomeOf(created.directory), kRuntimeConfigFile));
-  });
-
-  resolving('resolving keeps whatever else the editor settings held', () {
-    final CreatedPackage created = createPackage(root.path, 'notifications', sdkOfCheckout());
-    File(p.join(created.directory, kEditorDirectory, kEditorSettingsFile))
-      ..createSync(recursive: true)
-      ..writeAsStringSync('{"editor.rulers": [120], "deno.enable": false}\n');
-
+    Directory(p.join(root.path, 'audiences')).deleteSync(recursive: true);
     resolve(created.directory, sdkOfCheckout());
 
-    final Map<String, Object?> held =
-        jsonDecode(File(p.join(created.directory, kEditorDirectory, kEditorSettingsFile)).readAsStringSync())
-            as Map<String, Object?>;
-
-    expect(held['editor.rulers'], <int>[120], reason: 'a setting nobody asked about was dropped');
-    expect(held[kEditorEnableSetting], isTrue, reason: 'the server was left off');
-  });
-
-  resolving('the editor settings are ignored by git, like everything else resolving writes', () {
-    final CreatedPackage created = createPackage(root.path, 'notifications', sdkOfCheckout());
-
-    expect(File(p.join(created.directory, '.gitignore')).readAsStringSync(), contains('$kEditorDirectory/'));
+    expect(
+      sharedReaches(root.path).containsKey('@scribe/audiences'),
+      isFalse,
+      reason: 'the map kept a package that is no longer beside it',
+    );
   });
 
   resolving('a fresh package accepts the checkout that wrote it', () {
@@ -373,6 +384,25 @@ void main() {
         importsOf(at)['@scribe/audiences/'],
         isNull,
         reason: 'a specifier ending in a slash would let any file under the package be imported',
+      );
+    });
+
+    resolving('a subject door of a dependency reaches the file that backs it', () {
+      final String reached = packageDeclaring('dependencies:\n', name: 'audiences');
+      File(p.join(reached, 'lib', 'members.ts')).writeAsStringSync('export {};\n');
+      final String at = packageDeclaring('dependencies:\n  audiences: ^1.0.0\n');
+
+      resolve(at, sdkOfCheckout());
+
+      expect(
+        importsOf(at)['@scribe/audiences/members'],
+        Uri.file(p.join(root.path, 'audiences', 'lib', 'members.ts')).toString(),
+        reason: 'a dependency that carries no deno.json still publishes a door per lib/ file',
+      );
+      expect(
+        importsOf(at).containsKey('@scribe/audiences/audiences'),
+        isFalse,
+        reason: 'the entry was handed over a second time as a subject door',
       );
     });
 

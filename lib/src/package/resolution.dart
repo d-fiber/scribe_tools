@@ -64,79 +64,18 @@ const String kResolutionDirectory = '.scribe';
 /// that are true on one machine and false on the next.
 const String kResolutionFile = 'resolution.json';
 
-/// The directory the tool keeps, under the home of whoever runs it.
+/// The import map a language server resolves every package here through.
 ///
-/// It is where a runtime's own files go, outside every package. See
-/// [runtimeHomeOf].
-const String kToolDirectory = '.scribe';
-
-/// The directory, inside [kToolDirectory], holding one directory per resolved package.
-const String kRuntimesDirectory = 'runtimes';
-
-/// The file a runtime is handed, built from what [kResolutionFile] decided.
+/// It sits in the directory that holds the packages, beside them, where a server
+/// finds it by walking up from any file it is asked about, the way the Dart
+/// analyser finds `.dart_tool/package_config.json`. Nothing points an editor at
+/// it and no package carries a setting of its own: it is simply where the server
+/// already looks, so opening a package, or creating one, resolves with no other
+/// step.
 ///
-/// It carries the runtime's name because it sits in the runtime's own house, not
-/// in the package. The lock is not named in it: a runtime writes one beside
-/// whatever configuration it is given, so naming it would only be a second place
-/// for the two to disagree.
-const String kRuntimeConfigFile = 'deno.json';
-
-/// Where the runtime's files for the package at [package] are built.
-///
-/// Nothing a runtime spells belongs in a package. A package carries what it is
-/// and what it hands over, and a configuration written in somebody else's
-/// vocabulary is neither: it is the by-product of resolving, true on this machine
-/// only, and it goes where the tool keeps its own things.
-///
-/// The directory is named after the package and after where the package sits, so
-/// that two checkouts of one package do not resolve into each other. The path is
-/// derived and never written down, because a second copy would be a second thing
-/// to keep in step.
-String runtimeHomeOf(String package) {
-  final Map<String, String> read = globals.platform.environment;
-  final String home = read['HOME'] ?? read['USERPROFILE'] ?? globals.fs.systemTempDirectory.path;
-  final String at = p.absolute(package);
-
-  return p.join(home, kToolDirectory, kRuntimesDirectory, '${p.basename(at)}-${_fingerprintOf(at)}');
-}
-
-/// A short, stable mark for [text], the same on every run and on every machine.
-///
-/// FNV-1a, 32 bits. Dart's own `hashCode` is not promised to hold from one run to
-/// the next, and a directory keyed on it would move under a package that never
-/// did. What is wanted here is only that two different paths get two different
-/// names, which is what this buys for six lines and no dependency.
-String _fingerprintOf(String text) {
-  int hash = 0x811c9dc5;
-  for (final int unit in utf8.encode(text)) {
-    hash = ((hash ^ unit) * 0x01000193) & 0xffffffff;
-  }
-
-  return hash.toRadixString(16).padLeft(8, '0');
-}
-
-/// The directory an editor reads its settings from.
-const String kEditorDirectory = '.vscode';
-
-/// The file the editor reads its settings from.
-const String kEditorSettingsFile = 'settings.json';
-
-/// The setting naming the configuration the language server resolves through.
-///
-/// The server walks up from the file it is asked about looking for a runtime's own
-/// configuration, and a package carries none anywhere: what it resolves through is
-/// built outside the package, in [runtimeHomeOf], and handed over by absolute
-/// path. Without this the editor reports every specifier as unresolved while the
-/// command line type checks the same file clean.
-///
-/// This name and [kEditorEnableSetting] are the two places a runtime is still
-/// spelled out inside a package, and neither is ours to choose: they are the keys
-/// the editor extension reads. The file they sit in is generated, ignored by git,
-/// and true on one machine only.
-const String kEditorConfigSetting = 'deno.config';
-
-/// The setting that turns the language server on for this directory.
-const String kEditorEnableSetting = 'deno.enable';
+/// Git ignores it, it names paths true on one machine only, and every resolution
+/// rewrites it whole from every package sitting there. See [linkPackages].
+const String kPackagesConfigFile = 'deno.json';
 
 /// What a package needs from outside itself, beyond the language and the test harness.
 ///
@@ -151,56 +90,49 @@ const String kPackagesDirectory = 'packages';
 
 /// The specifiers a package named [name] at [directory] is reached through.
 ///
-/// They are read from the package's own map, not invented here. A package that
-/// opens a door says so in its `deno.json`, and a tool that made up the list
-/// instead would hand a caller fewer doors than the package publishes. That is
-/// not a small difference: every subject door of a dependency was missing, so
-/// nothing that imported one could be type checked.
+/// A package opens one door per file sitting directly in `lib/`: `@scribe/<name>`
+/// for the entry, and `@scribe/<name>/<subject>` for every other `lib/<subject>.ts`.
+/// The list is read off that directory, not a manifest, the same way `deploy/` is:
+/// a package carries no `deno.json` to name its doors in, and a tool that made the
+/// list up instead once handed a caller only the entry, so every subject door of a
+/// dependency went unresolved and nothing that imported one could be type checked.
 ///
-/// The four the layout guarantees are added when the map does not name them,
-/// which keeps a package written before the map carried them resolvable.
+/// Three doors the layout fixes are added on top: the test harness, its settings,
+/// and the end-to-end stack, that last one only when the package's e2e is a Deno
+/// suite rather than a shell scenario.
 ///
-/// The one entry never handed over is the package's own `@scribe/<name>/`. A
-/// package reaches its own files through it, and passing it to a dependent would
-/// open every file under that package to a caller, which is the door being a
-/// suggestion again. [own] says which side of that line the caller is on.
+/// The one door never handed to a dependent is `@scribe/<name>/`, which opens
+/// every file under the package. [own] is true only for the package being
+/// resolved, which reaches its own files through it.
 Map<String, String> _doorsOf(String name, String directory, {required bool own}) {
   final Map<String, String> doors = <String, String>{};
 
-  void open(String specifier, String at) => doors[specifier] = specifier.endsWith('/')
-      ? Uri.directory(p.absolute(at)).toString()
-      : Uri.file(p.absolute(at)).toString();
+  void open(String specifier, String at) => doors[specifier] = Uri.file(p.absolute(at)).toString();
 
-  final File map = globals.fs.file(p.join(directory, kSdkImportMapFile));
-  if (map.existsSync()) {
-    final Object? document = jsonDecode(map.readAsStringSync());
-    final Object? published = document is Map<String, Object?> ? document['imports'] : null;
-    if (published is Map<String, Object?>) {
-      for (final MapEntry<String, Object?> entry in published.entries) {
-        if (entry.key != '@scribe/$name' && !entry.key.startsWith('@scribe/$name/')) continue;
-        if (!own && entry.key == '@scribe/$name/') continue;
+  open('@scribe/$name', p.join(directory, entryOf(name)));
 
-        final Object? target = entry.value;
-        if (target is! String || !target.startsWith('./')) continue;
+  final Directory library = globals.fs.directory(p.join(directory, kLibraryDirectory));
+  if (library.existsSync()) {
+    final List<FileSystemEntity> held = library.listSync()
+      ..sort((FileSystemEntity a, FileSystemEntity b) => a.path.compareTo(b.path));
+    for (final FileSystemEntity entity in held) {
+      if (entity is! File || !entity.path.endsWith('.ts')) continue;
 
-        open(entry.key, p.join(directory, target.substring(2)));
-      }
+      final String subject = p.basenameWithoutExtension(entity.path);
+      if (subject != name) open('@scribe/$name/$subject', entity.path);
     }
   }
 
-  doors
-    ..putIfAbsent('@scribe/$name', () => Uri.file(p.absolute(p.join(directory, entryOf(name)))).toString())
-    ..putIfAbsent('@scribe/$name/testing', () => Uri.file(p.absolute(p.join(directory, kHarnessEntry))).toString())
-    ..putIfAbsent(
-      '@scribe/$name/testing/settings',
-      () => Uri.file(p.absolute(p.join(directory, kHarnessSettings))).toString(),
-    );
+  open('@scribe/$name/testing', p.join(directory, kHarnessEntry));
+  open('@scribe/$name/testing/settings', p.join(directory, kHarnessSettings));
 
   // Only a package whose e2e is a Deno suite publishes this door. One whose
   // `tests/e2e/` is a shell scenario has no `stack.ts` to point at.
   if (globals.fs.file(p.join(directory, kE2eStack)).existsSync()) {
-    doors.putIfAbsent('@scribe/$name/e2e', () => Uri.file(p.absolute(p.join(directory, kE2eStack))).toString());
+    open('@scribe/$name/e2e', p.join(directory, kE2eStack));
   }
+
+  if (own) doors['@scribe/$name/'] = Uri.directory(p.absolute(directory)).toString();
 
   return doors;
 }
@@ -399,8 +331,8 @@ class Resolution {
   /// The path of the file holding what was decided, in our own words.
   String get file => p.join(directory, kResolutionDirectory, kResolutionFile);
 
-  /// The path of the configuration a command hands to the runtime, outside the package.
-  String get runtimeConfig => p.join(runtimeHomeOf(directory), kRuntimeConfigFile);
+  /// The path of the import map a language server resolves every package here through.
+  String get config => p.join(p.dirname(directory), kPackagesConfigFile);
 }
 
 /// Whether [package] has a resolution that was written against [sdk].
@@ -494,13 +426,11 @@ Resolution resolve(String directory, Sdk sdk) {
     ...externalImports(external, sdk, pinned, problems),
     for (final MapEntry<String, String> held in reached.entries) ..._doorsOf(held.key, held.value, own: false),
     ..._doorsOf(manifest.name, directory, own: true),
-    '@scribe/${manifest.name}/': Uri.directory(p.absolute(directory)).toString(),
   };
 
   _refuseUnresolved(problems, manifest, directory);
 
   final Directory held = globals.fs.directory(p.join(directory, kResolutionDirectory))..createSync(recursive: true);
-  final Directory runtime = globals.fs.directory(runtimeHomeOf(directory))..createSync(recursive: true);
 
   _write(p.join(held.path, kResolutionFile), <String, Object>{
     'package': manifest.name,
@@ -508,14 +438,60 @@ Resolution resolve(String directory, Sdk sdk) {
     kEnvironmentKey: <String, Object>{'root': p.absolute(sdk.root), 'version': sdk.version},
     'reaches': imports,
   });
-  _write(p.join(runtime.path, kRuntimeConfigFile), <String, Object>{'imports': imports});
-  _pointEditorAtResolution(directory);
+  linkPackages(directory, sdk);
 
   return Resolution(directory: p.absolute(directory), sdk: sdk, imports: imports);
 }
 
 void _write(String path, Map<String, Object> document) =>
     globals.fs.file(path).writeAsStringSync('${const JsonEncoder.withIndent('  ').convert(document)}\n');
+
+/// Writes [kPackagesConfigFile] in the directory the packages beside [directory] sit in.
+///
+/// Every package there is folded in, not only [directory], so that creating a
+/// package and resolving from it leaves the others reachable too, and one file
+/// covers the tree the way a single `dart pub get` covers a pub workspace. The map
+/// holds the same three things a lone resolution holds, taken over every package
+/// at once: the framework surfaces the checkout publishes, the doors of each
+/// package pointed at its working tree, and the specifiers outside the framework
+/// that a package's `lib/` or `tests/` imports and the checkout pins.
+///
+/// A specifier no checkout pins is dropped rather than reported here: the
+/// resolution that called this reported it against the package that asked, and
+/// this map is only what an editor reads.
+///
+/// Answers the path it wrote.
+String linkPackages(String directory, Sdk sdk) {
+  final String beside = p.dirname(p.absolute(directory));
+  final Map<String, String> imports = <String, String>{...frameworkImports(sdk)};
+  final Set<String> external = <String>{};
+
+  final List<FileSystemEntity> here = globals.fs.directory(beside).listSync()
+    ..sort((FileSystemEntity a, FileSystemEntity b) => a.path.compareTo(b.path));
+  for (final FileSystemEntity entity in here) {
+    if (entity is! Directory) continue;
+
+    final File manifest = globals.fs.file(p.join(entity.path, kManifestFile));
+    if (!manifest.existsSync()) continue;
+
+    final String name;
+    try {
+      name = Manifest.parse(manifest.readAsStringSync(), manifest.path).name;
+    } on ToolExit {
+      continue;
+    }
+    imports.addAll(_doorsOf(name, entity.path, own: true));
+    external
+      ..addAll(externalSpecifiersIn(p.join(entity.path, kLibraryDirectory)))
+      ..addAll(externalSpecifiersIn(p.join(entity.path, kTestsDirectory)));
+  }
+
+  imports.addAll(externalImports(external, sdk, sdkImports(sdk), <Unresolved>[]));
+
+  final String at = p.join(beside, kPackagesConfigFile);
+  _write(at, <String, Object>{'imports': imports});
+  return at;
+}
 
 /// Stops before writing anything when the package does not hold together.
 ///
@@ -546,31 +522,6 @@ void _refuseMismatch(Manifest manifest, Sdk sdk, String directory) {
     'Point $kSdkRootVariable at a checkout it accepts, or widen "environment.$kEnvironmentKey:" '
     'in ${p.join(directory, kManifestFile)} once you have run the suite against this one.',
   );
-}
-
-/// Tells the editor in [directory] to resolve through what was just written.
-///
-/// Whatever else the file held is kept. It is ignored by git and generated by
-/// this, but a person still puts their own settings in it, and a command that
-/// dropped them would cost more than the two lines it came to write.
-void _pointEditorAtResolution(String directory) {
-  final File settings = globals.fs.file(p.join(directory, kEditorDirectory, kEditorSettingsFile));
-  final Map<String, Object?> held = settings.existsSync() ? _settingsIn(settings) : <String, Object?>{};
-
-  held[kEditorEnableSetting] = true;
-  held[kEditorConfigSetting] = p.join(runtimeHomeOf(directory), kRuntimeConfigFile);
-
-  settings.parent.createSync(recursive: true);
-  settings.writeAsStringSync('${const JsonEncoder.withIndent('  ').convert(held)}\n');
-}
-
-Map<String, Object?> _settingsIn(File settings) {
-  try {
-    final Object? document = jsonDecode(settings.readAsStringSync());
-    return document is Map<String, Object?> ? document : <String, Object?>{};
-  } on FormatException {
-    return <String, Object?>{};
-  }
 }
 
 /// The specifiers a checkout publishes without any package having to ask for them.

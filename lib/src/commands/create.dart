@@ -44,6 +44,7 @@ import 'package:scribe_tools/src/commands/create/project_templates.dart';
 import 'package:scribe_tools/src/commands/create/sdk_choice.dart';
 import 'package:scribe_tools/src/deploy/forge.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
+import 'package:scribe_tools/src/package/resolution.dart';
 import 'package:scribe_tools/src/package/scaffold.dart';
 import 'package:scribe_tools/src/package/sdk.dart';
 import 'package:scribe_tools/src/packages.dart';
@@ -178,8 +179,14 @@ class CreateCommand extends ScribeCommand {
     final String here = globals.fs.currentDirectory.path;
     final Sdk sdk = findSdk(from: here);
     final CreatedPackage created = createPackage(here, packageName, sdk);
+    final String map = linkPackages(created.directory, sdk);
 
     _report.package(created);
+    globals.logger.printStatus('');
+    globals.logger.printStatus(
+      'Folded it into $map, which every package here resolves through; open the folder and the editor '
+      'picks it up. Run scribe forge in it before the suite.',
+    );
     return const ScribeCommandResult.success();
   }
 
