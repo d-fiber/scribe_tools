@@ -40,6 +40,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/package/layout.dart';
+import 'package:scribe_tools/src/package/lock.dart';
 import 'package:scribe_tools/src/package/manifest.dart';
 import 'package:scribe_tools/src/package/resolution.dart';
 import 'package:scribe_tools/src/package/scaffold.dart';
@@ -84,9 +85,10 @@ void main() {
 
   Map<String, Object?> importsOf(String package) => resolutionOf(package)['reaches']! as Map<String, Object?>;
 
-  Map<String, Object?> sharedMap(String beside) => decoded(p.join(beside, kPackagesConfigFile));
-
-  Map<String, Object?> sharedReaches(String beside) => sharedMap(beside)['imports']! as Map<String, Object?>;
+  PackageLock lockOf(String package) {
+    final String path = p.join(package, kPackageLockFile);
+    return PackageLock.parse(File(path).readAsStringSync(), path);
+  }
 
   String packageAt(String parent, String name, String blocks, {String version = '1.0.0'}) {
     final CreatedPackage created = createPackage(parent, name, sdkOfCheckout());
@@ -210,7 +212,7 @@ void main() {
     expect(
       File(p.join(created.directory, 'deno.json')).existsSync(),
       isFalse,
-      reason: 'the runtime name leaked into the package',
+      reason: 'nothing named after the runtime is written; deno reads what we hand it directly',
     );
     expect(File(p.join(created.directory, '.gitignore')).readAsStringSync(), contains('$kResolutionDirectory/'));
   });
@@ -272,30 +274,33 @@ void main() {
     expect(written.containsKey('lock'), isFalse, reason: 'a lock the runtime names itself was named again');
   });
 
-  resolving('the map a language server reads sits beside the packages, not in one', () {
+  resolving('resolving hands deno the map directly, writing no file for it', () {
     final CreatedPackage created = createPackage(root.path, 'notifications', sdkOfCheckout());
     final Resolution resolution = resolve(created.directory, sdkOfCheckout());
 
-    expect(resolution.config, p.join(root.path, kPackagesConfigFile));
-    expect(File(resolution.config).existsSync(), isTrue, reason: 'the editor was handed nothing');
-    expect(sharedMap(root.path).keys, <String>['imports']);
+    expect(resolution.importMap, startsWith('data:application/json;base64,'));
+    final String decoded = utf8.decode(base64Decode(resolution.importMap.split(',').last));
+    expect(jsonDecode(decoded), <String, Object?>{'imports': resolution.imports});
+    expect(File(p.join(created.directory, 'deno.json')).existsSync(), isFalse);
     expect(
-      File(p.join(created.directory, kPackagesConfigFile)).existsSync(),
+      File(p.join(root.path, 'deno.json')).existsSync(),
       isFalse,
-      reason: 'a package was made to carry a runtime config after all',
+      reason: 'a map was written that every package here would share',
     );
   });
 
-  resolving('the shared map folds in every package beside the one resolved', () {
+  resolving('a package beside the one resolved, but not depended on, stays out of its map', () {
     createPackage(root.path, 'audiences', sdkOfCheckout());
     final CreatedPackage created = createPackage(root.path, 'notifications', sdkOfCheckout());
-    resolve(created.directory, sdkOfCheckout());
+    final Resolution resolution = resolve(created.directory, sdkOfCheckout());
 
-    expect(sharedReaches(root.path)['@scribe/notifications'], isNotNull);
+    expect(resolution.imports['@scribe/notifications'], isNotNull);
     expect(
-      sharedReaches(root.path)['@scribe/audiences'],
-      Uri.file(p.join(root.path, 'audiences', 'lib', 'audiences.ts')).toString(),
-      reason: 'a package that was not the one resolved dropped out of the map the editor reads',
+      resolution.imports.containsKey('@scribe/audiences'),
+      isFalse,
+      reason:
+          'a neighbour nothing depends on has no reason to be reachable, the way flutter/packages '
+          'never links one package to a sibling it never declared',
     );
   });
 
@@ -312,19 +317,19 @@ void main() {
     );
   });
 
-  resolving('the shared map is rewritten whole, so a package taken away leaves the map', () {
+  resolving('resolving again reflects only what the manifest still names', () {
     createPackage(root.path, 'audiences', sdkOfCheckout());
-    final CreatedPackage created = createPackage(root.path, 'notifications', sdkOfCheckout());
-    resolve(created.directory, sdkOfCheckout());
-    expect(sharedReaches(root.path).containsKey('@scribe/audiences'), isTrue);
+    final String at = packageDeclaring('dependencies:\n  audiences: ^1.0.0\n', name: 'notifications');
+    expect(resolve(at, sdkOfCheckout()).imports.containsKey('@scribe/audiences'), isTrue);
 
-    Directory(p.join(root.path, 'audiences')).deleteSync(recursive: true);
-    resolve(created.directory, sdkOfCheckout());
+    File(
+      p.join(at, kManifestFile),
+    ).writeAsStringSync('name: notifications\nversion: 1.0.0\n\nenvironment:\n  $kEnvironmentKey: "^3.0.0"\n');
 
     expect(
-      sharedReaches(root.path).containsKey('@scribe/audiences'),
+      resolve(at, sdkOfCheckout()).imports.containsKey('@scribe/audiences'),
       isFalse,
-      reason: 'the map kept a package that is no longer beside it',
+      reason: 'the map kept a dependency the manifest no longer names',
     );
   });
 
@@ -496,6 +501,69 @@ void main() {
         'npm:croner@8',
         reason: 'a file of the dependency is compiled with the package that reached it',
       );
+    });
+  });
+
+  group('the versions resolving found are frozen in package.lock', () {
+    resolving('a lock names the framework version resolving ran against', () {
+      final String at = packageDeclaring('dependencies:\n');
+
+      resolve(at, sdkOfCheckout());
+
+      expect(lockOf(at).scribe, sdkOfCheckout().version);
+    });
+
+    resolving('a dependency found beside the package is locked as a workspace copy', () {
+      packageDeclaring('dependencies:\n', name: 'audiences');
+      final String at = packageDeclaring('dependencies:\n  audiences: ^1.0.0\n');
+
+      resolve(at, sdkOfCheckout());
+
+      final LockedPackage? locked = lockOf(at).byName('audiences');
+      expect(locked?.version, '1.0.0');
+      expect(locked?.source, LockSource.workspace);
+    });
+
+    resolving('a dependency the checkout carries is locked as an sdk copy', () {
+      carriedByCheckout('audiences', 'dependencies:\n', version: '1.5.0');
+      final String at = packageDeclaring('dependencies:\n  audiences: ^1.0.0\n');
+
+      resolve(at, sdkOfCheckout());
+
+      final LockedPackage? locked = lockOf(at).byName('audiences');
+      expect(locked?.version, '1.5.0');
+      expect(locked?.source, LockSource.sdk);
+    });
+
+    resolving('a dependency of a dependency is locked too', () {
+      packageDeclaring('dependencies:\n', name: 'sessions');
+      packageDeclaring('dependencies:\n  sessions: ^1.0.0\n', name: 'audiences');
+      final String at = packageDeclaring('dependencies:\n  audiences: ^1.0.0\n');
+
+      resolve(at, sdkOfCheckout());
+
+      expect(lockOf(at).byName('sessions')?.version, '1.0.0');
+    });
+
+    resolving('the package being resolved does not lock itself', () {
+      final String at = packageDeclaring('dependencies:\n', name: 'audiences');
+
+      resolve(at, sdkOfCheckout());
+
+      expect(lockOf(at).byName('audiences'), isNull);
+    });
+
+    resolving('resolving again after a version moved rewrites the lock to match', () {
+      packageDeclaring('dependencies:\n', name: 'audiences');
+      final String at = packageDeclaring('dependencies:\n  audiences: ^1.0.0\n');
+      resolve(at, sdkOfCheckout());
+      expect(lockOf(at).byName('audiences')?.version, '1.0.0');
+
+      Directory(p.join(root.path, 'audiences')).deleteSync(recursive: true);
+      packageAt(root.path, 'audiences', 'dependencies:\n', version: '1.4.0');
+      resolve(at, sdkOfCheckout());
+
+      expect(lockOf(at).byName('audiences')?.version, '1.4.0');
     });
   });
 

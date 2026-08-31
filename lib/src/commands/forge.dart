@@ -35,6 +35,7 @@
 // LICENSE file, the LICENSE file governs.
 
 import 'package:file/file.dart';
+import 'package:path/path.dart' as p;
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/deploy/configuration.dart';
 import 'package:scribe_tools/src/deploy/forge.dart';
@@ -106,7 +107,9 @@ class ForgeCommand extends ScribeCommand {
     }
 
     final bool dryRun = boolArg('dry-run');
-    final ForgeReport report = Forge(project: project, packages: Packages.load().active).run(write: !dryRun);
+    final Packages packages = Packages.load();
+    final List<Package> mounted = packages.active;
+    final ForgeReport report = Forge(project: project, packages: mounted).run(write: !dryRun);
 
     for (final ForgeEntry entry in report.entries) {
       globals.logger.printStatus(_lineOf(entry, dryRun: dryRun));
@@ -114,6 +117,14 @@ class ForgeCommand extends ScribeCommand {
 
     for (final String problem in report.problems) {
       globals.logger.printError(problem);
+    }
+
+    if (!dryRun) {
+      final String scribe = findSdk(from: project.sdk.path).version;
+      final File lockFile = globals.fs.file(p.join(project.directory.path, kProjectLockFile));
+      packages.lockOf(mounted, scribe).writeTo(lockFile);
+      globals.logger.printStatus('');
+      globals.logger.printStatus('${lockFile.path} written, freezing what this project mounts at $scribe.');
     }
 
     globals.logger.printStatus('');
@@ -146,8 +157,12 @@ class ForgeCommand extends ScribeCommand {
     globals.logger.printStatus('');
     globals.logger.printStatus('Written to ${resolution.file}, which git ignores and nobody edits.');
     globals.logger.printStatus(
-      'Every package here now resolves through ${resolution.config}, which git ignores; the editor '
-      'reads it on its own.',
+      'Nothing named "deno.json" is written for it: `scribe test` hands deno this map directly, as '
+      'a --import-map it never has to read off a disk, and the editor reads ${resolution.file} on its own.',
+    );
+    globals.logger.printStatus(
+      'The versions found are frozen in ${resolution.lockFile}, which is committed: '
+      'run forge again after a dependency or the checkout changes, and it is rewritten to match.',
     );
 
     return const ScribeCommandResult.success();

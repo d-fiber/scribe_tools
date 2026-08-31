@@ -179,13 +179,13 @@ class CreateCommand extends ScribeCommand {
     final String here = globals.fs.currentDirectory.path;
     final Sdk sdk = findSdk(from: here);
     final CreatedPackage created = createPackage(here, packageName, sdk);
-    final String map = linkPackages(created.directory, sdk);
+    final Resolution resolution = resolve(created.directory, sdk);
 
     _report.package(created);
     globals.logger.printStatus('');
     globals.logger.printStatus(
-      'Folded it into $map, which every package here resolves through; open the folder and the editor '
-      'picks it up. Run scribe forge in it before the suite.',
+      'Resolved against scribe ${sdk.version}, written to ${resolution.file}; open the folder and '
+      'the editor picks it up.',
     );
     return const ScribeCommandResult.success();
   }

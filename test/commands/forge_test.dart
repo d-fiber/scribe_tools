@@ -89,18 +89,18 @@ void main() {
       expect(resolutionOf(at)[kEnvironmentKey], containsPair('version', '3.0.1'));
     });
 
-    test('the map a language server reads sits beside the packages, not in one', () async {
+    test('nothing named after the runtime is written, in the package or beside it', () async {
       final String at = await package('notifications');
 
       await machine.run(<String>['forge']);
 
-      expect(machine.fs.file('$kWorkDirectory/$kPackagesConfigFile').existsSync(), isTrue);
+      expect(machine.fs.file('$at/deno.json').existsSync(), isFalse);
       expect(
-        machine.fs.file('$at/$kPackagesConfigFile').existsSync(),
+        machine.fs.file('$kWorkDirectory/deno.json').existsSync(),
         isFalse,
-        reason: 'a package was made to carry a runtime config',
+        reason: 'a map was written that every package here would share',
       );
-      expect(machine.logger.statusText, contains(kPackagesConfigFile));
+      expect(machine.logger.statusText, contains('deno.json'), reason: 'the change is explained, even unwritten');
     });
 
     test('a checkout the package does not accept is refused, naming both versions', () async {

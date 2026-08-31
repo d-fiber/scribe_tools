@@ -43,11 +43,12 @@ import 'package:scribe_tools/src/package/sdk.dart';
 import 'package:scribe_tools/src/runner/scribe_command.dart';
 import 'package:scribe_tools/src/tools.dart';
 
-/// Runs a framework package's tests, resolving it first when it has not been.
+/// Resolves a framework package and runs its tests.
 ///
 /// It works on a checkout of the framework, never on a project, which is why it
 /// asks for no project root. It resolves the package the way `scribe forge`
-/// does when `.scribe/resolution.json` does not already name the checkout found.
+/// does, every time: resolving is cheap, and a stale map would answer a test
+/// run against yesterday's dependencies.
 class TestCommand extends ScribeCommand {
   /// Takes the arguments the runtime is handed after the ones this reads.
   TestCommand() {
@@ -88,12 +89,7 @@ class TestCommand extends ScribeCommand {
     final String directory = p.absolute(optionalPositional('directory') ?? globals.fs.currentDirectory.path);
     final Sdk sdk = findSdk(from: directory);
 
-    if (isResolved(directory, sdk)) {
-      linkPackages(directory, sdk);
-    } else {
-      globals.logger.printStatus('Resolving against scribe ${sdk.version} first.');
-      resolve(directory, sdk);
-    }
+    final Resolution resolution = resolve(directory, sdk);
 
     if (!globals.fs.directory(p.join(directory, kTestsDirectory)).existsSync()) {
       throwToolExit('$directory has no $kTestsDirectory/, so there is nothing to run.');
@@ -103,8 +99,8 @@ class TestCommand extends ScribeCommand {
     final int status = await globals.processRunner.run(<String>[
       'deno',
       'test',
-      '--config',
-      p.join(p.dirname(directory), kPackagesConfigFile),
+      '--import-map',
+      resolution.importMap,
       ...kTestPermissions,
       if (filter != null) ...<String>['--filter', filter],
       kTestsDirectory,

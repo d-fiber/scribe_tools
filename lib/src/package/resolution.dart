@@ -44,6 +44,7 @@ import 'package:scribe_tools/src/package/checks.dart';
 import 'package:scribe_tools/src/package/constraint.dart';
 import 'package:scribe_tools/src/package/imports.dart';
 import 'package:scribe_tools/src/package/layout.dart';
+import 'package:scribe_tools/src/package/lock.dart';
 import 'package:scribe_tools/src/package/manifest.dart';
 import 'package:scribe_tools/src/package/sdk.dart';
 import 'package:scribe_tools/src/package/workspace.dart';
@@ -64,18 +65,12 @@ const String kResolutionDirectory = '.scribe';
 /// that are true on one machine and false on the next.
 const String kResolutionFile = 'resolution.json';
 
-/// The import map a language server resolves every package here through.
+/// The file a package freezes what resolving found for its dependencies into.
 ///
-/// It sits in the directory that holds the packages, beside them, where a server
-/// finds it by walking up from any file it is asked about, the way the Dart
-/// analyser finds `.dart_tool/package_config.json`. Nothing points an editor at
-/// it and no package carries a setting of its own: it is simply where the server
-/// already looks, so opening a package, or creating one, resolves with no other
-/// step.
-///
-/// Git ignores it, it names paths true on one machine only, and every resolution
-/// rewrites it whole from every package sitting there. See [linkPackages].
-const String kPackagesConfigFile = 'deno.json';
+/// Unlike [kResolutionFile] it is committed: it names versions, never a path, so
+/// what it says stays true on a machine that never ran the resolution that wrote
+/// it. See [PackageLock].
+const String kPackageLockFile = 'package.lock';
 
 /// What a package needs from outside itself, beyond the language and the test harness.
 ///
@@ -199,13 +194,19 @@ String? directoryOfPackage(String name, String directory, Sdk sdk) {
 /// framework and outside a package, which is everything left once both of those
 /// are read off the manifests instead. Nothing here is declared: it is read
 /// straight from the code that imports it, in [externalSpecifiersIn].
+///
+/// [manifests], when given, is filled with the manifest the walk read at each
+/// path in the result, keyed the same way. It exists so a caller that needs a
+/// dependency's version, [PackageLock] does, reads it off the walk instead of
+/// parsing every manifest a second time.
 Map<String, String> packageClosure(
   Manifest manifest,
   String directory,
   Sdk sdk,
   Set<String> external,
-  List<Unresolved> problems,
-) {
+  List<Unresolved> problems, {
+  Map<String, Manifest>? manifests,
+}) {
   final Map<String, String> found = <String, String>{};
   final List<MapEntry<Manifest, String>> pending = <MapEntry<Manifest, String>>[
     MapEntry<Manifest, String>(manifest, p.absolute(directory)),
@@ -249,12 +250,22 @@ Map<String, String> packageClosure(
       }
 
       found[name] = at;
+      manifests?[name] = reached;
       pending.add(MapEntry<Manifest, String>(reached, at));
     });
   }
 
   return found;
 }
+
+/// Where [packageClosure] found the dependency living at [at], as [PackageLock] writes it.
+///
+/// The two places it ever looks are [directoryOfPackage]'s own: beside the
+/// package being resolved, or the checkout's [kPackagesDirectory]. Telling them
+/// apart is a path comparison and nothing more, because that is all
+/// [directoryOfPackage] itself decided between.
+LockSource _sourceOf(String at, Sdk sdk) =>
+    p.equals(p.dirname(p.absolute(at)), p.join(sdk.root, kPackagesDirectory)) ? LockSource.sdk : LockSource.workspace;
 
 /// What every specifier of [asked] answers to, taken from what the checkout pins.
 ///
@@ -331,8 +342,17 @@ class Resolution {
   /// The path of the file holding what was decided, in our own words.
   String get file => p.join(directory, kResolutionDirectory, kResolutionFile);
 
-  /// The path of the import map a language server resolves every package here through.
-  String get config => p.join(p.dirname(directory), kPackagesConfigFile);
+  /// [imports], in the one shape `deno` itself reads: a `data:` URL a `--import-map`
+  /// flag takes directly, so nothing ever has to be written to disk for `deno` to
+  /// see what we decided. No file, so no path true on one machine and false on the
+  /// next, and no `.gitignore` entry to keep pointed at it.
+  String get importMap {
+    final String json = jsonEncode(<String, Object>{'imports': imports});
+    return 'data:application/json;base64,${base64Encode(utf8.encode(json))}';
+  }
+
+  /// The path of the file freezing the versions this resolution found, committed.
+  String get lockFile => p.join(directory, kPackageLockFile);
 }
 
 /// Whether [package] has a resolution that was written against [sdk].
@@ -418,7 +438,15 @@ Resolution resolve(String directory, Sdk sdk) {
   final List<Unresolved> problems = <Unresolved>[];
   final Map<String, String> pinned = sdkImports(sdk);
   final Set<String> external = <String>{};
-  final Map<String, String> reached = packageClosure(manifest, directory, sdk, external, problems);
+  final Map<String, Manifest> manifests = <String, Manifest>{};
+  final Map<String, String> reached = packageClosure(
+    manifest,
+    directory,
+    sdk,
+    external,
+    problems,
+    manifests: manifests,
+  );
 
   final Map<String, String> imports = <String, String>{
     ...kAlwaysResolved,
@@ -438,60 +466,24 @@ Resolution resolve(String directory, Sdk sdk) {
     kEnvironmentKey: <String, Object>{'root': p.absolute(sdk.root), 'version': sdk.version},
     'reaches': imports,
   });
-  linkPackages(directory, sdk);
+
+  PackageLock(
+    scribe: sdk.version,
+    packages: <LockedPackage>[
+      for (final MapEntry<String, String> dependency in reached.entries)
+        LockedPackage(
+          name: dependency.key,
+          version: manifests[dependency.key]!.version,
+          source: _sourceOf(dependency.value, sdk),
+        ),
+    ]..sort((LockedPackage a, LockedPackage b) => a.name.compareTo(b.name)),
+  ).writeTo(globals.fs.file(p.join(directory, kPackageLockFile)));
 
   return Resolution(directory: p.absolute(directory), sdk: sdk, imports: imports);
 }
 
 void _write(String path, Map<String, Object> document) =>
     globals.fs.file(path).writeAsStringSync('${const JsonEncoder.withIndent('  ').convert(document)}\n');
-
-/// Writes [kPackagesConfigFile] in the directory the packages beside [directory] sit in.
-///
-/// Every package there is folded in, not only [directory], so that creating a
-/// package and resolving from it leaves the others reachable too, and one file
-/// covers the tree the way a single `dart pub get` covers a pub workspace. The map
-/// holds the same three things a lone resolution holds, taken over every package
-/// at once: the framework surfaces the checkout publishes, the doors of each
-/// package pointed at its working tree, and the specifiers outside the framework
-/// that a package's `lib/` or `tests/` imports and the checkout pins.
-///
-/// A specifier no checkout pins is dropped rather than reported here: the
-/// resolution that called this reported it against the package that asked, and
-/// this map is only what an editor reads.
-///
-/// Answers the path it wrote.
-String linkPackages(String directory, Sdk sdk) {
-  final String beside = p.dirname(p.absolute(directory));
-  final Map<String, String> imports = <String, String>{...frameworkImports(sdk)};
-  final Set<String> external = <String>{};
-
-  final List<FileSystemEntity> here = globals.fs.directory(beside).listSync()
-    ..sort((FileSystemEntity a, FileSystemEntity b) => a.path.compareTo(b.path));
-  for (final FileSystemEntity entity in here) {
-    if (entity is! Directory) continue;
-
-    final File manifest = globals.fs.file(p.join(entity.path, kManifestFile));
-    if (!manifest.existsSync()) continue;
-
-    final String name;
-    try {
-      name = Manifest.parse(manifest.readAsStringSync(), manifest.path).name;
-    } on ToolExit {
-      continue;
-    }
-    imports.addAll(_doorsOf(name, entity.path, own: true));
-    external
-      ..addAll(externalSpecifiersIn(p.join(entity.path, kLibraryDirectory)))
-      ..addAll(externalSpecifiersIn(p.join(entity.path, kTestsDirectory)));
-  }
-
-  imports.addAll(externalImports(external, sdk, sdkImports(sdk), <Unresolved>[]));
-
-  final String at = p.join(beside, kPackagesConfigFile);
-  _write(at, <String, Object>{'imports': imports});
-  return at;
-}
 
 /// Stops before writing anything when the package does not hold together.
 ///

@@ -41,6 +41,10 @@ import 'package:path/path.dart' as p;
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/ops/fragments.dart';
+import 'package:scribe_tools/src/package/constraint.dart';
+import 'package:scribe_tools/src/package/layout.dart';
+import 'package:scribe_tools/src/package/lock.dart';
+import 'package:scribe_tools/src/package/manifest.dart';
 
 /// The directory, inside a package, holding everything the stack reads.
 ///
@@ -88,6 +92,12 @@ const Set<String> packageArtefacts = <String>{deployDirectory, protocolDirectory
 /// other package is mounted when `config.yaml` asks for it by name, and never
 /// otherwise.
 const String foundationName = 'foundation';
+
+/// The file a project freezes what it mounts, and what those in turn depend on, into.
+///
+/// It sits at the project's own root, beside `config.yaml`, and it is committed:
+/// see [PackageLock].
+const String kProjectLockFile = 'scribe.lock';
 
 /// One mountable package, recognised by the artefacts its directory carries.
 class Package {
@@ -224,8 +234,8 @@ class Packages {
         FileSystemEntityType.notFound,
   );
 
-  /// The packages the current project mounts.
-  List<Package> get active => selected(globals.project.manifest.packages);
+  /// The packages the current project mounts, what those in turn depend on included.
+  List<Package> get active => transitive(globals.project.manifest.packages);
 
   /// The Compose profiles [mounted] asks for, sorted, without repetition.
   ///
@@ -273,6 +283,102 @@ class Packages {
       for (final String name in order)
         if (byName(name) != null) byName(name)!,
     ];
+  }
+
+  /// [selected] for [wanted], with what each of them depends on pulled in too.
+  ///
+  /// A package mounted by name asks for what its own `package.yaml` declares
+  /// under `dependencies:`, the same way resolving one in isolation does in
+  /// `package/resolution.dart`: breadth first, so a diamond costs one visit and
+  /// a cycle terminates. What it asks for is checked against the version the
+  /// project actually mounts, because a project vendors one copy of everything
+  /// the checkout carries, and a package written against a version this
+  /// checkout does not ship would otherwise fail far from the line that named
+  /// it.
+  ///
+  /// A package with no `package.yaml` declares nothing: [selected] already
+  /// recognises a directory as a package from artefacts other than the
+  /// manifest, and one that carries none is read as depending on nothing rather
+  /// than refused.
+  ///
+  /// Throws a [ToolExit] naming every dependency that could not be answered,
+  /// together: one this checkout carries nothing called, and one whose mounted
+  /// version does not satisfy what asked for it.
+  List<Package> transitive(List<String> wanted) {
+    final List<Package> direct = selected(wanted);
+    final Map<String, Package> found = <String, Package>{for (final Package package in direct) package.name: package};
+    final List<Package> pending = List<Package>.of(direct);
+    final List<String> problems = <String>[];
+
+    while (pending.isNotEmpty) {
+      final Package current = pending.removeAt(0);
+      final File manifestFile = current.directory.childFile(kManifestFile);
+      if (!manifestFile.existsSync()) continue;
+
+      final Manifest manifest = Manifest.parse(manifestFile.readAsStringSync(), manifestFile.path);
+      manifest.dependencies.forEach((String name, String constraint) {
+        final Package? dependency = found[name] ?? byName(name);
+        final File? dependencyManifestFile = dependency?.directory.childFile(kManifestFile);
+        if (dependency == null || dependencyManifestFile == null || !dependencyManifestFile.existsSync()) {
+          problems.add('$name: ${manifest.name} depends on it, and this checkout carries no package of that name.');
+          return;
+        }
+
+        final Manifest dependencyManifest = Manifest.parse(
+          dependencyManifestFile.readAsStringSync(),
+          dependencyManifestFile.path,
+        );
+        if (!allows(constraint, dependencyManifest.version)) {
+          problems.add(
+            '$name: ${manifest.name} accepts $constraint, and this project mounts ${dependencyManifest.version}.',
+          );
+        }
+
+        if (found.containsKey(name)) return;
+        found[name] = dependency;
+        pending.add(dependency);
+      });
+    }
+
+    if (problems.isNotEmpty) {
+      throwToolExit(
+        '${problems.length == 1 ? 'A dependency' : '${problems.length} dependencies'} of a mounted package '
+        'could not be answered:\n${problems.map((String problem) => '  $problem').join('\n')}',
+      );
+    }
+
+    return <Package>[
+      ...direct,
+      for (final Package package in found.values)
+        if (!direct.contains(package)) package,
+    ];
+  }
+
+  /// What [mounted] freezes into a project's [kProjectLockFile]: every one of
+  /// them at the version it publishes, [scribe] the project vendors.
+  ///
+  /// A package is locked as [LockSource.path] when it sits outside the
+  /// checkout's own `packages/`, which is what a `path:` entry of `config.yaml`
+  /// put there in its place, and as [LockSource.sdk] otherwise.
+  PackageLock lockOf(List<Package> mounted, String scribe) {
+    final String vendored = p.absolute(globals.project.sdk.packages.path);
+
+    return PackageLock(
+      scribe: scribe,
+      packages: <LockedPackage>[
+        for (final Package package in mounted)
+          LockedPackage(
+            name: package.name,
+            version: Manifest.parse(
+              package.directory.childFile(kManifestFile).readAsStringSync(),
+              package.directory.childFile(kManifestFile).path,
+            ).version,
+            source: p.equals(p.dirname(p.absolute(package.directory.path)), vendored)
+                ? LockSource.sdk
+                : LockSource.path,
+          ),
+      ]..sort((LockedPackage a, LockedPackage b) => a.name.compareTo(b.name)),
+    );
   }
 
   /// The slices of [template] declared by [active], in the order they are given.

@@ -64,14 +64,15 @@ void main() {
     expect(machine.logger.errorText, contains('a package nobody tested is not one'));
   });
 
-  test('a package whose tests went after it was resolved is refused by the runner', () async {
+  test('a package whose tests went after it was resolved is refused, resolving again first', () async {
     final String package = await created('notifications');
     machine.fs.currentDirectory = machine.fs.directory(package);
     await machine.run(<String>['forge']);
     machine.fs.directory('$package/tests').deleteSync(recursive: true);
 
     expect(await machine.run(<String>['test', package]), 1);
-    expect(machine.logger.errorText, contains('nothing to run'));
+    expect(machine.logger.errorText, contains('does not hold together'));
+    expect(machine.logger.errorText, contains('it has no tests/'));
   });
 
   test('--filter is passed through to the runner', () async {

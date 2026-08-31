@@ -197,6 +197,120 @@ void main() {
     });
   });
 
+  group('transitive', () {
+    void manifest(Directory root, String name, {String version = '1.0.0', String dependencies = ''}) => root
+        .childDirectory(name)
+        .childFile('package.yaml')
+        .writeAsStringSync(
+          'name: $name\nversion: $version\n\nenvironment:\n  scribe: "^1.0.0"\n\ndependencies:\n$dependencies',
+        );
+
+    test('naming a package pulls in what its manifest depends on', () {
+      final Directory root = _root();
+      _package(root, 'foundation');
+      _package(root, 'sessions');
+      manifest(root, 'sessions');
+      _package(root, 'auth');
+      manifest(root, 'auth', dependencies: '  sessions: ^1.0.0\n');
+
+      final Packages found = Packages.load(root: root);
+
+      expect(_namesOf(found.transitive(const <String>['auth'])), <String>['foundation', 'auth', 'sessions']);
+    });
+
+    test('a package with no manifest declares nothing, and is neither refused nor expanded', () {
+      final Directory root = _root();
+      _package(root, 'foundation');
+      _package(root, 'auth');
+
+      final Packages found = Packages.load(root: root);
+
+      expect(_namesOf(found.transitive(const <String>['auth'])), <String>['foundation', 'auth']);
+    });
+
+    test('a diamond is walked once, and a cycle terminates', () {
+      final Directory root = _root();
+      _package(root, 'foundation');
+      _package(root, 'sessions');
+      manifest(root, 'sessions');
+      _package(root, 'auth');
+      manifest(root, 'auth', dependencies: '  sessions: ^1.0.0\n');
+      _package(root, 'realtime');
+      manifest(root, 'realtime', dependencies: '  sessions: ^1.0.0\n  auth: ^1.0.0\n');
+
+      final Packages found = Packages.load(root: root);
+
+      expect(_namesOf(found.transitive(const <String>['realtime'])), <String>[
+        'foundation',
+        'realtime',
+        'sessions',
+        'auth',
+      ]);
+    });
+
+    test('a dependency the checkout carries but with no manifest is refused the same way', () {
+      final Directory root = _root();
+      _package(root, 'foundation');
+      _package(root, 'sessions');
+      _package(root, 'auth');
+      manifest(root, 'auth', dependencies: '  sessions: ^1.0.0\n');
+
+      final Packages found = Packages.load(root: root);
+
+      expect(
+        () => found.transitive(const <String>['auth']),
+        throwsA(
+          isA<Exception>().having(
+            (Exception error) => error.toString(),
+            'message',
+            contains('sessions: auth depends on it, and this checkout carries no package of that name'),
+          ),
+        ),
+      );
+    });
+
+    test('a dependency this checkout carries nothing called is refused, naming it', () {
+      final Directory root = _root();
+      _package(root, 'foundation');
+      _package(root, 'auth');
+      manifest(root, 'auth', dependencies: '  sessions: ^1.0.0\n');
+
+      final Packages found = Packages.load(root: root);
+
+      expect(
+        () => found.transitive(const <String>['auth']),
+        throwsA(
+          isA<Exception>().having(
+            (Exception error) => error.toString(),
+            'message',
+            contains('sessions: auth depends on it, and this checkout carries no package of that name'),
+          ),
+        ),
+      );
+    });
+
+    test('a version this project mounts that a dependant refuses is refused, naming both', () {
+      final Directory root = _root();
+      _package(root, 'foundation');
+      manifest(root, 'foundation', version: '1.0.0');
+      _package(root, 'auth');
+      manifest(root, 'auth', dependencies: '  foundation: ^2.0.0\n');
+
+      final Packages found = Packages.load(root: root);
+
+      expect(
+        () => found.transitive(const <String>['auth']),
+        throwsA(
+          isA<Exception>().having(
+            (Exception error) => error.toString(),
+            'message',
+            allOf(contains('auth accepts ^2.0.0'), contains('this project mounts 1.0.0')),
+          ),
+        ),
+      );
+    });
+  });
+
   group('what a package ships', () {
     test('the sql it adds is the deploy/db/init it carries', () {
       final Directory root = _root();

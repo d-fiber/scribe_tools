@@ -104,7 +104,10 @@ void writeFramework({
   fs.directory('/framework/protocol').createSync(recursive: true);
   fs.file('/framework/deno.json')
     ..createSync(recursive: true)
-    ..writeAsStringSync('{"version":"$version","imports":{"@scribe/alchemy":"./engine/alchemy/mod.ts"}}\n');
+    ..writeAsStringSync(
+      '{"version":"$version","imports":{"@scribe/alchemy":"./engine/alchemy/mod.ts",'
+      '"@std/assert":"jsr:@std/assert@1"}}\n',
+    );
 
   sdks.forEach((String name, String extension) {
     fs.file('/framework/sdk/$name/client$extension').createSync(recursive: true);
@@ -139,7 +142,7 @@ void writeFramework({
 void writePackageTemplates() {
   fs.file('/tools/templates/package/package.yaml.tmpl')
     ..createSync(recursive: true)
-    ..writeAsStringSync('name: {{name}}\nscribe: "^{{scribe}}"\n');
+    ..writeAsStringSync('name: {{name}}\nversion: 1.0.0\n\nenvironment:\n  scribe: "^{{scribe}}"\n\ndependencies:\n');
   fs.file('/tools/templates/package/.gitignore.tmpl')
     ..createSync(recursive: true)
     ..writeAsStringSync('/.scribe/\n');
@@ -151,6 +154,8 @@ void writePackageTemplates() {
     ..createSync(recursive: true)
     ..writeAsStringSync('import { assert } from "@std/assert";\n');
   fs.file('/tools/templates/package/tests/e2e/.gitkeep.tmpl').createSync(recursive: true);
+  fs.file('/tools/templates/package/deploy/db/init/.gitkeep.tmpl').createSync(recursive: true);
+  fs.file('/tools/templates/package/deploy/db/migrations/.gitkeep.tmpl').createSync(recursive: true);
 }
 
 String contentOf(String path) => fs.file(path).readAsStringSync();
