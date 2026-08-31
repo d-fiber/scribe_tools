@@ -33,26 +33,23 @@
 //
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
-import 'package:scribe_tools/src/commands/gen/code/generators/config/declarations.dart';
-import 'package:scribe_tools/src/commands/gen/code/generators/config/registrations.dart';
-import 'package:scribe_tools/src/commands/gen/code/generators/config/scribe_config.dart';
 import 'package:scribe_tools/src/commands/gen/code/generators/schema/enums.dart';
 import 'package:scribe_tools/src/commands/gen/code/generators/schema/tables.dart';
 import 'package:scribe_tools/src/commands/gen/code/relations/relations.dart';
 
-/// Rewrites every generated file a project imports, from `config.yaml` and the SQL.
+/// Rewrites what a project derives from its SQL: the enums, the row and table
+/// types, and the relations between them.
 ///
-/// The order is fixed: the import map has to exist before the declarations that
-/// resolve through it, and the enums before the tables that name them.
+/// What a project derives from `dependencies:` instead, the import map, the
+/// registrations and the declarations, is `forge`'s now: the same thing that
+/// decides which package is mounted is the thing that has to write what mounting
+/// it means, in the one step, the way `pub get` resolves and writes
+/// `.dart_tool/package_config.json` together rather than across two commands a
+/// developer can run out of order. This command is left with what only the SQL
+/// decides, which `forge` has no reason to read.
 ///
-/// A container reads three of these files, so assembling a stack runs this first.
-/// Started without them the engine finds no import map, or finds one and registers
-/// no node, and answers every route with its own 404 while reporting itself
-/// healthy.
+/// The order is fixed: the enums before the tables that name them.
 Future<void> generateProjectCode() async {
-  await generateScribeConfig();
-  await generateRegistrations();
-  await generateDeclarations();
   await generateTables(await generateEnums());
   await generateRelations();
 }

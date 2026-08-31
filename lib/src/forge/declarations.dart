@@ -35,9 +35,10 @@
 // LICENSE file, the LICENSE file governs.
 
 import 'package:scribe_tools/src/base/common.dart';
-import 'package:scribe_tools/src/commands/gen/code/generators/config/declaration_scan.dart';
 import 'package:scribe_tools/src/commands/gen/routes/emitter.dart';
+import 'package:scribe_tools/src/forge/declaration_scan.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
+import 'package:scribe_tools/src/packages.dart';
 
 /// Writes the functions the host loads a project's own declarations through.
 ///
@@ -53,8 +54,11 @@ import 'package:scribe_tools/src/globals.dart' as globals;
 /// The buckets stay apart because the host loads each at a different moment.
 /// Merging them would pull every declaration into the earliest one, and loading a
 /// module costs enough here for that to be felt.
-Future<void> generateDeclarations() async {
-  final List<DeclaredKind> kinds = mountedKinds();
+///
+/// [packages] is read again from disk when left out; a caller that already holds
+/// one, `forge` does, passes it instead so the same closure is not resolved twice.
+Future<void> generateDeclarations({Packages? packages}) async {
+  final List<DeclaredKind> kinds = mountedKinds(packages: packages);
   final Map<DeclaredKind, List<String>> found = DeclarationScanner.discover(kinds);
 
   await globals.project.generated.sdk.create();

@@ -38,7 +38,7 @@ import 'package:file/file.dart';
 import 'package:file/memory.dart';
 import 'package:scribe_tools/src/base/context.dart';
 import 'package:scribe_tools/src/base/logger.dart';
-import 'package:scribe_tools/src/commands/gen/code/generators/config/registrations.dart';
+import 'package:scribe_tools/src/forge/registrations.dart';
 import 'package:test/test.dart';
 
 late MemoryFileSystem fs;

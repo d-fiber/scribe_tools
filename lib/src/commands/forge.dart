@@ -39,6 +39,9 @@ import 'package:path/path.dart' as p;
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/deploy/configuration.dart';
 import 'package:scribe_tools/src/deploy/forge.dart';
+import 'package:scribe_tools/src/forge/declarations.dart';
+import 'package:scribe_tools/src/forge/registrations.dart';
+import 'package:scribe_tools/src/forge/scribe_config.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/package/layout.dart';
 import 'package:scribe_tools/src/package/resolution.dart';
@@ -57,6 +60,14 @@ import 'package:scribe_tools/src/runner/scribe_command.dart';
 /// nobody understood. In a package it resolves what the manifest reaches against
 /// the checkout and writes it down for the tools, which is the one place a
 /// package and a checkout meet.
+///
+/// A project also gets everything `dependencies:` decides in the same step: the
+/// lock, the import map, the registrations and the declarations found under
+/// `lib/`. Resolving what a project mounts and writing what that mounting means
+/// used to be two commands, this one and `scribe gen code`, and a project whose
+/// `config.yaml` changed without a `gen code` that followed ran on a stale map.
+/// `pub get` never splits that in two, so neither does this: see `generate.dart`
+/// for what stayed a separate command, because nothing but the SQL decides it.
 ///
 /// Which of the two it does is read from the directory it runs in: a
 /// `config.yaml` makes it a project, a `package.yaml` makes it a package.
@@ -125,6 +136,10 @@ class ForgeCommand extends ScribeCommand {
       packages.lockOf(mounted, scribe).writeTo(lockFile);
       globals.logger.printStatus('');
       globals.logger.printStatus('${lockFile.path} written, freezing what this project mounts at $scribe.');
+
+      await generateScribeConfig(packages: packages);
+      await generateRegistrations(packages: packages);
+      await generateDeclarations(packages: packages);
     }
 
     globals.logger.printStatus('');

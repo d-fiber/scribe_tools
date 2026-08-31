@@ -40,9 +40,21 @@ import 'package:file/file.dart';
 import 'package:file/memory.dart';
 import 'package:scribe_tools/src/base/context.dart';
 import 'package:scribe_tools/src/base/logger.dart';
-import 'package:scribe_tools/src/commands/gen/code/generators/config/import_map.dart';
+import 'package:scribe_tools/src/forge/import_map.dart';
 import 'package:scribe_tools/src/packages.dart';
 import 'package:test/test.dart';
+
+const Map<String, dynamic> _mixedFramework = <String, dynamic>{
+  'imports': <String, dynamic>{
+    'ioredis': 'npm:ioredis@5',
+    '@std/assert': 'jsr:@std/assert@1',
+    '@scribe/alchemy': './alchemy/mod.ts',
+    '@scribe/search': './packages/search/lib/search.ts',
+    '@scribe/search/testing': './packages/search/tests/testing/testing.ts',
+    '@scribe/sdk': './sdk/js/mod.ts',
+    '@scribe/protocol/': './protocol/',
+  },
+};
 
 late MemoryFileSystem fs;
 
@@ -61,6 +73,12 @@ void _package(String name, {String at = '$checkout/packages', Map<String, String
           'imports': <String, String>{'@scribe/$name': './lib/$name.ts', ...?opens},
         }),
       );
+}
+
+/// A package the way every one this checkout ships actually looks: no `deno.json`
+/// of its own, its doors carried instead in the checkout's own map.
+void _shippedPackage(String name) {
+  fs.directory('$checkout/packages/$name/protocol').createSync(recursive: true);
 }
 
 void _project(List<String> wanted, {Map<String, String> from = const <String, String>{}}) {
@@ -150,5 +168,58 @@ void main() {
     );
 
     expect(doors, isEmpty);
+  });
+
+  group('a package this checkout carries in its own map, the way every one ships today', () {
+    const Map<String, dynamic> framework = <String, dynamic>{
+      'imports': <String, dynamic>{
+        '@scribe/foundation': './packages/foundation/lib/foundation.ts',
+        '@scribe/foundation/queue': './packages/foundation/lib/queue.ts',
+        '@scribe/auth': './packages/auth/lib/auth.ts',
+      },
+    };
+
+    test('opens nothing for a package that is not mounted', () async {
+      _shippedPackage('foundation');
+      _shippedPackage('auth');
+      _project(const <String>['foundation']);
+
+      final Map<String, String> doors = await _doors(framework: framework);
+
+      expect(doors.keys.where((String k) => k.startsWith('@scribe/auth')), isEmpty);
+    });
+
+    test('opens every door of a package that is mounted', () async {
+      _shippedPackage('foundation');
+      _shippedPackage('auth');
+      _project(const <String>['foundation']);
+
+      final Map<String, String> doors = await _doors(framework: framework);
+
+      expect(doors, containsPair('@scribe/foundation', 'packages/foundation/lib/foundation.ts'));
+      expect(doors, containsPair('@scribe/foundation/queue', 'packages/foundation/lib/queue.ts'));
+    });
+  });
+
+  group('inheritedImports', () {
+    test('keeps only what is not a path inside the checkout', () {
+      expect(inheritedImports(_mixedFramework), <String, String>{
+        'ioredis': 'npm:ioredis@5',
+        '@std/assert': 'jsr:@std/assert@1',
+      });
+    });
+
+    test('drops a package door even when mountedDoors would grant it separately', () {
+      final Map<String, String> inherited = inheritedImports(_mixedFramework);
+
+      expect(inherited.keys.where((String k) => k.startsWith('@scribe/search')), isEmpty);
+    });
+
+    test('drops the framework path aliases too, path or not', () {
+      final Map<String, String> inherited = inheritedImports(_mixedFramework);
+
+      expect(inherited, isNot(contains('@scribe/sdk')));
+      expect(inherited, isNot(contains('@scribe/protocol/')));
+    });
   });
 }

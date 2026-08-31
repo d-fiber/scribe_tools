@@ -49,9 +49,12 @@ import 'package:scribe_tools/src/packages.dart';
 /// the import map this same command writes resolves to `packages/<name>/`. It is
 /// therefore the name and never a path, and moving the checkout moves both ends
 /// at once.
-Future<void> generateRegistrations() async {
-  final Packages packages = Packages.load();
-  final List<String> names = <String>[for (final Package package in packages.active) package.name];
+///
+/// [packages] is read again from disk when left out; a caller that already
+/// holds one, `forge` does, passes it instead so the same closure is not
+/// resolved twice.
+Future<void> generateRegistrations({Packages? packages}) async {
+  final List<String> names = <String>[for (final Package package in (packages ?? Packages.load()).active) package.name];
 
   await globals.project.generated.sdk.create();
   await globals.project.generated.sdk.registrations.writeAsString(

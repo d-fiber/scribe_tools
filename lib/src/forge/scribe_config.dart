@@ -36,7 +36,7 @@
 
 import 'dart:convert';
 
-import 'package:scribe_tools/src/commands/gen/code/generators/config/import_map.dart';
+import 'package:scribe_tools/src/forge/import_map.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/packages.dart';
 
@@ -53,7 +53,11 @@ import 'package:scribe_tools/src/packages.dart';
 ///
 /// Neither name says which runtime is underneath: nothing on the project's side
 /// should give away what the framework is implemented with.
-Future<void> generateScribeConfig() async {
+///
+/// [packages] is read again from disk when left out; a caller that already
+/// holds one, `forge` does, passes it instead so the same closure is not
+/// resolved twice.
+Future<void> generateScribeConfig({Packages? packages}) async {
   final Map<String, dynamic> frameworkConfig =
       jsonDecode(await globals.project.sdk.denoJson.readAsString()) as Map<String, dynamic>;
   final Map<String, String> inherited = inheritedImports(frameworkConfig);
@@ -61,7 +65,7 @@ Future<void> generateScribeConfig() async {
   final Map<String, String> doors = mountedDoors(
     globals.fs.directory(globals.project.sdk.path),
     frameworkConfig,
-    Packages.load(),
+    packages ?? Packages.load(),
   );
 
   await globals.project.generated.sdk.create();

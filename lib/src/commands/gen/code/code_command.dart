@@ -37,18 +37,21 @@
 import 'package:scribe_tools/src/commands/gen/code/generate.dart';
 import 'package:scribe_tools/src/runner/scribe_command.dart';
 
-/// Rewrites the generated TypeScript a project imports, from `config.yaml` and the SQL.
+/// Rewrites the generated TypeScript a project derives from its SQL: the enums,
+/// the row and table types, and the relations between them.
+///
+/// What a project derives from `dependencies:` instead, the import map, the
+/// registrations and the declarations, is written by `forge`, not by this
+/// command: see `generate.dart`.
 class GenCodeCommand extends ScribeCommand {
-  /// Takes no option: everything it writes comes from `config.yaml` and the SQL.
+  /// Takes no option: everything it writes comes from the project SQL.
   GenCodeCommand();
 
   @override
   String get name => 'code';
 
   @override
-  String get description =>
-      'Rewrite the import map, the enums, the row and table types, the relations and the '
-      'declarations found under lib/, from config.yaml and the project SQL.';
+  String get description => 'Rewrite the enums, the row and table types and the relations, from the project SQL.';
 
   @override
   bool get requiresCompleteManifest => true;

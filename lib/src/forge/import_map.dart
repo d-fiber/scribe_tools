@@ -67,12 +67,26 @@ const Set<String> _frameworkPathAliases = <String>{
 const List<String> _layers = <String>['contracts', 'runtime', 'kernel', 'embedder', 'testing', 'shell'];
 
 /// The third party imports of [frameworkConfig], its own path aliases removed.
+///
+/// A path inside the checkout, one whose target starts with `./`, is never one
+/// of these: it names a file of the framework, a layer, a package's own or
+/// another's, and every one of those is granted on purpose elsewhere, by
+/// [mountedDoors] for a package and by the hardcoded block [renderImportMap]
+/// writes for a layer. Carrying it here as well would hand back, word for
+/// word, every package door [mountedDoors] just refused to grant — the six
+/// named [_frameworkPathAliases] are as much a path as any package's, so this
+/// used to be the same leak in a second place before the check below closed
+/// it: the doors of a package nobody mounted were still reachable through this
+/// function, whatever `mountedDoors` decided.
 Map<String, String> inheritedImports(Map<String, dynamic> frameworkConfig) {
   final Map<String, dynamic> imports = frameworkConfig['imports'] as Map<String, dynamic>;
 
   return <String, String>{
     for (final MapEntry<String, dynamic> entry in imports.entries)
-      if (!_frameworkPathAliases.contains(entry.key)) entry.key: entry.value as String,
+      if (!_frameworkPathAliases.contains(entry.key) &&
+          entry.value is String &&
+          !(entry.value as String).startsWith('./'))
+        entry.key: entry.value as String,
   };
 }
 
@@ -83,21 +97,46 @@ Map<String, String> inheritedImports(Map<String, dynamic> frameworkConfig) {
 /// opens, so a package that adds one is reached without this tool being told, and
 /// a package the framework does not ship is reached the same way as one it does.
 ///
+/// A door of a package is granted only when [mounted] mounts that package.
+/// [frameworkConfig] carries the doors of every package the checkout ships,
+/// mounted or not, in the one map the whole checkout shares: none of them writes
+/// a `deno.json` of its own today. A specifier this checkout answers for a
+/// package nobody named is therefore left out of the first pass on purpose, and
+/// handed back only in the second, once for each package [mounted] actually
+/// carries — the same list `dependencies:` transitively closes for `deploy/`
+/// and `scribe.lock` closes for the version check, so a project that reaches a
+/// package by name reaches its files the same way it reaches its lifecycle.
+///
 /// A path inside the checkout comes back relative to it, because the same map is
 /// rendered twice, once for this machine and once for the path in the container.
 /// A package that lives elsewhere has no such pair and comes back absolute.
 Map<String, String> mountedDoors(Directory checkout, Map<String, dynamic> frameworkConfig, Packages mounted) {
   final Map<String, String> doors = <String, String>{};
-
+  final Set<String> known = <String>{for (final Package package in mounted.all) package.name};
   final Object? imports = frameworkConfig['imports'];
+
+  bool namesAPackage(String specifier) =>
+      known.any((String name) => specifier == '@scribe/$name' || specifier.startsWith('@scribe/$name/'));
+
   if (imports is Map<String, dynamic>) {
     for (final MapEntry<String, dynamic> entry in imports.entries) {
+      if (namesAPackage(entry.key)) continue;
+
       final Object? target = entry.value;
       if (target is String && target.startsWith('./')) doors[entry.key] = target.substring(2);
     }
   }
 
   for (final Package package in mounted.active) {
+    if (imports is Map<String, dynamic>) {
+      for (final MapEntry<String, dynamic> entry in imports.entries) {
+        if (entry.key != '@scribe/${package.name}' && !entry.key.startsWith('@scribe/${package.name}/')) continue;
+
+        final Object? target = entry.value;
+        if (target is String && target.startsWith('./')) doors[entry.key] = target.substring(2);
+      }
+    }
+
     final File map = package.directory.childFile(kSdkImportMapFile);
     if (!map.existsSync()) continue;
 

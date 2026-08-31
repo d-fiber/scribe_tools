@@ -152,6 +152,19 @@ void main() {
     expect(machine.fs.file('$kProjectDirectory/scribe.lock').existsSync(), isFalse);
   });
 
+  test('forge writes what dependencies: decides, not only the lock', () async {
+    await machine.run(<String>['forge']);
+
+    final File importMap = machine.fs.file('$kProjectDirectory/.app/sdk/js/scribe.json');
+    final File registrations = machine.fs.file('$kProjectDirectory/.app/sdk/js/registrations.ts');
+    final File declarations = machine.fs.file('$kProjectDirectory/.app/sdk/js/declarations.ts');
+
+    expect(importMap.existsSync(), isTrue, reason: 'gen code used to write this, forge now does');
+    expect(importMap.readAsStringSync(), contains('@scribe/auth'));
+    expect(registrations.readAsStringSync(), contains('from "@scribe/auth"'));
+    expect(declarations.existsSync(), isTrue);
+  });
+
   test('a package a project mounts that accepts a version this checkout does not carry is refused', () async {
     machine.fs
         .file('$kProjectDirectory/scribe/packages/auth/package.yaml')

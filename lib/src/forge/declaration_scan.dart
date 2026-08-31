@@ -91,12 +91,15 @@ final RegExp _namedImport = RegExp('''import\\s+(type\\s+)?\\{([^}]*)\\}\\s*from
 /// What a package hands over is what its code says it hands over, and saying nothing is a package
 /// that declares nothing.
 ///
+/// [packages] is read again from disk when left out; a caller that already holds one, `forge`
+/// does, passes it instead so the same closure is not resolved twice.
+///
 /// Throws a [ToolExit] when two mounted packages open the same bucket. One file would then be
 /// imported for two meanings, and picking either one silently is the one answer that cannot be
 /// right.
-List<DeclaredKind> mountedKinds() {
+List<DeclaredKind> mountedKinds({Packages? packages}) {
   final Map<String, Map<String, String>> opened = <String, Map<String, String>>{
-    for (final Package package in Packages.load().active)
+    for (final Package package in (packages ?? Packages.load()).active)
       package.name: readDeclares(package.directory.path, package.name),
   };
 
