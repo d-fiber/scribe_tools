@@ -33,6 +33,7 @@
 //
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
+
 import 'package:scribe_tools/src/base/common.dart';
 
 /// The engine that fills the holes of a template.

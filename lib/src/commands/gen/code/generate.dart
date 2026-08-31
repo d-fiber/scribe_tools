@@ -33,6 +33,7 @@
 //
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
+
 import 'package:scribe_tools/src/commands/gen/code/generators/schema/enums.dart';
 import 'package:scribe_tools/src/commands/gen/code/generators/schema/tables.dart';
 import 'package:scribe_tools/src/commands/gen/code/relations/relations.dart';
