@@ -112,8 +112,8 @@ void _copy(FileSystem fs, String from, String to) {
 void main() {
   late MemoryFileSystem fs;
 
-  /// A project mounting the packages named in [wanted].
-  void project(List<String> wanted) {
+  /// A project mounting the packages named in [wanted], and the [sources] it declares.
+  void project(List<String> wanted, {List<String> sources = const <String>[]}) {
     fs
         .file('/work/koko/config.yaml')
         .writeAsStringSync(
@@ -124,7 +124,8 @@ void main() {
           '  cors:\n'
           '    - "https://koko.example.com"\n'
           'dependencies:\n'
-          '${wanted.map((String name) => '  - $name\n').join()}',
+          '${wanted.map((String name) => '  - $name\n').join()}'
+          '${sources.isEmpty ? '' : 'sources:\n${sources.map((String name) => '  - $name\n').join()}'}',
         );
   }
 
@@ -244,6 +245,41 @@ void main() {
       expect(compose, contains('- "./lib:/app/lib:ro"'));
       expect(compose, contains('image: "koko-api:local"'));
       expect(compose, isNot(contains('context: "/work/koko"')));
+    });
+  });
+
+  group('a project that declares sources:', () {
+    test('mounts each root next to lib, when the image does not carry the project', () async {
+      project(<String>['auth', 'audience'], sources: <String>['services', 'jobs']);
+      final String compose = (await render()).files.first.readAsStringSync();
+
+      expect(compose, contains('- "./services:/app/services:ro"'));
+      expect(compose, contains('- "./jobs:/app/jobs:ro"'));
+    });
+
+    test('a target that names a registry copies each root into the image instead', () async {
+      project(<String>['auth', 'audience'], sources: <String>['services']);
+      target('    kind: vps\n    registry: "ghcr.io/d-fiber"\n');
+      await render(target: 'elsewhere');
+
+      final String dockerfile = fs
+          .directory('$_stackHome/stacks')
+          .listSync()
+          .whereType<Directory>()
+          .single
+          .childDirectory('services')
+          .childDirectory('api')
+          .childFile('Dockerfile')
+          .readAsStringSync();
+
+      expect(dockerfile, contains('COPY services /app/services'));
+    });
+
+    test('a project declaring none mounts nothing beyond lib, as before', () async {
+      project(<String>['auth', 'audience']);
+      final String compose = (await render()).files.first.readAsStringSync();
+
+      expect(compose, isNot(contains('/app/services')));
     });
   });
 

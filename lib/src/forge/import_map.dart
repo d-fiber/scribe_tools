@@ -163,9 +163,16 @@ Map<String, String> mountedDoors(Directory checkout, Map<String, dynamic> framew
 
 /// One import map, as the JSON text it is written to disk as.
 ///
-/// The three roots are what changes between the copy the editor reads and the
-/// copy the container is given: the engine's paths do not exist inside the
-/// container, so the same map cannot serve both.
+/// [frameworkRoot], [libRoot], [assetsRoot] and every path in [sourceRoots] are
+/// what changes between the copy the editor reads and the copy the container is
+/// given: the engine's paths do not exist inside the container, so the same map
+/// cannot serve both.
+///
+/// [sourceRoots] is `sources:` turned into aliases, one `@<name>/` per entry,
+/// each pointing at a directory next to `lib/` rather than inside it. `@app/`
+/// answers for `lib/` alone, the tree a route scan walks, and nothing widens
+/// that: a project wanting a name of its own for something that is not a route
+/// declares it in `sources:` instead. See `scribe_manifest.dart`.
 ///
 /// `@scribe/sdk/`, which opens the inside of the SDK, is in the map even though
 /// a project has no reason to reach through it. The map also compiles the host
@@ -180,8 +187,9 @@ String renderImportMap(
   Map<String, dynamic> frameworkConfig,
   Map<String, String> inherited, {
   required String frameworkRoot,
-  required String projectRoot,
+  required String libRoot,
   required String assetsRoot,
+  required Map<String, String> sourceRoots,
   required Map<String, String> doors,
   bool lock = true,
 }) {
@@ -197,7 +205,8 @@ String renderImportMap(
       '@scribe/public/': '${frameworkRoot}public/',
       '@scribe/sdk': '${frameworkRoot}sdk/js/mod.ts',
       '@scribe/sdk/': '${frameworkRoot}sdk/js/',
-      '@app/': projectRoot,
+      '@app/': libRoot,
+      for (final MapEntry<String, String> source in sourceRoots.entries) '@${source.key}/': source.value,
       '@assets/': assetsRoot,
       globals.project.generatedAlias: './',
       '@generated/': './',

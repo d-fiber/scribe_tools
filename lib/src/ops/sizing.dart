@@ -504,7 +504,8 @@ class ComposeRender {
           ? ''
           : '      - "./${p.basename(project.sdk.path)}:/app/scribe:ro"\n'
                 '      - "./${p.basename(project.generated.path)}/sdk/js:/app/${p.basename(project.generated.path)}/sdk/js:ro"\n'
-                '      - "./lib:/app/lib:ro"\n',
+                '      - "./lib:/app/lib:ro"\n'
+                '${_sourceMounts()}',
       'source_mounts_functions': _bakes
           ? ''
           : '      - "./${p.basename(project.sdk.path)}/engine:/home/deno/functions:ro"\n'
@@ -522,8 +523,21 @@ class ComposeRender {
     return 'WORKDIR $root\n'
         'COPY $sdk $root/scribe\n'
         'COPY $derived/sdk/js $root/$derived/sdk/js\n'
-        'COPY lib $root/lib\n';
+        'COPY lib $root/lib\n'
+        '${_sourceCopies(root)}';
   }
+
+  /// One `- "./<name>:/app/<name>:ro"` per `sources:` entry, mounted the same
+  /// way `lib/` is: a `sources:` directory is code the API reads, only kept out
+  /// of the tree `lib/` is scanned for routes.
+  String _sourceMounts() => <String>[
+    for (final String name in project.manifest.sources) '      - "./$name:/app/$name:ro"',
+  ].map((String line) => '$line\n').join();
+
+  /// One `COPY <name> <root>/<name>` per `sources:` entry, for the image that bakes the project in.
+  String _sourceCopies(String root) => <String>[
+    for (final String name in project.manifest.sources) 'COPY $name $root/$name',
+  ].map((String line) => '$line\n').join();
 
   /// The same, for the edge runtime, which reads a different half of the tree.
   String _bakeFunctionsInto(String root) {

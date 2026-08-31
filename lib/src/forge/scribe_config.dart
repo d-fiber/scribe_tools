@@ -68,6 +68,14 @@ Future<void> generateScribeConfig({Packages? packages}) async {
     packages ?? Packages.load(),
   );
 
+  final List<String> sources = globals.project.manifest.sources;
+  final Map<String, String> sourceRoots = <String, String>{
+    for (final String name in sources) name: asDirectory(globals.project.directory.childDirectory(name).path),
+  };
+  final Map<String, String> containerSourceRoots = <String, String>{
+    for (final String name in sources) name: '/app/$name/',
+  };
+
   await globals.project.generated.sdk.create();
 
   await globals.project.generated.sdk.importMap.writeAsString(
@@ -75,8 +83,9 @@ Future<void> generateScribeConfig({Packages? packages}) async {
       frameworkConfig,
       inherited,
       frameworkRoot: asDirectory(globals.project.sdk.path),
-      projectRoot: asDirectory(globals.project.lib.path),
+      libRoot: asDirectory(globals.project.lib.path),
       assetsRoot: asDirectory(globals.project.assets.path),
+      sourceRoots: sourceRoots,
       doors: doors,
     ),
   );
@@ -86,8 +95,9 @@ Future<void> generateScribeConfig({Packages? packages}) async {
       frameworkConfig,
       inherited,
       frameworkRoot: '/app/scribe/',
-      projectRoot: '/app/lib/',
+      libRoot: '/app/lib/',
       assetsRoot: '/app/assets/',
+      sourceRoots: containerSourceRoots,
       doors: doors,
       lock: false,
     ),

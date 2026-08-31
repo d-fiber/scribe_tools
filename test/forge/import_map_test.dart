@@ -222,4 +222,53 @@ void main() {
       expect(inherited, isNot(contains('@scribe/protocol/')));
     });
   });
+
+  group('renderImportMap', () {
+    Map<String, dynamic> renderedImports({Map<String, String> sourceRoots = const <String, String>{}}) {
+      final Map<String, dynamic> document =
+          jsonDecode(
+                renderImportMap(
+                  _mixedFramework,
+                  const <String, String>{},
+                  frameworkRoot: '/work/notes/scribe/',
+                  libRoot: '/work/notes/lib/',
+                  assetsRoot: '/work/notes/assets/',
+                  sourceRoots: sourceRoots,
+                  doors: const <String, String>{},
+                ),
+              )
+              as Map<String, dynamic>;
+
+      return document['imports'] as Map<String, dynamic>;
+    }
+
+    test('@app/ answers for the lib root, and nothing else does by default', () async {
+      await _run(() {
+        expect(renderedImports()['@app/'], '/work/notes/lib/');
+        expect(renderedImports().keys, isNot(contains('@services/')));
+      });
+    });
+
+    test('a source root opens an alias of its own name, next to @app/', () async {
+      await _run(() {
+        final Map<String, dynamic> imports = renderedImports(
+          sourceRoots: const <String, String>{'services': '/work/notes/services/'},
+        );
+
+        expect(imports['@services/'], '/work/notes/services/');
+        expect(imports['@app/'], '/work/notes/lib/');
+      });
+    });
+
+    test('several source roots each open their own alias', () async {
+      await _run(() {
+        final Map<String, dynamic> imports = renderedImports(
+          sourceRoots: const <String, String>{'services': '/work/notes/services/', 'jobs': '/work/notes/jobs/'},
+        );
+
+        expect(imports['@services/'], '/work/notes/services/');
+        expect(imports['@jobs/'], '/work/notes/jobs/');
+      });
+    });
+  });
 }

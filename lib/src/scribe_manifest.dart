@@ -43,6 +43,16 @@ import 'package:yaml/yaml.dart';
 /// The shortest password `api.auth` is allowed to accept.
 const int kMinPasswordLength = 8;
 
+/// The names `sources:` cannot take, because the framework already writes an
+/// alias of the same name for something else.
+const Set<String> _reservedSourceNames = <String>{'app', 'assets', 'generated', 'scribe', 'lib'};
+
+/// What a directory named by `sources:` is allowed to be called: lowercase
+/// letters, digits and underscores, starting with a letter. The same string
+/// becomes a path on disk and an alias in an import map, so a name outside this
+/// is refused rather than guessed at through escaping.
+final RegExp _validSourceName = RegExp(r'^[a-z][a-z0-9_]*$');
+
 /// One reason a manifest cannot be used yet.
 class ManifestProblem {
   /// Reports [field] as unusable for [reason].
@@ -147,6 +157,29 @@ class ScribeManifest {
 
   /// The key the geocoding service is called with.
   String get geocodingApiKey => _string(<String>['integrations', 'geocoding_api_key']) ?? '';
+
+  /// The extra directories this project mounts next to `lib/`, empty when it names none.
+  ///
+  /// `lib/` holds the tree the API scans for routes, and nothing else is meant
+  /// to sit in it once a project grows past a handful of endpoints: a service a
+  /// `@Singleton` class lives in, a job, anything with nothing to do with a
+  /// route, wants a directory of its own rather than a corner of the one a
+  /// route scan walks.
+  ///
+  /// The key is `sources:`, a list of directory names at the project root, each
+  /// becoming both the path this reads and the alias code imports it by:
+  /// `services` reads `./services/` and is reached as `@services/`. A name is
+  /// checked against [_reservedSourceNames] and [_validSourceName] in
+  /// [problems], so a source that would collide with an alias the framework
+  /// already writes, `@app/` chief among them, is refused before anything is
+  /// generated from it.
+  ///
+  /// ```yaml
+  /// sources:
+  ///   - services
+  ///   - jobs
+  /// ```
+  List<String> get sources => _strings(<String>['sources']);
 
   /// The packages this project mounts, empty when it names none.
   ///
@@ -417,6 +450,7 @@ class ScribeManifest {
     ..._missingRequiredFields(),
     ..._apiUrlProblems(),
     ..._originProblems(),
+    ..._sourceProblems(),
   ];
 
   /// Whether this manifest has no [problems] left.
@@ -494,6 +528,33 @@ class ScribeManifest {
     return const <ManifestProblem>[
       ManifestProblem('api.url', 'required: the address the API answers on, which the proxy serves'),
     ];
+  }
+
+  /// Every `sources:` entry that cannot become a directory and an alias.
+  ///
+  /// A reserved name and an invalid one are reported at the same field, and a
+  /// name repeated is reported as its own problem: three ways a `sources:` list
+  /// can name a place `import_map.dart` cannot write, caught before it tries.
+  List<ManifestProblem> _sourceProblems() {
+    final List<ManifestProblem> found = <ManifestProblem>[];
+    final Set<String> seen = <String>{};
+
+    for (final String name in sources) {
+      if (_reservedSourceNames.contains(name)) {
+        found.add(ManifestProblem('sources', '"$name" is already the name of an alias the framework writes'));
+      } else if (!_validSourceName.hasMatch(name)) {
+        found.add(
+          ManifestProblem(
+            'sources',
+            '"$name" must be lowercase letters, digits and underscores, starting with a letter',
+          ),
+        );
+      } else if (!seen.add(name)) {
+        found.add(ManifestProblem('sources', '"$name" is named twice'));
+      }
+    }
+
+    return found;
   }
 
   List<ManifestProblem> _originProblems() {

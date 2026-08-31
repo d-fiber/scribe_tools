@@ -86,6 +86,41 @@ void main() {
     });
   });
 
+  test('sources: reads a list of directory names, empty when it names none', () async {
+    await withEnvironment(const <String, String>{}, () {
+      expect(manifestOf(_minimal).sources, isEmpty);
+
+      final ScribeManifest withSources = manifestOf('$_minimal\nsources:\n  - services\n  - jobs\n');
+      expect(withSources.sources, <String>['services', 'jobs']);
+      expect(withSources.problems, isEmpty);
+    });
+  });
+
+  test('a source named after an alias the framework already writes is refused', () async {
+    await withEnvironment(const <String, String>{}, () {
+      final ScribeManifest manifest = manifestOf('$_minimal\nsources:\n  - app\n');
+
+      expect(manifest.problems.map((ManifestProblem p) => p.field), contains('sources'));
+      expect(manifest.problems.map((ManifestProblem p) => p.reason), contains(contains('"app"')));
+    });
+  });
+
+  test('a source whose name is not a valid directory name is refused', () async {
+    await withEnvironment(const <String, String>{}, () {
+      final ScribeManifest manifest = manifestOf('$_minimal\nsources:\n  - "../escape"\n');
+
+      expect(manifest.problems.map((ManifestProblem p) => p.field), contains('sources'));
+    });
+  });
+
+  test('a source named twice is refused once per repetition, not silently deduplicated', () async {
+    await withEnvironment(const <String, String>{}, () {
+      final ScribeManifest manifest = manifestOf('$_minimal\nsources:\n  - services\n  - services\n');
+
+      expect(manifest.problems.map((ManifestProblem p) => p.reason), contains(contains('twice')));
+    });
+  });
+
   test('a package given a path comes from there, one given a name from the checkout', () async {
     await withEnvironment(const <String, String>{}, () {
       final ScribeManifest manifest = manifestOf(
