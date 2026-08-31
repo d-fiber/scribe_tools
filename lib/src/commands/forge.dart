@@ -40,6 +40,7 @@ import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/deploy/configuration.dart';
 import 'package:scribe_tools/src/deploy/forge.dart';
 import 'package:scribe_tools/src/forge/declarations.dart';
+import 'package:scribe_tools/src/forge/di_wiring.dart';
 import 'package:scribe_tools/src/forge/registrations.dart';
 import 'package:scribe_tools/src/forge/scribe_config.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
@@ -68,6 +69,10 @@ import 'package:scribe_tools/src/runner/scribe_command.dart';
 /// `config.yaml` changed without a `gen code` that followed ran on a stale map.
 /// `pub get` never splits that in two, so neither does this: see `generate.dart`
 /// for what stayed a separate command, because nothing but the SQL decides it.
+///
+/// It also finds every class `lib/` marks `@Singleton` and writes the imports
+/// that make each one register itself, whether or not the project mounts any
+/// package: this one answers to nothing `dependencies:` names.
 ///
 /// Which of the two it does is read from the directory it runs in: a
 /// `config.yaml` makes it a project, a `package.yaml` makes it a package.
@@ -140,6 +145,7 @@ class ForgeCommand extends ScribeCommand {
       await generateScribeConfig(packages: packages);
       await generateRegistrations(packages: packages);
       await generateDeclarations(packages: packages);
+      await generateDiWiring();
     }
 
     globals.logger.printStatus('');

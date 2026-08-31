@@ -311,6 +311,14 @@ class GeneratedSdk {
   /// different moments.
   File get declarations => directory.childFile('declarations.ts');
 
+  /// The imports that make every `@Singleton` class under `lib/` register itself.
+  ///
+  /// A class marked `@Singleton` puts itself in the shared DI container the
+  /// moment its module is imported, so there is nothing to call and nothing to
+  /// order here: this file only has to be imported once, and the worker does
+  /// that on its own before anything resolves a token.
+  File get di => directory.childFile('di.ts');
+
   /// The typed PostgREST client.
   GeneratedRest get rest => GeneratedRest(directory.childDirectory('rest'));
 
