@@ -93,13 +93,22 @@ class Stdio {
 /// asserts on what the user would have seen.
 class FakeStdio extends Stdio {
   /// Answers as a terminal of [terminalColumnsOverride] columns when [hasTerminalOverride].
-  FakeStdio({this.hasTerminalOverride = false, this.terminalColumnsOverride = kDefaultTerminalColumns});
+  ///
+  /// [stdinStream] is what [stdin] answers, empty unless a test hands a
+  /// command something to read, the way `scribe daemon` reads requests.
+  FakeStdio({
+    this.hasTerminalOverride = false,
+    this.terminalColumnsOverride = kDefaultTerminalColumns,
+    Stream<List<int>>? stdinStream,
+  }) : _stdin = stdinStream ?? const Stream<List<int>>.empty();
 
   /// Whether this fake claims to be attached to a terminal.
   final bool hasTerminalOverride;
 
   /// The width this fake reports.
   final int terminalColumnsOverride;
+
+  final Stream<List<int>> _stdin;
 
   /// Everything written to standard output.
   final StringBuffer output = StringBuffer();
@@ -108,7 +117,7 @@ class FakeStdio extends Stdio {
   final StringBuffer errorOutput = StringBuffer();
 
   @override
-  Stream<List<int>> get stdin => const Stream<List<int>>.empty();
+  Stream<List<int>> get stdin => _stdin;
 
   @override
   bool get hasTerminal => hasTerminalOverride;

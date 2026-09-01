@@ -143,57 +143,20 @@ class ForgeCommand extends ScribeCommand {
   }
 
   Future<ScribeCommandResult> _forgeProject() async {
-    final List<String> missing = project.missingEntries;
-    if (missing.isNotEmpty) {
-      throwToolExit(
-        '${project.directory.path} holds a ${Project.configFileName} but is missing ${missing.join(', ')}.\n'
-        'A project needs its three entries: ${Project.configFileName}, lib/ and the derived directory.',
-      );
-    }
-
     final bool dryRun = boolArg('dry-run');
     final bool machine = boolArg(ScribeCommand.machineOption);
-    final Packages packages = Packages.load();
-    final List<Package> mounted = packages.active;
-    final ForgeReport report = Forge(project: project, packages: mounted).run(write: !dryRun);
-
-    String? lockPath;
-    String? scribeVersion;
-
-    if (!dryRun) {
-      scribeVersion = findSdk(from: project.sdk.path).version;
-      final File lockFile = globals.fs.file(p.join(project.directory.path, kProjectLockFile));
-      packages.lockOf(mounted, scribeVersion).writeTo(lockFile);
-      lockPath = lockFile.path;
-
-      Future<void> writeGenerated() async {
-        await generateScribeConfig(packages: packages);
-        await generateRegistrations(packages: packages);
-        await generateDeclarations(packages: packages);
-        await generateDiWiring();
-      }
-
-      // Each generator prints its own line as it writes, which --machine has no
-      // use for: the caller reads the one line this command prints once every
-      // generator is done, not a status a person would have watched scroll by.
-      //
-      // The logger is read before the child context opens: reading it inside the
-      // override that builds one trips AppContext's own recursion guard, since
-      // that override is what the context would resolve Logger to.
-      if (machine) {
-        final Logger outer = globals.logger;
-        await globals.context.run<void>(
-          name: 'forge --machine',
-          overrides: <Type, Generator>{Logger: () => QuietLogger(outer)},
-          body: writeGenerated,
-        );
-      } else {
-        await writeGenerated();
-      }
-    }
+    final ProjectForgeResult result = await forgeProject(project, write: !dryRun, quiet: machine);
+    final ForgeReport report = result.report;
 
     if (machine) {
-      printMachine(_machineProjectReport(report, dryRun: dryRun, lockFile: lockPath, scribeVersion: scribeVersion));
+      printMachine(
+        forgeProjectMachineReport(
+          report,
+          dryRun: dryRun,
+          lockFile: result.lockFile,
+          scribeVersion: result.scribeVersion,
+        ),
+      );
 
       return report.hasProblems ? const ScribeCommandResult.fail() : const ScribeCommandResult.success();
     }
@@ -206,9 +169,11 @@ class ForgeCommand extends ScribeCommand {
       globals.logger.printError(problem);
     }
 
-    if (lockPath != null) {
+    if (result.lockFile != null) {
       globals.logger.printStatus('');
-      globals.logger.printStatus('$lockPath written, freezing what this project mounts at $scribeVersion.');
+      globals.logger.printStatus(
+        '${result.lockFile} written, freezing what this project mounts at ${result.scribeVersion}.',
+      );
     }
 
     globals.logger.printStatus('');
@@ -216,26 +181,6 @@ class ForgeCommand extends ScribeCommand {
 
     return report.hasProblems ? const ScribeCommandResult.fail() : const ScribeCommandResult.success();
   }
-
-  /// [report], in the shape `--machine` prints for a project.
-  Map<String, Object?> _machineProjectReport(
-    ForgeReport report, {
-    required bool dryRun,
-    required String? lockFile,
-    required String? scribeVersion,
-  }) => <String, Object?>{
-    'command': 'forge',
-    'kind': 'project',
-    'ok': !report.hasProblems,
-    'dryRun': dryRun,
-    'entries': <Object?>[
-      for (final ForgeEntry entry in report.entries)
-        <String, Object?>{'name': entry.name, 'verdict': entry.verdict.name},
-    ],
-    'problems': report.problems,
-    'lockFile': lockFile,
-    'scribeVersion': scribeVersion,
-  };
 
   /// Resolves the package in [directory] against the checkout and writes it down.
   ///
@@ -255,15 +200,7 @@ class ForgeCommand extends ScribeCommand {
     final Resolution resolution = resolve(directory, sdk);
 
     if (boolArg(ScribeCommand.machineOption)) {
-      printMachine(<String, Object?>{
-        'command': 'forge',
-        'kind': 'package',
-        'ok': true,
-        'sdk': <String, Object?>{'version': sdk.version, 'root': sdk.root},
-        'imports': resolution.imports,
-        'resolutionFile': resolution.file,
-        'lockFile': resolution.lockFile,
-      });
+      printMachine(forgePackageMachineReport(sdk, resolution));
 
       return const ScribeCommandResult.success();
     }
@@ -308,3 +245,114 @@ class ForgeCommand extends ScribeCommand {
     ].join(', ');
   }
 }
+
+/// What forging a project produced.
+class ProjectForgeResult {
+  /// Records what [Forge] found, and what writing it left behind.
+  const ProjectForgeResult({required this.report, required this.lockFile, required this.scribeVersion});
+
+  /// What each file of `configuration/` came out as.
+  final ForgeReport report;
+
+  /// The path `scribe.lock` was written to, null when nothing was written.
+  final String? lockFile;
+
+  /// The framework version the lock freezes against, null when nothing was written.
+  final String? scribeVersion;
+}
+
+/// Forges [project]: writes `configuration/`, then, unless [write] is false,
+/// the lock and everything `dependencies:` derives under `lib/`'s own alias.
+///
+/// A top-level function and not a method on `ForgeCommand`: `scribe daemon`
+/// runs the same forge a request handler already has to, and reaches for this
+/// instead of a second `ForgeCommand` run through a captured logger, which
+/// would be a second place the two could drift.
+///
+/// [quiet] silences what each generator prints as it writes, behind a
+/// [QuietLogger] wrapped around the logger already active. `--machine` and
+/// `scribe daemon` both want the one line they build themselves, not a status
+/// a person watching would have seen scroll by. The logger is read before the
+/// child context opens: reading it inside the override that builds one trips
+/// `AppContext`'s own recursion guard, since that override is what the
+/// context would resolve `Logger` to.
+///
+/// Throws a [ToolExit] when [project] is missing an entry a project needs.
+Future<ProjectForgeResult> forgeProject(Project project, {bool write = true, bool quiet = false}) async {
+  final List<String> missing = project.missingEntries;
+  if (missing.isNotEmpty) {
+    throwToolExit(
+      '${project.directory.path} holds a ${Project.configFileName} but is missing ${missing.join(', ')}.\n'
+      'A project needs its three entries: ${Project.configFileName}, lib/ and the derived directory.',
+    );
+  }
+
+  final Packages packages = Packages.load();
+  final List<Package> mounted = packages.active;
+  final ForgeReport report = Forge(project: project, packages: mounted).run(write: write);
+
+  String? lockPath;
+  String? scribeVersion;
+
+  if (write) {
+    scribeVersion = findSdk(from: project.sdk.path).version;
+    final File lockFile = globals.fs.file(p.join(project.directory.path, kProjectLockFile));
+    packages.lockOf(mounted, scribeVersion).writeTo(lockFile);
+    lockPath = lockFile.path;
+
+    Future<void> writeGenerated() async {
+      await generateScribeConfig(packages: packages);
+      await generateRegistrations(packages: packages);
+      await generateDeclarations(packages: packages);
+      await generateDiWiring();
+    }
+
+    if (quiet) {
+      final Logger outer = globals.logger;
+      await globals.context.run<void>(
+        name: 'forge quiet',
+        overrides: <Type, Generator>{Logger: () => QuietLogger(outer)},
+        body: writeGenerated,
+      );
+    } else {
+      await writeGenerated();
+    }
+  }
+
+  return ProjectForgeResult(report: report, lockFile: lockPath, scribeVersion: scribeVersion);
+}
+
+/// [report], in the shape `--machine` prints for a project.
+///
+/// A top-level function and not a method: `scribe daemon` builds the same
+/// document from the same [ForgeReport] a request handler already has, and
+/// reaches for this instead of a second `ForgeCommand` run through a captured
+/// logger.
+Map<String, Object?> forgeProjectMachineReport(
+  ForgeReport report, {
+  required bool dryRun,
+  required String? lockFile,
+  required String? scribeVersion,
+}) => <String, Object?>{
+  'command': 'forge',
+  'kind': 'project',
+  'ok': !report.hasProblems,
+  'dryRun': dryRun,
+  'entries': <Object?>[
+    for (final ForgeEntry entry in report.entries) <String, Object?>{'name': entry.name, 'verdict': entry.verdict.name},
+  ],
+  'problems': report.problems,
+  'lockFile': lockFile,
+  'scribeVersion': scribeVersion,
+};
+
+/// What [resolution] resolved [sdk] to, in the shape `--machine` prints for a package.
+Map<String, Object?> forgePackageMachineReport(Sdk sdk, Resolution resolution) => <String, Object?>{
+  'command': 'forge',
+  'kind': 'package',
+  'ok': true,
+  'sdk': <String, Object?>{'version': sdk.version, 'root': sdk.root},
+  'imports': resolution.imports,
+  'resolutionFile': resolution.file,
+  'lockFile': resolution.lockFile,
+};

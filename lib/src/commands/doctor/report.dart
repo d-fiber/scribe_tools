@@ -179,6 +179,37 @@ void _printSection(DoctorSection section) {
   }
 }
 
+/// [sections], in the shape `doctor --machine` prints: one object per
+/// section, one per finding underneath it.
+///
+/// A top-level function and not a method on `DoctorCommand`: `scribe daemon`
+/// builds the same document from the same [DoctorSection] list a request
+/// handler already has, and reaches for this instead of a second `doctor` run
+/// through a captured logger. Nothing here decides what is shown or hidden
+/// the way [printReport] does — every finding goes, `-v` or not, because a
+/// caller parsing this is the one deciding what to do with it.
+Map<String, Object?> doctorMachineReport(List<DoctorSection> sections, {required bool ok}) => <String, Object?>{
+  'command': 'doctor',
+  'ok': ok,
+  'sections': <Object?>[
+    for (final DoctorSection section in sections)
+      <String, Object?>{
+        'title': section.title,
+        'summary': section.summary,
+        'ok': section.isGood,
+        'findings': <Object?>[
+          for (final Finding finding in section.findings)
+            <String, Object?>{
+              'kind': finding.kind.name,
+              'message': finding.message,
+              'hint': finding.hint,
+              'repairable': finding.repair != null,
+            },
+        ],
+      },
+  ],
+};
+
 void _printFinding(Finding finding) {
   switch (finding.kind) {
     case FindingKind.ok:

@@ -98,7 +98,7 @@ class DoctorCommand extends ScribeCommand {
     final bool ok = sections.every((DoctorSection section) => section.isGood);
 
     if (boolArg(ScribeCommand.machineOption)) {
-      printMachine(_machineReport(sections, ok: ok));
+      printMachine(doctorMachineReport(sections, ok: ok));
     } else {
       printReport(sections);
     }
@@ -107,32 +107,6 @@ class DoctorCommand extends ScribeCommand {
   }
 
   Future<List<DoctorSection>> _look() => diagnose(assumeYes: ScribeCommandRunner.assumesYes(globalResults));
-
-  /// [sections], in the shape `--machine` prints: one object per section, one
-  /// per finding underneath it. Nothing here decides what is shown or hidden
-  /// the way [printReport] does — every finding goes, `-v` or not, because a
-  /// caller parsing this is the one deciding what to do with it.
-  Map<String, Object?> _machineReport(List<DoctorSection> sections, {required bool ok}) => <String, Object?>{
-    'command': 'doctor',
-    'ok': ok,
-    'sections': <Object?>[
-      for (final DoctorSection section in sections)
-        <String, Object?>{
-          'title': section.title,
-          'summary': section.summary,
-          'ok': section.isGood,
-          'findings': <Object?>[
-            for (final Finding finding in section.findings)
-              <String, Object?>{
-                'kind': finding.kind.name,
-                'message': finding.message,
-                'hint': finding.hint,
-                'repairable': finding.repair != null,
-              },
-          ],
-        },
-    ],
-  };
 
   /// Runs every repair the sections offered, then lets the report say what is left.
   ///

@@ -40,6 +40,7 @@ import 'package:scribe_tools/src/deploy/configuration.dart';
 import 'package:scribe_tools/src/deploy/drivers/ssh.dart';
 import 'package:scribe_tools/src/deploy/resources.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
+import 'package:scribe_tools/src/project.dart';
 import 'package:scribe_tools/src/runner/scribe_command.dart';
 import 'package:scribe_tools/src/stack/stack_location.dart';
 import 'package:scribe_tools/src/tools.dart';
@@ -90,16 +91,18 @@ class StatusCommand extends ScribeCommand {
       _reportPlacements(configuration, target);
     }
 
-    final String? services = await _servicesOf(target);
+    final String? services = await servicesOf(project, target);
     if (services == null) {
-      if (machine) printMachine(_machineReport(configuration, target, services: const <ServiceStatus>[], ok: false));
+      if (machine) {
+        printMachine(statusMachineReport(configuration, target, services: const <ServiceStatus>[], ok: false));
+      }
       return const ScribeCommandResult.fail();
     }
 
     final List<ServiceStatus> parsed = _parseServices(services);
 
     if (machine) {
-      printMachine(_machineReport(configuration, target, services: parsed, ok: true));
+      printMachine(statusMachineReport(configuration, target, services: parsed, ok: true));
       return const ScribeCommandResult.success();
     }
 
@@ -117,25 +120,6 @@ class StatusCommand extends ScribeCommand {
     return const ScribeCommandResult.success();
   }
 
-  Map<String, Object?> _machineReport(
-    ProjectConfiguration configuration,
-    Target target, {
-    required List<ServiceStatus> services,
-    required bool ok,
-  }) => <String, Object?>{
-    'command': 'status',
-    'ok': ok,
-    'target': <String, Object?>{'name': target.name, 'kind': target.kind.name, 'host': target.host},
-    'placements': <Object?>[
-      for (final Resource resource in Resources.declared())
-        <String, Object?>{
-          'resource': resource.name,
-          'recipe': configuration.placementOf(target.name, resource.name).recipeName,
-        },
-    ],
-    'services': <Object?>[for (final ServiceStatus service in services) service.toJson()],
-  };
-
   /// Where each resource of this project sits on [target].
   ///
   /// It is read from the configuration and not from the host: a resource placed
@@ -147,49 +131,75 @@ class StatusCommand extends ScribeCommand {
       globals.logger.printStatus('  ${resource.name.padRight(12)}${placement.recipeName}');
     }
   }
+}
 
-  /// What Compose says is up, on this machine or on the host.
-  Future<String?> _servicesOf(Target target) async {
-    const List<String> arguments = <String>['ps', '--format', '{{.Service}}\t{{.State}}\t{{.Health}}'];
+/// [configuration] and what [services] says is up on [target], in the shape
+/// `--machine` prints.
+///
+/// A top-level function and not a method: `scribe daemon` builds the same
+/// document from the same call to [servicesOf] a request handler already
+/// made, and reaches for this instead of a second `status` run through a
+/// captured logger.
+Map<String, Object?> statusMachineReport(
+  ProjectConfiguration configuration,
+  Target target, {
+  required List<ServiceStatus> services,
+  required bool ok,
+}) => <String, Object?>{
+  'command': 'status',
+  'ok': ok,
+  'target': <String, Object?>{'name': target.name, 'kind': target.kind.name, 'host': target.host},
+  'placements': <Object?>[
+    for (final Resource resource in Resources.declared())
+      <String, Object?>{
+        'resource': resource.name,
+        'recipe': configuration.placementOf(target.name, resource.name).recipeName,
+      },
+  ],
+  'services': <Object?>[for (final ServiceStatus service in services) service.toJson()],
+};
 
-    if (target.host.isEmpty) {
-      final ProcessOutcome outcome = await globals.processRunner.observe(<String>[
-        'docker',
-        'compose',
-        '-p',
-        project.manifest.name,
-        ...arguments,
-      ]);
+/// What Compose says is up for [project] on [target], on this machine or on the host.
+Future<String?> servicesOf(Project project, Target target) async {
+  const List<String> arguments = <String>['ps', '--format', '{{.Service}}\t{{.State}}\t{{.Health}}'];
 
-      return outcome.succeeded ? outcome.stdout : _refuse(outcome);
-    }
-
-    final RemoteHost host = RemoteHost(target.host);
-    final String? home = await host.home();
-    if (home == null) return null;
-
+  if (target.host.isEmpty) {
     final ProcessOutcome outcome = await globals.processRunner.observe(<String>[
-      'ssh',
-      target.host,
-      <String>[
-        'docker',
-        'compose',
-        '--project-directory',
-        '$home/.scribe_cache/stacks/${StackLocation(project: project).fingerprint}',
-        '-p',
-        project.manifest.name,
-        ...arguments,
-      ].join(' '),
+      'docker',
+      'compose',
+      '-p',
+      project.manifest.name,
+      ...arguments,
     ]);
 
     return outcome.succeeded ? outcome.stdout : _refuse(outcome);
   }
 
-  String? _refuse(ProcessOutcome outcome) {
-    globals.logger.printError(outcome.stderr.trim());
+  final RemoteHost host = RemoteHost(target.host);
+  final String? home = await host.home();
+  if (home == null) return null;
 
-    return null;
-  }
+  final ProcessOutcome outcome = await globals.processRunner.observe(<String>[
+    'ssh',
+    target.host,
+    <String>[
+      'docker',
+      'compose',
+      '--project-directory',
+      '$home/.scribe_cache/stacks/${StackLocation(project: project).fingerprint}',
+      '-p',
+      project.manifest.name,
+      ...arguments,
+    ].join(' '),
+  ]);
+
+  return outcome.succeeded ? outcome.stdout : _refuse(outcome);
+}
+
+String? _refuse(ProcessOutcome outcome) {
+  globals.logger.printError(outcome.stderr.trim());
+
+  return null;
 }
 
 /// [raw], the tab-separated lines `--format` above asked `docker compose ps` for, one [ServiceStatus] each.

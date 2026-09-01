@@ -40,6 +40,7 @@ import 'package:scribe_tools/src/commands/analyze.dart';
 import 'package:scribe_tools/src/commands/clean.dart';
 import 'package:scribe_tools/src/commands/completion.dart';
 import 'package:scribe_tools/src/commands/create.dart';
+import 'package:scribe_tools/src/commands/daemon.dart';
 import 'package:scribe_tools/src/commands/deploy.dart';
 import 'package:scribe_tools/src/commands/destroy.dart';
 import 'package:scribe_tools/src/commands/doctor.dart';
@@ -63,6 +64,7 @@ Future<void> main(List<String> args) async {
       CleanCommand(),
       CompletionCommand(),
       CreateCommand(),
+      DaemonCommand(),
       DeployCommand(),
       DestroyCommand(),
       DoctorCommand(),
