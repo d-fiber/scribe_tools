@@ -64,6 +64,15 @@ abstract class ProcessRunner {
   /// its noise is only worth showing when it fails.
   Future<ProcessOutcome> observe(List<String> command, {String? workingDirectory, Map<String, String>? environment});
 
+  /// [observe], blocking instead of awaiting.
+  ///
+  /// It exists for a caller that cannot itself be async without spreading that
+  /// across everything that reaches it: resolving a package's dependencies walks
+  /// a manifest by ordinary recursion, and a git dependency has to run inside
+  /// that same walk rather than turn it, and every command that reads what it
+  /// resolved, into one that awaits.
+  ProcessOutcome observeSync(List<String> command, {String? workingDirectory, Map<String, String>? environment});
+
   /// Starts [command] and forgets it, without waiting for it to end.
   ///
   /// The child outlives this process and writes nowhere it could be seen. It is
@@ -136,6 +145,18 @@ class LocalProcessRunner extends ProcessRunner {
   }
 
   @override
+  ProcessOutcome observeSync(List<String> command, {String? workingDirectory, Map<String, String>? environment}) {
+    final io.ProcessResult result = io.Process.runSync(
+      command.first,
+      command.skip(1).toList(),
+      workingDirectory: workingDirectory,
+      environment: environment,
+    );
+
+    return ProcessOutcome(exitCode: result.exitCode, stdout: '${result.stdout}', stderr: '${result.stderr}');
+  }
+
+  @override
   void detach(List<String> command, {String? workingDirectory}) {
     io.Process.start(
       command.first,
@@ -193,6 +214,19 @@ class RecordingProcessRunner extends ProcessRunner {
     String? workingDirectory,
     Map<String, String>? environment,
   }) async {
+    commands.add(command);
+
+    for (final MapEntry<String, String> answer in outputs.entries) {
+      if (command.contains(answer.key)) {
+        return ProcessOutcome(exitCode: exitCode, stdout: answer.value, stderr: '');
+      }
+    }
+
+    return ProcessOutcome(exitCode: exitCode, stdout: output, stderr: '');
+  }
+
+  @override
+  ProcessOutcome observeSync(List<String> command, {String? workingDirectory, Map<String, String>? environment}) {
     commands.add(command);
 
     for (final MapEntry<String, String> answer in outputs.entries) {

@@ -37,6 +37,7 @@
 import 'package:path/path.dart' as p;
 import 'package:scribe_tools/src/package/constraint.dart';
 import 'package:scribe_tools/src/package/declares.dart';
+import 'package:scribe_tools/src/package/dependency_source.dart';
 import 'package:scribe_tools/src/package/layout.dart';
 import 'package:scribe_tools/src/package/workspace.dart';
 
@@ -122,24 +123,35 @@ List<Problem> _misplaced(DiscoveredPackage found) {
 ///
 /// What a package needs to run its own suite is held to the same rule as what it depends on: it
 /// names a package or it names nothing, and a suite written against a package nobody wrote fails
-/// the same way a consumer would. Every entry is checked, since `dependencies:` no longer holds
-/// anything but packages: a redis client a package plainly imports is not named here at all.
+/// the same way a consumer would. Every [SdkSource] entry is checked against [known], since
+/// `dependencies:` no longer holds anything but packages: a redis client a package plainly
+/// imports is not named here at all.
+///
+/// A [PathSource] or a [GitSource] is not checked here at all: neither carries a version to
+/// compare, and a `git:` entry would otherwise need the network this command never touches.
+/// Whether either actually answers is `scribe forge`'s question, in `resolution.dart`.
 List<Problem> _dependencies(DiscoveredPackage found, Map<String, DiscoveredPackage> known) {
   final List<Problem> problems = <Problem>[];
-  final Map<String, String> asked = <String, String>{...found.manifest.dependencies, ...found.manifest.devDependencies};
+  final Map<String, DependencySource> asked = <String, DependencySource>{
+    ...found.manifest.dependencies,
+    ...found.manifest.devDependencies,
+  };
 
-  for (final MapEntry<String, String> entry in asked.entries) {
+  for (final MapEntry<String, DependencySource> entry in asked.entries) {
+    final DependencySource source = entry.value;
+    if (source is! SdkSource) continue;
+
     final DiscoveredPackage? target = known[entry.key];
     if (target == null) {
       problems.add(Problem(found.name, 'it depends on "${entry.key}", and no package of that name exists.'));
       continue;
     }
 
-    if (allows(entry.value, target.manifest.version)) continue;
+    if (allows(source.constraint, target.manifest.version)) continue;
     problems.add(
       Problem(
         found.name,
-        'it depends on "${entry.key}" ${entry.value}, and the copy on hand is ${target.manifest.version}.',
+        'it depends on "${entry.key}" ${source.constraint}, and the copy on hand is ${target.manifest.version}.',
       ),
     );
   }

@@ -36,6 +36,7 @@
 
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/package/constraint.dart';
+import 'package:scribe_tools/src/package/dependency_source.dart';
 import 'package:scribe_tools/src/package/manifest.dart';
 import 'package:test/test.dart';
 
@@ -56,7 +57,7 @@ void main() {
     expect(manifest.description, 'Broadcasts a row.');
     expect(manifest.version, '1.2.0');
     expect(manifest.scribe, '^3.0.0');
-    expect(manifest.dependencies['audiences'], '^1.0.0');
+    expect((manifest.dependencies['audiences'] as SdkSource?)?.constraint, '^1.0.0');
   });
 
   test('a manifest without a description takes the one that asks for one', () {
@@ -156,7 +157,7 @@ void main() {
     );
 
     expect(manifest.dependencies.keys, <String>['audiences']);
-    expect(manifest.devDependencies['sessions'], '^2.0.0');
+    expect((manifest.devDependencies['sessions'] as SdkSource?)?.constraint, '^2.0.0');
   });
 
   test('a manifest that names nothing for its suite declares nothing', () {
@@ -169,7 +170,7 @@ void main() {
       where,
     );
 
-    expect(manifest.dependencies['ioredis'], kAny);
+    expect((manifest.dependencies['ioredis'] as SdkSource?)?.constraint, kAny);
   });
 
   test('a specifier is held to the rules a package name follows, any included', () {
@@ -189,6 +190,79 @@ void main() {
         where,
       ),
       throwsToolExit('at "dev_dependencies.sessions:"'),
+    );
+  });
+
+  test('a dependency can be given as a local path', () {
+    final Manifest manifest = Manifest.parse(
+      'name: realtime\nversion: 1.0.0\n${environment}dependencies:\n  audiences:\n    path: ../audiences\n',
+      where,
+    );
+
+    expect((manifest.dependencies['audiences'] as PathSource?)?.path, '../audiences');
+  });
+
+  test('a dependency can be given as a git repository', () {
+    final Manifest manifest = Manifest.parse(
+      'name: realtime\nversion: 1.0.0\n${environment}dependencies:\n'
+      '  audiences:\n    git:\n      url: https://example.com/scribe_packages.git\n'
+      '      ref: audiences-v1.0.0\n      path: audiences\n',
+      where,
+    );
+
+    final GitSource? source = manifest.dependencies['audiences'] as GitSource?;
+    expect(source?.url, 'https://example.com/scribe_packages.git');
+    expect(source?.ref, 'audiences-v1.0.0');
+    expect(source?.path, 'audiences');
+  });
+
+  test('a git dependency with no ref and no path names both as absent', () {
+    final Manifest manifest = Manifest.parse(
+      'name: realtime\nversion: 1.0.0\n${environment}dependencies:\n'
+      '  audiences:\n    git:\n      url: https://example.com/audiences.git\n',
+      where,
+    );
+
+    final GitSource? source = manifest.dependencies['audiences'] as GitSource?;
+    expect(source?.ref, isNull);
+    expect(source?.path, isNull);
+  });
+
+  test('a dependency given both a path and a git repository is refused', () {
+    expect(
+      () => Manifest.parse(
+        'name: realtime\nversion: 1.0.0\n${environment}dependencies:\n'
+        '  audiences:\n    path: ../audiences\n    git:\n      url: https://example.com/audiences.git\n',
+        where,
+      ),
+      throwsToolExit('is given both a path: and a git:'),
+    );
+  });
+
+  test('a git dependency with no url is refused', () {
+    expect(
+      () => Manifest.parse(
+        'name: realtime\nversion: 1.0.0\n${environment}dependencies:\n  audiences:\n    git:\n      ref: main\n',
+        where,
+      ),
+      throwsToolExit('has no "url:"'),
+    );
+  });
+
+  test('a dependency given a key this does not read is refused', () {
+    expect(
+      () => Manifest.parse(
+        'name: realtime\nversion: 1.0.0\n${environment}dependencies:\n  audiences:\n    sdk: scribe\n',
+        where,
+      ),
+      throwsToolExit('carries sdk, which is not read'),
+    );
+  });
+
+  test('a dependency given an empty block is refused', () {
+    expect(
+      () => Manifest.parse('name: realtime\nversion: 1.0.0\n${environment}dependencies:\n  audiences: {}\n', where),
+      throwsToolExit('names neither a version, a path:, nor a git:'),
     );
   });
 }

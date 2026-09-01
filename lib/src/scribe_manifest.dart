@@ -38,6 +38,7 @@ import 'package:file/file.dart';
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/ops/hardware.dart';
+import 'package:scribe_tools/src/package/dependency_source.dart';
 import 'package:yaml/yaml.dart';
 
 /// The shortest password `api.auth` is allowed to accept.
@@ -186,21 +187,23 @@ class ScribeManifest {
   /// The key is `dependencies:`, and it is the only one read.
   List<String> get packages => packageSources.keys.toList();
 
-  /// Where each package this project mounts comes from, empty for one the checkout carries.
+  /// Where each package this project mounts comes from.
   ///
   /// The key is `dependencies:`, and it is the only one read.
   ///
   /// An entry is a name on its own for a package the checkout ships, a name
-  /// carrying `sdk:` which says the same thing out loud, or a name carrying
-  /// `path:` for one the project wrote or vendored. All are mounted the same way
+  /// carrying `sdk:` which says the same thing out loud, a name carrying
+  /// `path:` for one the project wrote or vendored, or a name carrying `git:`
+  /// for one cloned from a repository. All are mounted the same way
   /// afterwards: a package nobody here wrote is reached exactly like a package
   /// shipped with the framework.
   ///
-  /// The source is written down and never searched for. A name that could mean
-  /// the checkout's package or the project's, depending on what happens to sit on
-  /// disk, is a name that means something different on another machine. Anything
-  /// that is neither `path:` nor `sdk:` is refused rather than read as a default,
-  /// because a mistyped key would otherwise quietly mount the wrong package.
+  /// The source is written down and never guessed. A name that could mean the
+  /// checkout's package or the project's, depending on what happens to sit on
+  /// disk, is a name that means something different on another machine.
+  /// Anything that is none of the three is refused rather than read as a
+  /// default, because a mistyped key would otherwise quietly mount the wrong
+  /// package.
   ///
   /// ```yaml
   /// dependencies:
@@ -209,12 +212,17 @@ class ScribeManifest {
   ///       path: ../billing
   ///   - realtime:
   ///       sdk: scribe
+  ///   - audience:
+  ///       git:
+  ///         url: https://example.com/scribe_packages.git
+  ///         ref: audience-v1.0.0
+  ///         path: audience
   /// ```
-  Map<String, String> get packageSources {
+  Map<String, ProjectDependencySource> get packageSources {
     final Object? value = read(<String>['dependencies']);
-    if (value is! List) return const <String, String>{};
+    if (value is! List) return const <String, ProjectDependencySource>{};
 
-    final Map<String, String> sources = <String, String>{};
+    final Map<String, ProjectDependencySource> sources = <String, ProjectDependencySource>{};
     for (final Object? entry in value) {
       if (entry is Map && entry.length == 1) {
         final String name = entry.keys.first.toString().trim();
@@ -222,45 +230,85 @@ class ScribeManifest {
         if (name.isEmpty) continue;
 
         if (source == null) {
-          sources[name] = '';
+          sources[name] = const CheckoutSource();
           continue;
         }
 
         if (source is! Map) {
           throwToolExit(
             '${file.path}: "$name" carries $source, which says nothing about where it comes from.\n'
-            'Write the name on its own for a package this checkout ships, or give it a path:.',
+            'Write the name on its own for a package this checkout ships, or give it a path: or a git:.',
           );
         }
 
-        final Object? path = source['path'];
-        final Object? sdk = source['sdk'];
-        final Iterable<String> unknown = source.keys
-            .map((Object? key) => key.toString())
-            .where((String key) => key != 'path' && key != 'sdk');
-
-        if (unknown.isNotEmpty) {
-          throwToolExit(
-            '${file.path}: "$name" is given ${unknown.join(', ')}, which is no source this knows.\n'
-            'A package comes from a path: or from sdk:, and a name on its own means the checkout.',
-          );
-        }
-
-        if (path != null && sdk != null) {
-          throwToolExit(
-            '${file.path}: "$name" is given both a path: and an sdk:, so where it comes from '
-            'depends on which one is read first.',
-          );
-        }
-
-        sources[name] = path?.toString().trim() ?? '';
+        sources[name] = _projectSource(source, name: name);
         continue;
       }
 
       final String name = entry.toString().trim();
-      if (name.isNotEmpty) sources[name] = '';
+      if (name.isNotEmpty) sources[name] = const CheckoutSource();
     }
     return sources;
+  }
+
+  /// The [ProjectDependencySource] the block under [name] spells.
+  ProjectDependencySource _projectSource(Map<Object?, Object?> source, {required String name}) {
+    final Object? path = source['path'];
+    final Object? sdk = source['sdk'];
+    final Object? git = source['git'];
+    final Iterable<String> unknown = source.keys
+        .map((Object? key) => key.toString())
+        .where((String key) => key != 'path' && key != 'sdk' && key != 'git');
+
+    if (unknown.isNotEmpty) {
+      throwToolExit(
+        '${file.path}: "$name" is given ${unknown.join(', ')}, which is no source this knows.\n'
+        'A package comes from a path:, a git:, or from sdk:, and a name on its own means the checkout.',
+      );
+    }
+
+    final int named = <bool>[path != null, sdk != null, git != null].where((bool value) => value).length;
+    if (named > 1) {
+      throwToolExit(
+        '${file.path}: "$name" is given more than one of path:, sdk: and git:, so where it comes '
+        'from depends on which one is read first.',
+      );
+    }
+
+    if (path != null) return PathSource(path.toString().trim());
+    if (git != null) return _projectGitSource(git, name: name);
+    return const CheckoutSource();
+  }
+
+  /// The [GitSource] the block under [name]'s `git:` spells.
+  GitSource _projectGitSource(Object? value, {required String name}) {
+    if (value is! Map) {
+      throwToolExit('${file.path}: "$name" gives git: something other than url, ref and path.');
+    }
+
+    final Iterable<String> unknown = value.keys
+        .map((Object? key) => key.toString())
+        .where((String key) => key != 'url' && key != 'ref' && key != 'path');
+    if (unknown.isNotEmpty) {
+      throwToolExit('${file.path}: "$name" gives git: ${unknown.join(', ')}, which is not read.');
+    }
+
+    final Object? url = value['url'];
+    if (url is! String || url.trim().isEmpty) {
+      throwToolExit('${file.path}: "$name" gives git: no url:.');
+    }
+
+    final Object? ref = value['ref'];
+    if (ref != null && (ref is! String || ref.trim().isEmpty)) {
+      throwToolExit('${file.path}: "$name" gives git.ref: something other than a word.');
+    }
+
+    final Object? path = value['path'];
+    if (path != null && (path is! String || path.trim().isEmpty)) {
+      throwToolExit('${file.path}: "$name" gives git.path: something other than a word.');
+    }
+
+    return GitSource(url: url.trim(), ref: (ref as String?)?.trim(), path: (path as String?)?.trim());
   }
 
   /// The name a target takes when it means the machine this command runs on.

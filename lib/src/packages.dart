@@ -42,6 +42,7 @@ import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/ops/fragments.dart';
 import 'package:scribe_tools/src/package/constraint.dart';
+import 'package:scribe_tools/src/package/dependency_source.dart';
 import 'package:scribe_tools/src/package/layout.dart';
 import 'package:scribe_tools/src/package/lock.dart';
 import 'package:scribe_tools/src/package/manifest.dart';
@@ -175,11 +176,21 @@ class Package {
 
 /// Every package found under the packages root.
 class Packages {
-  /// Holds [all] the packages one walk found.
-  const Packages(this.all);
+  /// Holds [all] the packages one walk found, and where each of them came from.
+  const Packages(this.all, this._locations);
 
   /// Every package found, sorted by [Package.name].
   final List<Package> all;
+
+  /// Where [load] found each package in [all], and the commit it checked out
+  /// when that was a git dependency.
+  ///
+  /// It is kept from the moment a package is found rather than redecided from
+  /// its directory afterwards, the same way `resolution.dart` keeps it: a git
+  /// dependency's directory sits under the tool's cache, which is neither the
+  /// checkout's `packages/` nor a `path:`, and nothing about it says so on its
+  /// own.
+  final Map<String, (LockSource, String?)> _locations;
 
   /// Every package directly under [root], the project's vendored `packages/`.
   ///
@@ -191,7 +202,7 @@ class Packages {
   /// A root that does not exist yields nothing rather than failing, since a
   /// project can be read before its framework is vendored in.
   /// Every package a project may mount: what the checkout carries, plus what the
-  /// manifest points at with a `path:`.
+  /// manifest points at with a `path:` or clones with a `git:`.
   ///
   /// A package the project wrote wins over one of the same name in the checkout,
   /// so a project may put its own in front of a shipped one without renaming it.
@@ -201,30 +212,53 @@ class Packages {
   static Packages load({Directory? root}) {
     final Directory searched = root ?? globals.fs.directory(globals.project.sdk.packages.path);
     final List<Package> found = <Package>[];
+    final Map<String, (LockSource, String?)> locations = <String, (LockSource, String?)>{};
 
     if (searched.existsSync()) {
       for (final Directory child in searched.listSync(followLinks: false).whereType<Directory>()) {
         if (_isPackage(child)) {
-          found.add(Package(name: p.basename(child.path), directory: child));
+          final String name = p.basename(child.path);
+          found.add(Package(name: name, directory: child));
+          locations[name] = (LockSource.sdk, null);
         }
       }
     }
 
-    if (root != null) return Packages(found..sort((Package a, Package b) => a.name.compareTo(b.name)));
+    if (root != null) {
+      return Packages(found..sort((Package a, Package b) => a.name.compareTo(b.name)), locations);
+    }
 
-    for (final MapEntry<String, String> source in globals.project.manifest.packageSources.entries) {
-      if (source.value.isEmpty) continue;
-
-      final Directory at = globals.fs.directory(p.normalize(p.join(globals.project.directory.path, source.value)));
-      if (!at.existsSync() || !_isPackage(at)) continue;
+    for (final MapEntry<String, ProjectDependencySource> entry in globals.project.manifest.packageSources.entries) {
+      final (Directory, LockSource, String?)? at = _locate(entry.key, entry.value);
+      if (at == null || !at.$1.existsSync() || !_isPackage(at.$1)) continue;
 
       found
-        ..removeWhere((Package carried) => carried.name == source.key)
-        ..add(Package(name: source.key, directory: at));
+        ..removeWhere((Package carried) => carried.name == entry.key)
+        ..add(Package(name: entry.key, directory: at.$1));
+      locations[entry.key] = (at.$2, at.$3);
     }
 
     found.sort((Package a, Package b) => a.name.compareTo(b.name));
-    return Packages(found);
+    return Packages(found, locations);
+  }
+
+  /// Where `config.yaml` sends [name] to be found, as [source] wrote it, or null
+  /// for one the checkout ships.
+  static (Directory, LockSource, String?)? _locate(String name, ProjectDependencySource source) {
+    switch (source) {
+      case CheckoutSource():
+        return null;
+      case PathSource(:final String path):
+        final Directory at = globals.fs.directory(p.normalize(p.join(globals.project.directory.path, path)));
+        return (at, LockSource.path, null);
+      case GitSource():
+        final (Directory at, String commit) = resolveGit(
+          name,
+          source,
+          where: '"$name" in ${globals.project.manifest.file.path}',
+        );
+        return (at, LockSource.git, commit);
+    }
   }
 
   /// Whether [directory] carries any of [packageArtefacts].
@@ -288,13 +322,16 @@ class Packages {
   /// [selected] for [wanted], with what each of them depends on pulled in too.
   ///
   /// A package mounted by name asks for what its own `package.yaml` declares
-  /// under `dependencies:`, the same way resolving one in isolation does in
-  /// `package/resolution.dart`: breadth first, so a diamond costs one visit and
-  /// a cycle terminates. What it asks for is checked against the version the
-  /// project actually mounts, because a project vendors one copy of everything
-  /// the checkout carries, and a package written against a version this
-  /// checkout does not ship would otherwise fail far from the line that named
-  /// it.
+  /// under `dependencies:`, breadth first so a diamond costs one visit and a
+  /// cycle terminates. Unlike resolving one in isolation in
+  /// `package/resolution.dart`, this never fetches anything of its own: a
+  /// project vendors one copy of everything, so a name is checked against what
+  /// the project already mounts, [selected] included, rather than searched for
+  /// a second time. A [SdkSource] entry is also checked against the version
+  /// the project actually mounts, because a package written against a version
+  /// this checkout does not ship would otherwise fail far from the line that
+  /// named it; a [PathSource] or a [GitSource] carries no version to compare,
+  /// so only its presence is asked for.
   ///
   /// A package with no `package.yaml` declares nothing: [selected] already
   /// recognises a directory as a package from artefacts other than the
@@ -316,7 +353,7 @@ class Packages {
       if (!manifestFile.existsSync()) continue;
 
       final Manifest manifest = Manifest.parse(manifestFile.readAsStringSync(), manifestFile.path);
-      manifest.dependencies.forEach((String name, String constraint) {
+      manifest.dependencies.forEach((String name, DependencySource source) {
         final Package? dependency = found[name] ?? byName(name);
         final File? dependencyManifestFile = dependency?.directory.childFile(kManifestFile);
         if (dependency == null || dependencyManifestFile == null || !dependencyManifestFile.existsSync()) {
@@ -324,14 +361,17 @@ class Packages {
           return;
         }
 
-        final Manifest dependencyManifest = Manifest.parse(
-          dependencyManifestFile.readAsStringSync(),
-          dependencyManifestFile.path,
-        );
-        if (!allows(constraint, dependencyManifest.version)) {
-          problems.add(
-            '$name: ${manifest.name} accepts $constraint, and this project mounts ${dependencyManifest.version}.',
+        if (source is SdkSource) {
+          final Manifest dependencyManifest = Manifest.parse(
+            dependencyManifestFile.readAsStringSync(),
+            dependencyManifestFile.path,
           );
+          if (!allows(source.constraint, dependencyManifest.version)) {
+            problems.add(
+              '$name: ${manifest.name} accepts ${source.constraint}, and this project mounts '
+              '${dependencyManifest.version}.',
+            );
+          }
         }
 
         if (found.containsKey(name)) return;
@@ -355,14 +395,15 @@ class Packages {
   }
 
   /// What [mounted] freezes into a project's [kProjectLockFile]: every one of
-  /// them at the version it publishes, [scribe] the project vendors.
+  /// them at the version it publishes, [scribe] the project vendors, and where
+  /// [load] found it.
   ///
-  /// A package is locked as [LockSource.path] when it sits outside the
-  /// checkout's own `packages/`, which is what a `path:` entry of `config.yaml`
-  /// put there in its place, and as [LockSource.sdk] otherwise.
+  /// The source comes from [_locations], not from comparing [Package.directory]
+  /// against the checkout's `packages/` after the fact: a git dependency's
+  /// directory sits under the tool's own cache, and nothing about that path
+  /// says so on its own the way it does for the checkout's `packages/` or a
+  /// `path:`.
   PackageLock lockOf(List<Package> mounted, String scribe) {
-    final String vendored = p.absolute(globals.project.sdk.packages.path);
-
     return PackageLock(
       scribe: scribe,
       packages: <LockedPackage>[
@@ -373,9 +414,8 @@ class Packages {
               package.directory.childFile(kManifestFile).readAsStringSync(),
               package.directory.childFile(kManifestFile).path,
             ).version,
-            source: p.equals(p.dirname(p.absolute(package.directory.path)), vendored)
-                ? LockSource.sdk
-                : LockSource.path,
+            source: _locations[package.name]!.$1,
+            resolvedRef: _locations[package.name]!.$2,
           ),
       ]..sort((LockedPackage a, LockedPackage b) => a.name.compareTo(b.name)),
     );

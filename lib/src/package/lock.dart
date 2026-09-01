@@ -39,12 +39,17 @@ import 'package:scribe_tools/src/base/common.dart';
 import 'package:yaml/yaml.dart';
 
 /// Where a locked package was found: the checkout's own `packages/`, a sibling
-/// directory in the same workspace, or a `path:` a project wrote.
+/// directory in the same workspace, a `path:` a project wrote, or a `git:`.
 ///
 /// A locked entry never carries the path itself, only this and a version: the
 /// path is true on one machine and false on the next, and re-deriving it is
 /// exactly what resolving does. Locking a path would freeze a fact resolving
 /// already answers, and it would answer it wrong on every other checkout.
+///
+/// A `git:` entry is the one exception: [LockedPackage.resolvedRef] freezes
+/// the commit resolving checked out, because that, unlike a path, is not
+/// re-derived for free. A ref can name a branch, or nothing at all, and both
+/// move; the commit resolving actually found is the one fact worth keeping.
 enum LockSource {
   /// Found under the checkout's own `packages/`.
   sdk,
@@ -53,7 +58,10 @@ enum LockSource {
   workspace,
 
   /// Found at a `path:` a project's `config.yaml` wrote.
-  path;
+  path,
+
+  /// Found by cloning a `git:` the manifest wrote.
+  git;
 
   static LockSource _parse(String written, String where) => LockSource.values.firstWhere(
     (LockSource source) => source.name == written,
@@ -65,7 +73,11 @@ enum LockSource {
 /// where resolving found it.
 class LockedPackage {
   /// Records that [name] was resolved to [version], found at [source].
-  const LockedPackage({required this.name, required this.version, required this.source});
+  ///
+  /// [resolvedRef] is required exactly when [source] is [LockSource.git], the
+  /// commit that a git dependency's ref, floating or not, named at the moment
+  /// this was written.
+  const LockedPackage({required this.name, required this.version, required this.source, this.resolvedRef});
 
   /// The package's name.
   final String name;
@@ -75,6 +87,9 @@ class LockedPackage {
 
   /// Where resolving found it.
   final LockSource source;
+
+  /// The commit resolving checked out, null unless [source] is [LockSource.git].
+  final String? resolvedRef;
 }
 
 /// What resolving decided, frozen so the next resolution can be compared against it.
@@ -98,7 +113,7 @@ class PackageLock {
   static const List<String> kLockKeys = <String>['scribe', 'packages'];
 
   /// The keys one locked package may carry, and no others.
-  static const List<String> kEntryKeys = <String>['version', 'source'];
+  static const List<String> kEntryKeys = <String>['version', 'source', 'resolved_ref'];
 
   /// The lock [source] spells, where [source] is the text of a lock file.
   ///
@@ -143,8 +158,17 @@ class PackageLock {
         throwToolExit('$where, at "$name": has no "source:".');
       }
 
+      final LockSource parsedSource = LockSource._parse(source, '$where, at "$name"');
+      final Object? resolvedRef = held['resolved_ref'];
+      if (parsedSource == LockSource.git && (resolvedRef is! String || resolvedRef.isEmpty)) {
+        throwToolExit('$where, at "$name": is locked to git, and has no "resolved_ref:".');
+      }
+      if (parsedSource != LockSource.git && resolvedRef != null) {
+        throwToolExit('$where, at "$name": carries "resolved_ref:", and is not locked to git.');
+      }
+
       entries.add(
-        LockedPackage(name: '$name', version: version, source: LockSource._parse(source, '$where, at "$name"')),
+        LockedPackage(name: '$name', version: version, source: parsedSource, resolvedRef: resolvedRef as String?),
       );
     });
 
@@ -178,6 +202,7 @@ class PackageLock {
         ..writeln('  ${held.name}:')
         ..writeln('    version: ${held.version}')
         ..writeln('    source: ${held.source.name}');
+      if (held.resolvedRef != null) buffer.writeln('    resolved_ref: ${held.resolvedRef}');
     }
 
     return buffer.toString();

@@ -42,6 +42,7 @@ import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/package/checks.dart';
 import 'package:scribe_tools/src/package/constraint.dart';
+import 'package:scribe_tools/src/package/dependency_source.dart';
 import 'package:scribe_tools/src/package/imports.dart';
 import 'package:scribe_tools/src/package/layout.dart';
 import 'package:scribe_tools/src/package/lock.dart';
@@ -175,6 +176,86 @@ String? directoryOfPackage(String name, String directory, Sdk sdk) {
   return null;
 }
 
+/// Where [_resolveDependency] found a dependency, and what a lock writes about it.
+class _ResolvedDependency {
+  const _ResolvedDependency({required this.directory, required this.source, this.gitCommit});
+
+  /// The directory holding the dependency's own `package.yaml`.
+  final String directory;
+
+  /// Where it was found, as [PackageLock] names it.
+  final LockSource source;
+
+  /// The commit `git` checked out, set only when [source] is [LockSource.git].
+  final String? gitCommit;
+}
+
+/// Where a dependency called [name], written as [source] in the manifest at
+/// [directory], is found, or null when nothing answers for it.
+///
+/// A [SdkSource] is searched for at [directoryOfPackage]'s own two places.
+/// A [PathSource] is resolved against [directory] itself, the manifest that
+/// wrote it: `package.yaml` writes a path relative to the package, never to a
+/// project the way `config.yaml` does. A [GitSource] is resolved by
+/// [resolveGit], against the cache every git dependency shares.
+///
+/// A directory whose manifest calls itself something else is not a match,
+/// whichever kind of source found it: the name a package is reached under is
+/// the one it declares.
+_ResolvedDependency? _resolveDependency(String name, DependencySource source, String directory, Sdk sdk) {
+  switch (source) {
+    case SdkSource():
+      final String? at = directoryOfPackage(name, directory, sdk);
+      if (at == null) return null;
+      return _ResolvedDependency(directory: at, source: _hostedSourceOf(at, sdk));
+
+    case PathSource(:final String path):
+      final String at = p.normalize(p.join(directory, path));
+      if (!_namesItself(at, name)) return null;
+      return _ResolvedDependency(directory: at, source: LockSource.path);
+
+    case GitSource():
+      final (Directory found, String commit) = resolveGit(
+        name,
+        source,
+        where: '"$name" in ${p.join(directory, kManifestFile)}',
+      );
+      if (!_namesItself(found.path, name)) return null;
+      return _ResolvedDependency(directory: found.path, source: LockSource.git, gitCommit: commit);
+  }
+}
+
+/// Whether the manifest at [at] calls itself [name].
+bool _namesItself(String at, String name) {
+  final File manifest = globals.fs.file(p.join(at, kManifestFile));
+  if (!manifest.existsSync()) return false;
+
+  return Manifest.parse(manifest.readAsStringSync(), manifest.path).name == name;
+}
+
+/// Where [directoryOfPackage] found a [SdkSource] dependency living at [at].
+///
+/// The two places it ever looks are its own: beside the package being
+/// resolved, or the checkout's [kPackagesDirectory]. Telling them apart is a
+/// path comparison and nothing more, because that is all it itself decided
+/// between.
+LockSource _hostedSourceOf(String at, Sdk sdk) =>
+    p.equals(p.dirname(p.absolute(at)), p.join(sdk.root, kPackagesDirectory)) ? LockSource.sdk : LockSource.workspace;
+
+/// What [asker] gets refused for, having asked for [name] as [source] and found nothing.
+String _unresolvedReason(String name, DependencySource source, Manifest asker, String directory, Sdk sdk) =>
+    switch (source) {
+      SdkSource() =>
+        '${asker.name} depends on it, and no package of that name sits beside '
+            '${p.dirname(directory)} or in ${p.join(sdk.root, kPackagesDirectory)}.',
+      PathSource(:final String path) =>
+        '${asker.name} depends on it at path: "$path", and ${p.normalize(p.join(directory, path))} '
+            'does not hold a package called "$name".',
+      GitSource(:final String url) =>
+        '${asker.name} depends on it from git: "$url", and what was checked out does not hold '
+            'a package called "$name".',
+    };
+
 /// Every package [manifest] reaches, its dependencies' own dependencies included.
 ///
 /// The walk is breadth first over what each manifest declares, and a name already
@@ -196,9 +277,17 @@ String? directoryOfPackage(String name, String directory, Sdk sdk) {
 /// straight from the code that imports it, in [externalSpecifiersIn].
 ///
 /// [manifests], when given, is filled with the manifest the walk read at each
-/// path in the result, keyed the same way. It exists so a caller that needs a
-/// dependency's version, [PackageLock] does, reads it off the walk instead of
-/// parsing every manifest a second time.
+/// path in the result, keyed the same way. [locked], when given, is filled with
+/// what a lock writes about the same dependency: where [_resolveDependency]
+/// found it, and the commit it checked out when that was a [GitSource]. Both
+/// exist so a caller that needs either, [PackageLock] does, reads it off the
+/// walk instead of resolving or parsing a second time.
+///
+/// A git dependency that `git` itself cannot clone, fetch or check out throws
+/// straight out of [resolveGit] rather than joining [problems]: that is an
+/// infrastructure failure, not a manifest asking for something that does not
+/// exist, and batching it with the rest would let a package with both kinds of
+/// trouble hide the first behind whichever the walk happens to meet second.
 Map<String, String> packageClosure(
   Manifest manifest,
   String directory,
@@ -206,6 +295,7 @@ Map<String, String> packageClosure(
   Set<String> external,
   List<Unresolved> problems, {
   Map<String, Manifest>? manifests,
+  Map<String, LockedPackage>? locked,
 }) {
   final Map<String, String> found = <String, String>{};
   final List<MapEntry<Manifest, String>> pending = <MapEntry<Manifest, String>>[
@@ -220,52 +310,47 @@ Map<String, String> packageClosure(
       external.addAll(externalSpecifiersIn(p.join(held.value, kTestsDirectory)));
     }
 
-    final Map<String, String> asked = <String, String>{
+    final Map<String, DependencySource> asked = <String, DependencySource>{
       ...held.key.dependencies,
       if (first) ...held.key.devDependencies,
     };
     first = false;
 
-    asked.forEach((String name, String constraint) {
+    asked.forEach((String name, DependencySource source) {
       if (found.containsKey(name) || name == manifest.name) return;
 
-      final String? at = directoryOfPackage(name, held.value, sdk);
-      if (at == null) {
+      final _ResolvedDependency? resolved = _resolveDependency(name, source, held.value, sdk);
+      if (resolved == null) {
+        problems.add(Unresolved(name, _unresolvedReason(name, source, held.key, held.value, sdk)));
+        return;
+      }
+
+      final Manifest reached = loadManifest(resolved.directory);
+      if (source is SdkSource && !allows(source.constraint, reached.version)) {
         problems.add(
           Unresolved(
             name,
-            '${held.key.name} depends on it, and no package of that name sits beside '
-            '${p.dirname(held.value)} or in ${p.join(sdk.root, kPackagesDirectory)}.',
+            '${held.key.name} accepts ${source.constraint}, and the copy at ${resolved.directory} '
+            'publishes ${reached.version}.',
           ),
         );
         return;
       }
 
-      final Manifest reached = loadManifest(at);
-      if (!allows(constraint, reached.version)) {
-        problems.add(
-          Unresolved(name, '${held.key.name} accepts $constraint, and the copy at $at publishes ${reached.version}.'),
-        );
-        return;
-      }
-
-      found[name] = at;
+      found[name] = resolved.directory;
       manifests?[name] = reached;
-      pending.add(MapEntry<Manifest, String>(reached, at));
+      locked?[name] = LockedPackage(
+        name: name,
+        version: reached.version,
+        source: resolved.source,
+        resolvedRef: resolved.gitCommit,
+      );
+      pending.add(MapEntry<Manifest, String>(reached, resolved.directory));
     });
   }
 
   return found;
 }
-
-/// Where [packageClosure] found the dependency living at [at], as [PackageLock] writes it.
-///
-/// The two places it ever looks are [directoryOfPackage]'s own: beside the
-/// package being resolved, or the checkout's [kPackagesDirectory]. Telling them
-/// apart is a path comparison and nothing more, because that is all
-/// [directoryOfPackage] itself decided between.
-LockSource _sourceOf(String at, Sdk sdk) =>
-    p.equals(p.dirname(p.absolute(at)), p.join(sdk.root, kPackagesDirectory)) ? LockSource.sdk : LockSource.workspace;
 
 /// What every specifier of [asked] answers to, taken from what the checkout pins.
 ///
@@ -439,6 +524,7 @@ Resolution resolve(String directory, Sdk sdk) {
   final Map<String, String> pinned = sdkImports(sdk);
   final Set<String> external = <String>{};
   final Map<String, Manifest> manifests = <String, Manifest>{};
+  final Map<String, LockedPackage> locked = <String, LockedPackage>{};
   final Map<String, String> reached = packageClosure(
     manifest,
     directory,
@@ -446,6 +532,7 @@ Resolution resolve(String directory, Sdk sdk) {
     external,
     problems,
     manifests: manifests,
+    locked: locked,
   );
 
   final Map<String, String> imports = <String, String>{
@@ -469,14 +556,7 @@ Resolution resolve(String directory, Sdk sdk) {
 
   PackageLock(
     scribe: sdk.version,
-    packages: <LockedPackage>[
-      for (final MapEntry<String, String> dependency in reached.entries)
-        LockedPackage(
-          name: dependency.key,
-          version: manifests[dependency.key]!.version,
-          source: _sourceOf(dependency.value, sdk),
-        ),
-    ]..sort((LockedPackage a, LockedPackage b) => a.name.compareTo(b.name)),
+    packages: locked.values.toList()..sort((LockedPackage a, LockedPackage b) => a.name.compareTo(b.name)),
   ).writeTo(globals.fs.file(p.join(directory, kPackageLockFile)));
 
   return Resolution(directory: p.absolute(directory), sdk: sdk, imports: imports);

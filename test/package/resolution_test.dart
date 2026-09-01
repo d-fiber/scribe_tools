@@ -47,6 +47,7 @@ import 'package:scribe_tools/src/package/scaffold.dart';
 import 'package:scribe_tools/src/package/sdk.dart';
 import 'package:test/test.dart';
 
+import 'git_repo_source.dart';
 import 'sdk_source.dart';
 
 void main() {
@@ -564,6 +565,74 @@ void main() {
       resolve(at, sdkOfCheckout());
 
       expect(lockOf(at).byName('audiences')?.version, '1.4.0');
+    });
+  });
+
+  group('a path: or a git: dependency is resolved from where it names, not searched for', () {
+    resolving('a path: dependency is resolved against the package that wrote it, not the project', () {
+      packageDeclaring('dependencies:\n', name: 'audiences');
+      final String at = packageDeclaring('dependencies:\n  audiences:\n    path: ../audiences\n');
+
+      resolve(at, sdkOfCheckout());
+
+      expect(importsOf(at)['@scribe/audiences'], isNotNull);
+      expect(lockOf(at).byName('audiences')?.source, LockSource.path);
+    });
+
+    resolving('a path: dependency whose manifest calls itself something else is refused', () {
+      packageAt(root.path, 'audiences', 'dependencies:\n');
+      File(p.join(root.path, 'audiences', kManifestFile)).writeAsStringSync(
+        'name: sessions\nversion: 1.0.0\n\nenvironment:\n  $kEnvironmentKey: "^3.0.0"\n\ndependencies:\n',
+      );
+      final String at = packageDeclaring('dependencies:\n  audiences:\n    path: ../audiences\n');
+
+      expect(() => resolve(at, sdkOfCheckout()), refuses(contains('audiences')));
+    });
+
+    resolving('a git: dependency is cloned and its commit locked', () {
+      final Directory remote = Directory.systemTemp.createTempSync('scribe_git_remote_');
+      addTearDown(() => remote.deleteSync(recursive: true));
+      final CreatedPackage created = createPackage(remote.path, 'audiences', sdkOfCheckout());
+      final String commit = initGitRepo(created.directory);
+
+      final String at = packageDeclaring(
+        'dependencies:\n  audiences:\n    git:\n      url: ${created.directory}\n      ref: trunk\n',
+      );
+
+      resolve(at, sdkOfCheckout());
+
+      expect(importsOf(at)['@scribe/audiences'], isNotNull);
+      final LockedPackage? locked = lockOf(at).byName('audiences');
+      expect(locked?.source, LockSource.git);
+      expect(locked?.resolvedRef, commit);
+    });
+
+    resolving('a git: dependency with no ref follows the remote default branch', () {
+      final Directory remote = Directory.systemTemp.createTempSync('scribe_git_remote_');
+      addTearDown(() => remote.deleteSync(recursive: true));
+      final CreatedPackage created = createPackage(remote.path, 'audiences', sdkOfCheckout());
+      initGitRepo(created.directory);
+
+      final String at = packageDeclaring('dependencies:\n  audiences:\n    git:\n      url: ${created.directory}\n');
+
+      resolve(at, sdkOfCheckout());
+
+      expect(importsOf(at)['@scribe/audiences'], isNotNull);
+    });
+
+    resolving('a git: dependency with a path: reads the package from that subdirectory', () {
+      final Directory remote = Directory.systemTemp.createTempSync('scribe_git_remote_');
+      addTearDown(() => remote.deleteSync(recursive: true));
+      createPackage(remote.path, 'audiences', sdkOfCheckout());
+      initGitRepo(remote.path);
+
+      final String at = packageDeclaring(
+        'dependencies:\n  audiences:\n    git:\n      url: ${remote.path}\n      ref: trunk\n      path: audiences\n',
+      );
+
+      resolve(at, sdkOfCheckout());
+
+      expect(importsOf(at)['@scribe/audiences'], isNotNull);
     });
   });
 

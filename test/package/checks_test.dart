@@ -154,6 +154,26 @@ void main() {
     expect(problemsUnder().single, contains('no package of that name exists'));
   });
 
+  test('a path: dependency is not searched for, and never reported', () {
+    written(
+      'realtime',
+      manifest: 'name: realtime\nversion: 1.0.0\n\n${environment}dependencies:\n  audiences:\n    path: ../audiences\n',
+    );
+
+    expect(problemsUnder(), isEmpty);
+  });
+
+  test('a git: dependency is not resolved, and never reported', () {
+    written(
+      'realtime',
+      manifest:
+          'name: realtime\nversion: 1.0.0\n\n${environment}dependencies:\n'
+          '  audiences:\n    git:\n      url: https://example.com/audiences.git\n',
+    );
+
+    expect(problemsUnder(), isEmpty);
+  });
+
   test('a constraint the copy on hand fails is reported', () {
     written('audiences', manifest: 'name: audiences\nversion: 2.0.0\n$environment');
     written(

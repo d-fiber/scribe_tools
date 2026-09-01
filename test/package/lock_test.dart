@@ -86,6 +86,42 @@ void main() {
     expect(read.byName('billing')?.source, LockSource.path);
   });
 
+  test('a package cloned from git locks the commit it was checked out at', () {
+    const PackageLock written = PackageLock(
+      scribe: '1.0.0',
+      packages: <LockedPackage>[
+        LockedPackage(
+          name: 'audience',
+          version: '1.0.0',
+          source: LockSource.git,
+          resolvedRef: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        ),
+      ],
+    );
+
+    final PackageLock read = PackageLock.parse(written.render(), where);
+
+    expect(read.byName('audience')?.source, LockSource.git);
+    expect(read.byName('audience')?.resolvedRef, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+  });
+
+  test('a git entry without "resolved_ref:" is refused', () {
+    expect(
+      () => PackageLock.parse('scribe: 1.0.0\npackages:\n  audience:\n    version: 1.0.0\n    source: git\n', where),
+      throwsToolExit('has no "resolved_ref:"'),
+    );
+  });
+
+  test('a "resolved_ref:" on a source other than git is refused', () {
+    expect(
+      () => PackageLock.parse(
+        'scribe: 1.0.0\npackages:\n  foundation:\n    version: 1.0.0\n    source: sdk\n    resolved_ref: ${'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'}\n',
+        where,
+      ),
+      throwsToolExit('carries "resolved_ref:", and is not locked to git'),
+    );
+  });
+
   test('a lock without "scribe:" is refused', () {
     expect(() => PackageLock.parse('packages:\n', where), throwsToolExit('has no "scribe:"'));
   });

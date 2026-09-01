@@ -39,6 +39,7 @@ import 'package:file/memory.dart';
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/base/context.dart';
 import 'package:scribe_tools/src/base/platform.dart';
+import 'package:scribe_tools/src/package/dependency_source.dart';
 import 'package:scribe_tools/src/scribe_manifest.dart';
 import 'package:test/test.dart';
 
@@ -127,7 +128,8 @@ void main() {
         _minimal.replaceFirst('  - audience\n', '  - billing:\n      path: ../billing\n'),
       );
 
-      expect(manifest.packageSources, <String, String>{'auth': '', 'billing': '../billing'});
+      expect(manifest.packageSources['auth'], isA<CheckoutSource>());
+      expect((manifest.packageSources['billing'] as PathSource?)?.path, '../billing');
     });
   });
 
@@ -137,7 +139,40 @@ void main() {
         _minimal.replaceFirst('  - audience\n', '  - audience:\n      sdk: scribe\n'),
       );
 
-      expect(manifest.packageSources['audience'], '');
+      expect(manifest.packageSources['audience'], isA<CheckoutSource>());
+    });
+  });
+
+  test('a package given git comes from cloning it', () async {
+    await withEnvironment(const <String, String>{}, () {
+      final ScribeManifest manifest = manifestOf(
+        _minimal.replaceFirst(
+          '  - audience\n',
+          '  - audience:\n      git:\n        url: https://example.com/scribe_packages.git\n'
+              '        ref: audience-v1.0.0\n        path: audience\n',
+        ),
+      );
+
+      final GitSource? source = manifest.packageSources['audience'] as GitSource?;
+      expect(source?.url, 'https://example.com/scribe_packages.git');
+      expect(source?.ref, 'audience-v1.0.0');
+      expect(source?.path, 'audience');
+    });
+  });
+
+  test('a package given more than one source is refused rather than picked', () async {
+    await withEnvironment(const <String, String>{}, () {
+      final ScribeManifest manifest = manifestOf(
+        _minimal.replaceFirst(
+          '  - audience\n',
+          '  - billing:\n      path: ../b\n      git:\n        url: https://example.com/b.git\n',
+        ),
+      );
+
+      expect(
+        () => manifest.packageSources,
+        throwsA(isA<Exception>().having((Exception e) => e.toString(), 'message', contains('more than one'))),
+      );
     });
   });
 

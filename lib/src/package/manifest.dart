@@ -36,6 +36,7 @@
 
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/package/constraint.dart';
+import 'package:scribe_tools/src/package/dependency_source.dart';
 import 'package:scribe_tools/src/package/name.dart';
 import 'package:yaml/yaml.dart';
 
@@ -95,20 +96,23 @@ class Manifest {
   /// hand and fail at type check, where nothing points back at the version.
   final String scribe;
 
-  /// The packages this one may import, from a name to the constraint it accepts.
+  /// The packages this one may import, from a name to where it comes from.
   ///
   /// Every entry names another package, the way it does in a `pubspec.yaml`: nothing else has a
-  /// place here. What a package imports beyond the framework and beyond another package is not
+  /// place here. A name written against a plain constraint is a [SdkSource], resolved beside
+  /// the package or under the checkout's own `packages/` the way it always was; one written
+  /// against `path:` or `git:` is a [PathSource] or a [GitSource], read from wherever that names
+  /// instead. What a package imports beyond the framework and beyond another package is not
   /// declared at all, it is read off the code that imports it, the way `deno` itself would read
   /// it, in `packageClosure`.
-  final Map<String, String> dependencies;
+  final Map<String, DependencySource> dependencies;
 
   /// What the package's own suite may import, on top of [dependencies].
   ///
   /// It does not travel: a package that depends on this one gets [dependencies]
   /// and never what was written here, because a consumer does not run somebody
   /// else's tests.
-  final Map<String, String> devDependencies;
+  final Map<String, DependencySource> devDependencies;
 
   /// The manifest [source] spells, where [source] is the text of a `package.yaml`.
   ///
@@ -241,35 +245,102 @@ String? _optionalText(Map<Object?, Object?> document, String key, String where) 
   throwToolExit('$where holds "$key:" as something other than a word.');
 }
 
-/// The block at [key], read as a name against the constraint it accepts.
+/// The block at [key], read as a name against where it comes from.
 ///
-/// Every name is held to the rules a package name follows, whatever the constraint: an entry
-/// here always names a package, checked against the copy on hand, and a specifier that is not
-/// one, a redis client, a scope, a registry prefix, is refused the same way a misspelt name is.
-/// What a package imports beyond another package is not declared, it is read off the code.
-Map<String, String> _dependencies(Map<Object?, Object?> document, String key, String where) {
+/// Every name is held to the rules a package name follows, whatever it is written against: an
+/// entry here always names a package, checked against the copy on hand, and a specifier that is
+/// not one, a redis client, a scope, a registry prefix, is refused the same way a misspelt name
+/// is. What a package imports beyond another package is not declared, it is read off the code.
+Map<String, DependencySource> _dependencies(Map<Object?, Object?> document, String key, String where) {
   final Object? value = document[key];
-  if (value == null) return const <String, String>{};
+  if (value == null) return const <String, DependencySource>{};
   if (value is! Map) {
     throwToolExit('$where holds "$key:" as something other than a block of names and versions.');
   }
 
-  final Map<String, String> asked = <String, String>{};
+  final Map<String, DependencySource> asked = <String, DependencySource>{};
   for (final MapEntry<Object?, Object?> entry in value.entries) {
-    final Object? constraint = entry.value;
-    if (constraint is! String) {
-      throwToolExit('$where holds "$key.${entry.key}:" as something other than a word.');
-    }
-
     final String name = '${entry.key}';
-    final String? written = constraintProblem(constraint);
-    if (written != null) throwToolExit('$where, at "$key.$name:": $written');
-
     final String? named = packageNameProblem(name);
     if (named != null) throwToolExit('$where, at "$key.$name:": $named');
 
-    asked[name] = constraint;
+    asked[name] = _dependencySource(entry.value, key: key, name: name, where: where);
   }
 
   return asked;
+}
+
+/// The source [value] spells for the dependency [name] holds under [key].
+///
+/// A plain word is a constraint, checked and stored as a [SdkSource]. A block carrying exactly
+/// one of `path:` or `git:` is a [PathSource] or a [GitSource]; anything else, both at once
+/// included, is refused.
+DependencySource _dependencySource(Object? value, {required String key, required String name, required String where}) {
+  if (value is String) {
+    final String? problem = constraintProblem(value);
+    if (problem != null) throwToolExit('$where, at "$key.$name:": $problem');
+    return SdkSource(value);
+  }
+
+  if (value is! Map) {
+    throwToolExit('$where holds "$key.$name:" as something other than a version, a path, or a git repository.');
+  }
+
+  final Object? path = value['path'];
+  final Object? git = value['git'];
+  final Iterable<String> unknown = value.keys
+      .map((Object? entryKey) => entryKey.toString())
+      .where((String entryKey) => entryKey != 'path' && entryKey != 'git');
+
+  if (unknown.isNotEmpty) {
+    throwToolExit('$where, at "$key.$name:": carries ${unknown.join(', ')}, which is not read.');
+  }
+  if (path != null && git != null) {
+    throwToolExit(
+      '$where, at "$key.$name:": is given both a path: and a git:, so where it comes from '
+      'depends on which one is read first.',
+    );
+  }
+
+  if (path != null) {
+    if (path is! String || path.trim().isEmpty) {
+      throwToolExit('$where, at "$key.$name.path:": holds something other than a word.');
+    }
+    return PathSource(path);
+  }
+
+  if (git != null) return _gitSource(git, key: key, name: name, where: where);
+
+  throwToolExit('$where, at "$key.$name:": names neither a version, a path:, nor a git:.');
+}
+
+/// The [GitSource] the block under `git:` spells, for the dependency [name] holds under [key].
+GitSource _gitSource(Object? value, {required String key, required String name, required String where}) {
+  if (value is! Map) {
+    throwToolExit('$where, at "$key.$name.git:": holds something other than url, ref and path.');
+  }
+
+  final Iterable<String> unknown = value.keys
+      .map((Object? entryKey) => entryKey.toString())
+      .where((String entryKey) => entryKey != 'url' && entryKey != 'ref' && entryKey != 'path');
+  if (unknown.isNotEmpty) {
+    throwToolExit('$where, at "$key.$name.git:": carries ${unknown.join(', ')}, which is not read.');
+  }
+
+  final Object? url = value['url'];
+  if (url is! String || url.trim().isEmpty) {
+    throwToolExit('$where, at "$key.$name.git:": has no "url:".');
+  }
+
+  final Object? ref = value['ref'];
+  if (ref != null && (ref is! String || ref.trim().isEmpty)) {
+    throwToolExit('$where, at "$key.$name.git.ref:": holds something other than a word.');
+  }
+
+  final Object? path = value['path'];
+  if (path != null && (path is! String || path.trim().isEmpty)) {
+    throwToolExit('$where, at "$key.$name.git.path:": holds something other than a word.');
+  }
+
+  return GitSource(url: url, ref: ref as String?, path: path as String?);
 }
