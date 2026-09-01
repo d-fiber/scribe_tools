@@ -1,0 +1,188 @@
+name: hotfix
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Open a hotfix branch on an already-released version, or cut a patch release from one.
+        required: true
+        type: choice
+        options:
+          - open
+          - release
+      version:
+        description: The already-released version this hotfix patches, as three numbers.
+        required: true
+      patch:
+        description: The patch version to publish. Only read when action is release.
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: hotfix-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  open:
+    if: inputs.action == 'open'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check who asked
+        env:
+          ASKED_BY: ${{ github.actor }}
+          OWNER: ${{ vars.PROMOTER || 'daf-ep' }}
+        run: |
+          set -eu
+          if [ "$ASKED_BY" != "$OWNER" ]; then
+            echo "$ASKED_BY asked to open a hotfix, and only $OWNER decides that. Nothing was branched." >&2
+            exit 1
+          fi
+          echo "asked by $ASKED_BY"
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      - name: Check that v<version> was released, and that no hotfix branch covers it yet
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -eu
+          git rev-parse "refs/tags/v$VERSION" >/dev/null 2>&1 || {
+            echo "v$VERSION was never tagged, so there is nothing to branch from." >&2
+            exit 1
+          }
+          if git ls-remote --exit-code --heads origin "hotfix/v$VERSION" >/dev/null 2>&1; then
+            echo "hotfix/v$VERSION is already open. Land fix commits there instead of opening it again." >&2
+            exit 1
+          fi
+
+      - name: Branch it off the release it patches
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -eu
+          git checkout -b "hotfix/v$VERSION" "v$VERSION"
+          git push origin "hotfix/v$VERSION"
+
+      - name: Say what happens next
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          echo "hotfix/v$VERSION is open, holding exactly what v$VERSION shipped."
+          echo ""
+          echo "Land the fix there like any other branch: dev and main never see it, so"
+          echo "nothing that reached dev after v$VERSION comes along for the ride. Bump"
+          echo "pubspec.yaml to the patch version in that same branch, then run this"
+          echo "workflow again with action=release and patch=<the version you bumped it to>."
+
+  release:
+    if: inputs.action == 'release'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check who asked
+        env:
+          ASKED_BY: ${{ github.actor }}
+          OWNER: ${{ vars.PROMOTER || 'daf-ep' }}
+        run: |
+          set -eu
+          if [ "$ASKED_BY" != "$OWNER" ]; then
+            echo "$ASKED_BY asked to release a hotfix, and only $OWNER decides that. Nothing was published." >&2
+            exit 1
+          fi
+          echo "asked by $ASKED_BY"
+
+      - name: Check that a patch version was given
+        env:
+          PATCH: ${{ inputs.patch }}
+        run: |
+          set -eu
+          [ -n "$PATCH" ] || {
+            echo "action=release needs patch=<version>, the version hotfix/v${{ inputs.version }} was bumped to." >&2
+            exit 1
+          }
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          ref: hotfix/v${{ inputs.version }}
+
+      - name: Check that the patch only raises the patch number
+        env:
+          FROM: ${{ inputs.version }}
+          PATCH: ${{ inputs.patch }}
+        run: |
+          set -eu
+          from_major=$(echo "$FROM" | cut -d. -f1)
+          from_minor=$(echo "$FROM" | cut -d. -f2)
+          from_build=$(echo "$FROM" | cut -d. -f3)
+          patch_major=$(echo "$PATCH" | cut -d. -f1)
+          patch_minor=$(echo "$PATCH" | cut -d. -f2)
+          patch_build=$(echo "$PATCH" | cut -d. -f3)
+
+          if [ "$from_major" != "$patch_major" ] || [ "$from_minor" != "$patch_minor" ]; then
+            echo "$PATCH changes the major or minor number. A hotfix only raises the patch number: file a normal release from dev instead." >&2
+            exit 1
+          fi
+          if [ "$patch_build" -le "$from_build" ]; then
+            echo "$PATCH does not come after $FROM. Nothing to publish." >&2
+            exit 1
+          fi
+
+      - name: Check that hotfix/v<version> holds the version you named
+        env:
+          PATCH: ${{ inputs.patch }}
+        run: |
+          set -eu
+          held=$(awk '/^version:/ { print $2; exit }' pubspec.yaml)
+          [ "$held" = "$PATCH" ] || {
+            echo "hotfix/v${{ inputs.version }} holds $held, and you asked for $PATCH. Bump pubspec.yaml there first." >&2
+            exit 1
+          }
+
+      - name: Check that v<patch> was never tagged
+        env:
+          PATCH: ${{ inputs.patch }}
+        run: |
+          set -eu
+          if git rev-parse "refs/tags/v$PATCH" >/dev/null 2>&1; then
+            echo "v$PATCH already exists." >&2
+            exit 1
+          fi
+
+      - name: Tag it
+        env:
+          PATCH: ${{ inputs.patch }}
+        run: |
+          set -eu
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor }}@users.noreply.github.com"
+          git tag "v$PATCH"
+          git push origin "v$PATCH"
+
+      - name: Write the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FROM: ${{ inputs.version }}
+          PATCH: ${{ inputs.patch }}
+        run: |
+          set -eu
+          {
+            echo "Hotfix on v$FROM."
+            echo ""
+            git log "v$FROM..v$PATCH" --pretty='- %s'
+          } > /tmp/notes.md
+          gh release create "v$PATCH" --title "$PATCH" --notes-file /tmp/notes.md --verify-tag
+
+  publish:
+    needs: release
+    if: inputs.action == 'release'
+    uses: ./.github/workflows/publish.yml
+    with:
+      version: ${{ inputs.patch }}
+      ref: v${{ inputs.patch }}
+    secrets: inherit

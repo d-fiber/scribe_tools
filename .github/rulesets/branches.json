@@ -22,7 +22,8 @@
       "exclude": [
         "refs/heads/main",
         "refs/heads/dev",
-        "refs/heads/dependabot/**"
+        "refs/heads/dependabot/**",
+        "refs/heads/hotfix/**"
       ]
     }
   },
