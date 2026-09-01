@@ -38,6 +38,7 @@ import 'dart:io';
 import 'package:scribe_tools/runner.dart' as runner;
 import 'package:scribe_tools/src/commands/analyze.dart';
 import 'package:scribe_tools/src/commands/clean.dart';
+import 'package:scribe_tools/src/commands/completion.dart';
 import 'package:scribe_tools/src/commands/create.dart';
 import 'package:scribe_tools/src/commands/deploy.dart';
 import 'package:scribe_tools/src/commands/destroy.dart';
@@ -60,6 +61,7 @@ Future<void> main(List<String> args) async {
     () => <ScribeCommand>[
       AnalyzeCommand(),
       CleanCommand(),
+      CompletionCommand(),
       CreateCommand(),
       DeployCommand(),
       DestroyCommand(),
