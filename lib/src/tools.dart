@@ -213,12 +213,21 @@ class ToolCatalog {
     homepage: 'https://rsync.samba.org/',
   );
 
+  /// What `upgrade` reads a release through, checking for one and fetching it.
+  static const ExternalTool curl = ExternalTool(
+    name: 'curl',
+    executable: 'curl',
+    purpose: 'checks for and downloads a new release of the tool or the dashboard',
+    homepage: 'https://curl.se/download.html',
+    packages: <String, String>{'winget': 'cURL.cURL'},
+  );
+
   /// Every tool the CLI knows about, which is what `doctor` walks.
   ///
   /// A tool that a command needs and this list forgets is a tool nobody is told
   /// about until the command fails on it, so the list is the catalogue itself
   /// rather than a copy of it kept somewhere else.
-  static const List<ExternalTool> all = <ExternalTool>[deno, npm, docker, git, tofu, ssh, rsync];
+  static const List<ExternalTool> all = <ExternalTool>[deno, npm, docker, git, tofu, ssh, rsync, curl];
 
   /// The tools no command can work without, which every run is stopped for.
   ///

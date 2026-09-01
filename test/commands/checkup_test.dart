@@ -191,9 +191,10 @@ void main() {
       ], processes: RecordingProcessRunner(outputs: <String, String>{'show': '{"version":"0.2.0"}'}));
 
       expect(logger.statusText, contains('working\n'));
-      expect(logger.statusText, contains('A new version of scribe is available: 0.2.0'));
-      expect(logger.statusText, contains('Run `scribe upgrade` to get it.'));
-      expect(logger.statusText.indexOf('working'), lessThan(logger.statusText.indexOf('A new version')));
+      expect(logger.statusText, contains('Updates are available:'));
+      expect(logger.statusText, contains('framework            0.2.0, up from 0.1.5'));
+      expect(logger.statusText, contains('Run `scribe upgrade` to get them.'));
+      expect(logger.statusText.indexOf('working'), lessThan(logger.statusText.indexOf('Updates are available')));
     });
 
     test('a checkout that is already current says nothing at all', () async {

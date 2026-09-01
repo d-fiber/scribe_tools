@@ -37,6 +37,8 @@
 import 'package:file/file.dart';
 import 'package:scribe_tools/src/framework.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
+import 'package:scribe_tools/src/self/codex_updates.dart';
+import 'package:scribe_tools/src/self/tool_updates.dart';
 import 'package:scribe_tools/src/self/version.dart';
 
 /// How long the last fetch is trusted before another one is worth starting.
@@ -68,11 +70,14 @@ Future<Version?> pendingUpdate(Framework framework) async {
   return there.isNewerThan(here) ? there : null;
 }
 
-/// Says that a newer framework is out, and starts the fetch for the next run.
+/// Says that a newer framework, tool or dashboard is out, and starts the
+/// fetches that keep the three caches this reads current for the next run.
 ///
-/// This is what every command ends with. It is informational and nothing waits
-/// on it: the fetch is detached, so the command the user typed is already done
-/// when it starts, and its result is only read on some later run.
+/// This is what every command ends with. It is informational and nothing
+/// waits on it: the framework's own fetch is detached exactly as before, and
+/// the tool's and the dashboard's read a cache a background `curl` keeps
+/// warm rather than reaching GitHub themselves. `scribe upgrade` is the one
+/// place any of the three is actually fetched and applied.
 ///
 /// Anything that goes wrong here is traced and dropped. A version check is
 /// never a reason for a command that worked to look like it failed.
@@ -81,16 +86,31 @@ Future<void> announceUpdate() async {
     final Framework? framework = Framework.locate();
     if (framework == null || !framework.isClone) return;
 
-    if (await pendingUpdate(framework) case final Version newer) {
+    final Version? frameworkUpdate = await pendingUpdate(framework);
+    final Version? toolUpdate = pendingToolUpdate(framework);
+    final Version? codexUpdate = pendingCodexUpdate(framework);
+
+    if (frameworkUpdate != null || toolUpdate != null || codexUpdate != null) {
       globals.logger.printStatus('');
-      globals.logger.printStatus(
-        'A new version of scribe is available: $newer, and this checkout is on ${framework.version}.',
-        emphasis: true,
-      );
-      globals.logger.printStatus('Run `scribe upgrade` to get it.');
+      globals.logger.printStatus('Updates are available:', emphasis: true);
+      if (toolUpdate != null) {
+        globals.logger.printStatus('  scribe (this tool)   $toolUpdate, up from $installedToolVersion');
+      }
+      if (frameworkUpdate != null) {
+        globals.logger.printStatus('  framework            $frameworkUpdate, up from ${framework.version}');
+      }
+      if (codexUpdate != null) {
+        final Version? here = installedCodexVersion(framework);
+        globals.logger.printStatus(
+          '  dashboard            $codexUpdate, ${here == null ? 'not installed yet' : 'up from $here'}',
+        );
+      }
+      globals.logger.printStatus('Run `scribe upgrade` to get them.');
     }
 
     scheduleFetch(framework);
+    scheduleToolFetch(framework);
+    scheduleCodexFetch(framework);
   } catch (error) {
     globals.logger.printTrace('[updates] $error');
   }

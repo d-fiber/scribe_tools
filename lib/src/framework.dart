@@ -106,9 +106,11 @@ class Release {
 
 /// The framework checkout a command is working against.
 ///
-/// This is what carries a version. The tool itself does not: its binaries are
-/// published from a rolling release and stay whatever build was installed, so
-/// `upgrade` and `downgrade` move the checkout and leave the tool alone.
+/// This is what `downgrade` moves, and the only one of the three things
+/// `upgrade` can move backwards: the tool and the dashboard are each latest
+/// or nothing, read straight from a GitHub release rather than from a git
+/// history this checkout can walk. See `self/tool_updates.dart` and
+/// `self/codex_updates.dart` for those two.
 ///
 /// Every git call goes through the process runner, and none of them is a shell
 /// line, so nothing here has to be escaped.

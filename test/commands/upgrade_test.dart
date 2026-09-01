@@ -140,15 +140,14 @@ void main() {
         processes.commands.map((List<String> command) => command.join(' ')),
         containsAll(<String>['git fetch origin main', 'git merge --ff-only origin/main']),
       );
-      expect(logger.statusText, contains('scribe is now at 0.2.0, up from 0.1.5.'));
-      expect(logger.statusText, contains('The tools you run are unchanged'));
+      expect(logger.statusText, contains('framework is now at 0.2.0, up from 0.1.5.'));
     });
 
     test('a checkout already on the newest version is told so, not moved twice', () async {
       final RecordingProcessRunner processes = RecordingProcessRunner(outputs: <String, String>{'branch': 'main\n'});
 
       expect(await runScribe(<String>['upgrade'], processes), 0);
-      expect(logger.statusText, contains('scribe is already up to date at 0.1.5.'));
+      expect(logger.statusText, contains('framework is already up to date at 0.1.5.'));
     });
 
     test('a detached checkout is put back on the release branch first', () async {
