@@ -122,7 +122,7 @@ class RunCommand extends ScribeCommand {
       profiles: documents.profiles,
     )..write(location.manifest);
 
-    globals.logger.printStatus('Assembled ${manifest.projectName} in ${location.directory.path}');
+    globals.logger.printStatus('Assembled ${manifest.projectName} in ${location.directory.path}.');
 
     final Compose compose = Compose(manifest);
     if (!await compose.reads()) {
@@ -174,7 +174,7 @@ class RunCommand extends ScribeCommand {
     }
 
     await router.attach('${manifest.projectName}_edge');
-    globals.logger.printStatus('It answers on http://${documents.hostnames.first}');
+    globals.logger.printStatus('It answers on http://${documents.hostnames.first}.');
 
     return const ScribeCommandResult.success();
   }
@@ -196,7 +196,7 @@ class RunCommand extends ScribeCommand {
       return const ScribeCommandResult.success();
     }
 
-    globals.logger.printStatus('It answers on http://localhost:$port');
+    globals.logger.printStatus('It answers on http://localhost:$port.');
 
     return const ScribeCommandResult.success();
   }

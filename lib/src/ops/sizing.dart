@@ -262,7 +262,7 @@ class ComposeRender {
     );
 
     if (hardware.memoryGb < 4 || hardware.cores < 2) {
-      globals.logger.printWarning('very small machine ($hardware), the stack may not start.');
+      globals.logger.printWarning('Very small machine ($hardware), the stack may not start.');
     }
 
     _reportSelection(packages, active, profiles);
