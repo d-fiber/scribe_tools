@@ -93,6 +93,11 @@ class ForgeCommand extends ScribeCommand {
         ScribeCommand.machineOption,
         negatable: false,
         help: 'Print one line of JSON instead of a report a person reads.',
+      )
+      ..addFlag(
+        ScribeCommand.watchOption,
+        negatable: false,
+        help: 'Forge again every time lib/ or the manifest changes, instead of once.',
       );
   }
 
@@ -103,7 +108,7 @@ class ForgeCommand extends ScribeCommand {
   String get description => 'Give this project or package everything it declares and does not yet carry.';
 
   @override
-  String get invocation => 'scribe forge [--dry-run] [--machine]';
+  String get invocation => 'scribe forge [--dry-run] [--machine] [--watch]';
 
   /// It decides for itself whether it is in a project or a package.
   @override
@@ -112,9 +117,24 @@ class ForgeCommand extends ScribeCommand {
   @override
   Future<ScribeCommandResult> runCommand() async {
     final Directory here = globals.fs.currentDirectory;
+    final bool watch = boolArg(ScribeCommand.watchOption);
 
-    if (Project.isProjectRoot(here)) return _forgeProject();
-    if (here.childFile(kManifestFile).existsSync()) return _resolvePackage(here.path);
+    if (Project.isProjectRoot(here)) {
+      final ScribeCommandResult first = await _forgeProject();
+      if (!watch) return first;
+
+      return watchAndRerun(<FileSystemEntity>[project.lib, project.config], _forgeProject);
+    }
+
+    if (here.childFile(kManifestFile).existsSync()) {
+      final ScribeCommandResult first = await _resolvePackage(here.path);
+      if (!watch) return first;
+
+      return watchAndRerun(<FileSystemEntity>[
+        here.childDirectory(kLibraryDirectory),
+        here.childFile(kManifestFile),
+      ], () => _resolvePackage(here.path));
+    }
 
     throwToolExit(
       'forge runs at the root of a scribe project or of a package, and ${here.path} is neither: '

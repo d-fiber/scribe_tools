@@ -44,6 +44,7 @@ import 'package:scribe_tools/src/base/io.dart';
 import 'package:scribe_tools/src/base/logger.dart';
 import 'package:scribe_tools/src/base/platform.dart';
 import 'package:scribe_tools/src/base/process.dart';
+import 'package:scribe_tools/src/base/watch.dart';
 import 'package:scribe_tools/src/commands/forge.dart';
 import 'package:scribe_tools/src/deploy/configuration.dart';
 import 'package:scribe_tools/src/package/lock.dart';
@@ -89,6 +90,7 @@ class _Machine {
 
   final MemoryFileSystem fs = MemoryFileSystem.test();
   final BufferLogger logger = BufferLogger();
+  final FakeWatcher watcher = FakeWatcher();
 
   void _package(String name, String version, String dependencies) {
     fs.directory('$kProjectDirectory/scribe/packages/$name/protocol').createSync(recursive: true);
@@ -106,6 +108,7 @@ class _Machine {
       Logger: () => logger,
       Stdio: FakeStdio.new,
       ProcessRunner: RecordingProcessRunner.new,
+      Watcher: () => watcher,
       Platform: () => const FakePlatform(environment: <String, String>{'PATH': kBinDirectory, 'HOME': '/home/someone'}),
     },
   );
@@ -204,5 +207,30 @@ void main() {
     expect(await machine.run(<String>['forge']), 1);
     expect(machine.logger.errorText, contains('foundation'));
     expect(machine.logger.errorText, contains('^2.0.0'));
+  });
+
+  group('--watch', () {
+    Future<void> untilWatching() async {
+      while (machine.watcher.requests.isEmpty) {
+        await Future<void>.delayed(Duration.zero);
+      }
+    }
+
+    test('watches lib/ and config.yaml, and forges again on a change', () async {
+      final Future<int> run = machine.run(<String>['forge', '--watch']);
+      await untilWatching();
+
+      expect(machine.watcher.requests.single.map((FileSystemEntity entity) => entity.path), <String>[
+        '$kProjectDirectory/lib',
+        '$kProjectDirectory/config.yaml',
+      ]);
+
+      machine.watcher.change();
+      await Future<void>.delayed(Duration.zero);
+      await machine.watcher.stop();
+
+      expect(await run, 0);
+      expect('scribe.lock written'.allMatches(machine.logger.statusText).length, 2);
+    });
   });
 }

@@ -36,6 +36,8 @@
 
 import 'dart:convert';
 
+import 'package:file/file.dart';
+import 'package:scribe_tools/src/package/layout.dart';
 import 'package:scribe_tools/src/package/manifest.dart';
 import 'package:scribe_tools/src/package/resolution.dart';
 import 'package:scribe_tools/src/package/sdk.dart';
@@ -142,6 +144,31 @@ void main() {
       expect(document['lockFile'], '$at/$kPackageLockFile');
       expect((document['imports']! as Map<String, Object?>)['@scribe/alchemy'], isNotNull);
       expect(machine.logger.statusText.trim().split('\n'), hasLength(1), reason: '--machine prints exactly one line');
+    });
+
+    test('--watch watches lib/ and package.yaml, and resolves again on a change', () async {
+      final String at = await package('notifications');
+
+      final Future<int> run = machine.run(<String>['forge', '--watch']);
+      while (machine.watcher.requests.isEmpty) {
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      expect(machine.watcher.requests.single.map((FileSystemEntity entity) => entity.path), <String>[
+        '$at/lib',
+        '$at/$kManifestFile',
+      ]);
+
+      machine.watcher.change();
+      await Future<void>.delayed(Duration.zero);
+      await machine.watcher.stop();
+
+      expect(await run, 0);
+      expect(
+        'Resolved against scribe 3.0.1 in $kCheckoutDirectory'.allMatches(machine.logger.statusText).length,
+        2,
+        reason: 'once for the run before the watch, once for the run the change caused',
+      );
     });
   });
 
