@@ -40,11 +40,13 @@ set -eu
 REPOSITORY="${SCRIBE_REPOSITORY:-d-fiber/scribe}"
 BRANCH="${SCRIBE_BRANCH:-main}"
 TOOLS_REPOSITORY="${SCRIBE_TOOLS_REPOSITORY:-d-fiber/scribe_tools}"
+CODEX_REPOSITORY="${SCRIBE_CODEX_REPOSITORY:-d-fiber/scribe_codex}"
 
 BINARIES="scribe_linux scribe_macos scribe_windows.exe"
 LAUNCHERS="scribe scribe.cmd"
 TEMPLATES_ASSET="scribe-templates.tar.gz"
 CHECKSUMS_ASSET="scribe-checksums.txt"
+CODEX_ASSET="scribe-codex.tar.gz"
 
 say() { printf '%s\n' "$*"; }
 fail() { printf '%s\n' "$*" >&2; exit 1; }
@@ -89,20 +91,25 @@ locate_or_clone() {
   fi
 }
 
-download() {
-  asset=$1
-  target=$2
+download_from() {
+  repository=$1
+  asset=$2
+  target=$3
 
   rm -f "$target"
 
   if have curl; then
-    curl -fsSL -o "$target" "https://github.com/$TOOLS_REPOSITORY/releases/latest/download/$asset" \
-      || fail "Could not download $asset from the latest release of $TOOLS_REPOSITORY"
+    curl -fsSL -o "$target" "https://github.com/$repository/releases/latest/download/$asset" \
+      || fail "Could not download $asset from the latest release of $repository"
   elif have gh; then
-    gh release download --repo "$TOOLS_REPOSITORY" --pattern "$asset" --output "$target"
+    gh release download --repo "$repository" --pattern "$asset" --output "$target"
   else
     fail "Needs curl. Install it, or the GitHub CLI: https://cli.github.com"
   fi
+}
+
+download() {
+  download_from "$TOOLS_REPOSITORY" "$1" "$2"
 }
 
 sha256_of() {
@@ -168,6 +175,41 @@ fetch_templates() {
   [ -d "$destination/templates/project" ] || fail "$TEMPLATES_ASSET carried no templates/project/"
 }
 
+fetch_dashboard() {
+  destination="$ROOT/web"
+  archive="$destination/$CODEX_ASSET"
+  url="https://github.com/$CODEX_REPOSITORY/releases/latest/download/$CODEX_ASSET"
+  mkdir -p "$destination"
+  rm -f "$archive"
+
+  say "  $CODEX_ASSET"
+
+  # Unlike the CLI's own assets, this one is optional: no release of
+  # scribe_codex may carry it yet, and that is not this installer's problem
+  # to fail on. A missing dashboard leaves the proxy answering "not
+  # installed in this checkout" instead of taking a project down.
+  if have curl; then
+    curl -fsSL -o "$archive" "$url" || {
+      say "  no release of $CODEX_REPOSITORY carries $CODEX_ASSET yet, skipping the dashboard"
+      return 0
+    }
+  elif have gh; then
+    gh release download --repo "$CODEX_REPOSITORY" --pattern "$CODEX_ASSET" --output "$archive" || {
+      say "  no release of $CODEX_REPOSITORY carries $CODEX_ASSET yet, skipping the dashboard"
+      return 0
+    }
+  else
+    say "  needs curl or the GitHub CLI to fetch it, skipping the dashboard"
+    return 0
+  fi
+
+  rm -rf "$destination/codex"
+  tar -xzf "$archive" -C "$destination"
+  rm -f "$archive"
+
+  [ -f "$destination/codex/index.html" ] || fail "$CODEX_ASSET carried no codex/index.html"
+}
+
 provision() {
   [ -x "$ROOT/tools/scribe" ] || return 0
 
@@ -186,6 +228,10 @@ main() {
   fetch_templates
   rm -f "$CHECKSUMS_FILE"
 
+  say ""
+  say "Fetching the dashboard from the latest release of $CODEX_REPOSITORY"
+  fetch_dashboard
+
   provision
 
   say ""
@@ -199,7 +245,7 @@ main() {
   say "scribe.cmd there, which starts the same build."
   say ""
   say "None of this is committed, so run it again after pulling a release that"
-  say "rebuilt the tools."
+  say "rebuilt the tools or the dashboard."
 }
 
 main "$@"
