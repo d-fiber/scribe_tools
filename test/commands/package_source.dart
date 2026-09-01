@@ -45,6 +45,7 @@ import 'package:scribe_tools/src/base/io.dart';
 import 'package:scribe_tools/src/base/logger.dart';
 import 'package:scribe_tools/src/base/platform.dart';
 import 'package:scribe_tools/src/base/process.dart';
+import 'package:scribe_tools/src/base/watch.dart';
 import 'package:scribe_tools/src/commands/analyze.dart';
 import 'package:scribe_tools/src/commands/clean.dart';
 import 'package:scribe_tools/src/commands/create.dart';
@@ -96,6 +97,9 @@ class PackageHarness {
   /// What the commands asked to be run, none of which was started.
   final RecordingProcessRunner processRunner = RecordingProcessRunner();
 
+  /// What a `--watch` command reruns against, driven by hand instead of a real directory.
+  final FakeWatcher watcher = FakeWatcher();
+
   /// Writes a checkout at [kCheckoutDirectory] publishing [version].
   ///
   /// It carries the three directories a checkout is recognised by, the `VERSION`
@@ -146,6 +150,7 @@ class PackageHarness {
       Logger: () => logger,
       Stdio: FakeStdio.new,
       ProcessRunner: () => processRunner,
+      Watcher: () => watcher,
       TemplatePathProvider: () => FixedTemplatePathProvider(fs.directory(kToolRootDirectory)),
       Platform: () => const FakePlatform(
         environment: <String, String>{

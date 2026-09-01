@@ -34,6 +34,7 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
+import 'package:file/file.dart';
 import 'package:path/path.dart' as p;
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
@@ -47,6 +48,15 @@ import 'package:scribe_tools/src/runner/scribe_command.dart';
 /// asks for no project root. What it reads is what is on disk: it opens no
 /// checkout and resolves nothing.
 class AnalyzeCommand extends ScribeCommand {
+  /// Declares `--watch`, which reruns this analysis on a change under the roots.
+  AnalyzeCommand() {
+    argParser.addFlag(
+      ScribeCommand.watchOption,
+      negatable: false,
+      help: 'Run again every time a file under a root changes, instead of once.',
+    );
+  }
+
   @override
   String get name => 'analyze';
 
@@ -54,7 +64,7 @@ class AnalyzeCommand extends ScribeCommand {
   String get description => 'Read the framework packages under a directory and report what is wrong with them.';
 
   @override
-  String get invocation => 'scribe analyze <directory>...';
+  String get invocation => 'scribe analyze <directory>... [--watch]';
 
   @override
   bool get requiresProject => false;
@@ -67,6 +77,15 @@ class AnalyzeCommand extends ScribeCommand {
 
     if (roots.isEmpty) roots.add(globals.fs.currentDirectory.path);
 
+    final ScribeCommandResult first = await _analyze(roots);
+    if (!boolArg(ScribeCommand.watchOption)) return first;
+
+    return watchAndRerun(<Directory>[
+      for (final String root in roots) globals.fs.directory(root),
+    ], () => _analyze(roots));
+  }
+
+  Future<ScribeCommandResult> _analyze(List<String> roots) async {
     final List<DiscoveredPackage> packages = discover(roots);
     if (packages.isEmpty) throwToolExit('No package under ${roots.join(', ')}.');
 

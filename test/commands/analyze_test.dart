@@ -73,4 +73,41 @@ void main() {
     expect(await machine.run(<String>['analyze', kWorkDirectory]), 1);
     expect(machine.logger.errorText, contains('No package under'));
   });
+
+  group('--watch', () {
+    Future<void> untilWatching() async {
+      while (machine.watcher.requests.isEmpty) {
+        await Future<void>.delayed(Duration.zero);
+      }
+    }
+
+    test('runs again on a change, and answers with the run the watch ended on', () async {
+      await create('audiences');
+
+      final Future<int> run = machine.run(<String>['analyze', kWorkDirectory, '--watch']);
+      await untilWatching();
+
+      machine.watcher.change();
+      await Future<void>.delayed(Duration.zero);
+      await machine.watcher.stop();
+
+      expect(await run, 0);
+      expect(
+        '1 package, nothing to report.'.allMatches(machine.logger.statusText).length,
+        2,
+        reason: 'once for the run before the watch, once for the run the change caused',
+      );
+    });
+
+    test('watches the root it was given', () async {
+      await create('audiences');
+
+      final Future<int> run = machine.run(<String>['analyze', kWorkDirectory, '--watch']);
+      await untilWatching();
+      await machine.watcher.stop();
+      await run;
+
+      expect(machine.watcher.requests.single.single.path, kWorkDirectory);
+    });
+  });
 }

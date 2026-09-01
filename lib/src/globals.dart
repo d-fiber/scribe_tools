@@ -55,6 +55,7 @@ import 'package:scribe_tools/src/base/platform.dart';
 import 'package:scribe_tools/src/base/process.dart';
 import 'package:scribe_tools/src/base/template.dart';
 import 'package:scribe_tools/src/base/terminal.dart';
+import 'package:scribe_tools/src/base/watch.dart';
 import 'package:scribe_tools/src/isolated/scribe_template.dart';
 import 'package:scribe_tools/src/project.dart';
 import 'package:scribe_tools/src/shell.dart';
@@ -130,3 +131,8 @@ const ToolProvisioner _defaultProvisioner = ToolProvisioner();
 
 /// The external tools this run can look for and offer to install.
 ToolProvisioner get tools => context.get<ToolProvisioner>() ?? _defaultProvisioner;
+
+const Watcher _defaultWatcher = LocalWatcher();
+
+/// What a `--watch` command reruns itself against, real directories by default.
+Watcher get watcher => context.get<Watcher>() ?? _defaultWatcher;

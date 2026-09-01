@@ -39,6 +39,7 @@ import 'dart:convert';
 
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
+import 'package:file/file.dart';
 import 'package:meta/meta.dart';
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/base/context.dart';
@@ -258,6 +259,37 @@ abstract class ScribeCommand extends Command<void> {
   /// reads exactly one line, whatever `-v` or a progress spinner would otherwise
   /// have written around it.
   void printMachine(Map<String, Object?> document) => globals.logger.printStatus(jsonEncode(document));
+
+  /// The flag a command that supports `--watch` declares for it.
+  static const String watchOption = 'watch';
+
+  /// Runs [body] again each time something changes under or to any of
+  /// [entities], until the watch itself ends, answering with what the last
+  /// run left.
+  ///
+  /// [body] has already run once by the time a caller reaches for this:
+  /// `--watch` extends a command that already did its job on the way in, it
+  /// does not change what running it once means. Nothing here decides what
+  /// [entities] are, or what about a change is worth reacting to: that is
+  /// each command's own question, the same way each command decides its own
+  /// [requiredTools].
+  Future<ScribeCommandResult> watchAndRerun(
+    List<FileSystemEntity> entities,
+    Future<ScribeCommandResult> Function() body,
+  ) async {
+    ScribeCommandResult last = const ScribeCommandResult.success();
+
+    globals.logger.printStatus('');
+    globals.logger.printStatus('Watching for changes. Ctrl-C to stop.');
+
+    await for (final void _ in globals.watcher.watch(entities)) {
+      globals.logger.printStatus('');
+      globals.logger.printStatus('Something changed, running again.');
+      last = await body();
+    }
+
+    return last;
+  }
 
   /// Whether flag [name] was passed.
   bool boolArg(String name) => argResults?[name] as bool? ?? false;
