@@ -34,7 +34,10 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
+import 'dart:collection';
 import 'dart:io' as io;
+
+import 'package:collection/collection.dart';
 
 /// Every external command this tool runs.
 ///
@@ -241,5 +244,105 @@ class RecordingProcessRunner extends ProcessRunner {
   @override
   void detach(List<String> command, {String? workingDirectory}) {
     commands.add(command);
+  }
+}
+
+/// One call a [FakeProcessRunner] expects, and what it answers when it comes.
+class FakeCommand {
+  /// Scripts [command] to answer [exitCode], [stdout] and [stderr] once, in order.
+  const FakeCommand({
+    required this.command,
+    this.workingDirectory,
+    this.exitCode = 0,
+    this.stdout = '',
+    this.stderr = '',
+  });
+
+  /// The exact argument list this call must carry, in order.
+  final List<String> command;
+
+  /// The directory this call must run in, or any directory when null.
+  final String? workingDirectory;
+
+  /// The status this call answers.
+  final int exitCode;
+
+  /// What this call writes on standard output.
+  final String stdout;
+
+  /// What this call writes on standard error.
+  final String stderr;
+}
+
+/// A [ProcessRunner] that answers a fixed, ordered script instead of starting anything.
+///
+/// Where [RecordingProcessRunner] answers every call the same way and only remembers what
+/// arrived, this one expects calls in a precise order and fails loudly the moment reality
+/// departs from the script: a command that does not match what was expected next, one that
+/// arrives after the script ran out, or a script that still holds commands nobody made.
+class FakeProcessRunner extends ProcessRunner {
+  /// Scripts the calls this runner accepts, in the order they must arrive.
+  FakeProcessRunner(List<FakeCommand> script) : _script = Queue<FakeCommand>.of(script);
+
+  final Queue<FakeCommand> _script;
+
+  /// The commands this runner was handed, in the order they arrived.
+  final List<List<String>> commands = <List<String>>[];
+
+  static const ListEquality<String> _sameCommand = ListEquality<String>();
+
+  FakeCommand _next(List<String> command, {String? workingDirectory}) {
+    commands.add(command);
+
+    if (_script.isEmpty) {
+      throw StateError('No command was expected, and $command arrived.');
+    }
+
+    final FakeCommand expected = _script.removeFirst();
+    if (!_sameCommand.equals(expected.command, command)) {
+      throw StateError('Expected ${expected.command} next, and $command arrived instead.');
+    }
+    if (expected.workingDirectory != null && expected.workingDirectory != workingDirectory) {
+      throw StateError('Expected $command to run in ${expected.workingDirectory}, and it ran in $workingDirectory.');
+    }
+
+    return expected;
+  }
+
+  /// Fails unless every scripted command has been run.
+  void verifyDone() {
+    if (_script.isEmpty) return;
+    throw StateError(
+      '${_script.length} scripted command(s) were never run: ${_script.map((FakeCommand c) => c.command)}.',
+    );
+  }
+
+  @override
+  Future<int> run(List<String> command, {String? workingDirectory, Map<String, String>? environment}) async =>
+      _next(command, workingDirectory: workingDirectory).exitCode;
+
+  @override
+  Future<String> capture(List<String> command, {String? workingDirectory}) async =>
+      _next(command, workingDirectory: workingDirectory).stdout;
+
+  @override
+  Future<ProcessOutcome> observe(
+    List<String> command, {
+    String? workingDirectory,
+    Map<String, String>? environment,
+  }) async {
+    final FakeCommand expected = _next(command, workingDirectory: workingDirectory);
+    return ProcessOutcome(exitCode: expected.exitCode, stdout: expected.stdout, stderr: expected.stderr);
+  }
+
+  @override
+  ProcessOutcome observeSync(List<String> command, {String? workingDirectory, Map<String, String>? environment}) {
+    final FakeCommand expected = _next(command, workingDirectory: workingDirectory);
+    return ProcessOutcome(exitCode: expected.exitCode, stdout: expected.stdout, stderr: expected.stderr);
+  }
+
+  @override
+  void detach(List<String> command, {String? workingDirectory}) {
+    _next(command, workingDirectory: workingDirectory);
   }
 }
