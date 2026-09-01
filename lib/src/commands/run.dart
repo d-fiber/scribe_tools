@@ -81,6 +81,13 @@ class RunCommand extends ScribeCommand {
         abbr: 'f',
         negatable: false,
         help: 'Start even when another checkout of this project is already running.',
+      )
+      ..addFlag(
+        ScribeCommand.watchOption,
+        negatable: false,
+        help:
+            'Restart the api, and the worker with --worker, every time lib/ changes. '
+            'A change under configuration/ or config.yaml needs a fresh scribe run instead.',
       );
   }
 
@@ -129,9 +136,22 @@ class RunCommand extends ScribeCommand {
       return const ScribeCommandResult.success();
     }
 
+    if (boolArg(ScribeCommand.watchOption) && documents.kind != TargetKind.dev) {
+      throwUsageError(
+        '--watch restarts containers on this workstation, and the target given deploys elsewhere. '
+        'Run without --target for that, or without --watch to deploy once.',
+        command: invocationName,
+      );
+    }
+
     if (!boolArg('force')) await refuseForeignCheckout(compose);
 
-    if (documents.kind == TargetKind.dev) return _startOnThisWorkstation(compose, manifest.projectName);
+    if (documents.kind == TargetKind.dev) {
+      final ScribeCommandResult started = await _startOnThisWorkstation(compose, manifest.projectName);
+      if (started.exitStatus != ExitStatus.success || !boolArg(ScribeCommand.watchOption)) return started;
+
+      return watchAndRerun(<FileSystemEntity>[project.lib], () => _restart(compose));
+    }
 
     const Router router = Router();
     if (!await router.ensureUp()) {
@@ -179,5 +199,24 @@ class RunCommand extends ScribeCommand {
     globals.logger.printStatus('It answers on http://localhost:$port');
 
     return const ScribeCommandResult.success();
+  }
+
+  /// Regenerates what a change under `lib/` can affect, then restarts the api
+  /// and, with `--worker`, the worker: the two containers `--watch` may need
+  /// to reach code it just changed.
+  ///
+  /// A container is restarted rather than recreated because nothing about the
+  /// stack itself changed, only the files it already mounts. `compose up`
+  /// would see the same configuration it started with and do nothing.
+  Future<ScribeCommandResult> _restart(Compose compose) async {
+    await generateProjectCode();
+    await generateRoutes();
+
+    final List<String> services = <String>['api', if (boolArg('worker')) 'worker'];
+    globals.logger.printStatus('Restarting ${services.join(', ')}...');
+
+    return await compose.restart(services) == 0
+        ? const ScribeCommandResult.success()
+        : const ScribeCommandResult.fail();
   }
 }

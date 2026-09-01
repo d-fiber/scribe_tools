@@ -79,6 +79,15 @@ class Compose {
   /// Starts the stack in the background, and returns its status.
   Future<int> up() => _run(<String>['up', '-d', '--remove-orphans']);
 
+  /// Restarts [services], and returns the status.
+  ///
+  /// `up` does not do this on its own: Compose only recreates a container when
+  /// its own configuration changed, never when the contents of a file it
+  /// mounts did, and the api and worker containers mount the project's own
+  /// code read-only rather than baking it into the image. A restart is the
+  /// only way a code change reaches a container already running.
+  Future<int> restart(List<String> services) => _run(<String>['restart', ...services]);
+
   /// Starts the stack and returns once every container has settled, or fails.
   ///
   /// What a deployment needs and a workstation does not: `up -d` returns as
