@@ -53,10 +53,12 @@ const String proxyFileName = 'Caddyfile';
 /// configuration mounted from it would make the version of the proxy depend on
 /// which framework happens to sit next to the project.
 ///
-/// It carries no route of its own. The proxy answers two domains, hands
-/// everything on the first to the gateway, and serves the dashboard on the
-/// second. Which paths exist is the gateway's answer, and duplicating it here
-/// would give a request two places to be refused and one of them would drift.
+/// It carries one route of its own, the dashboard's. The proxy hands
+/// everything on the API's two hostnames to the gateway; which paths exist
+/// there is the gateway's answer, and duplicating it here would give a
+/// request two places to be refused and one of them would drift. The
+/// dashboard is different: it is served from disk, not from the gateway, so
+/// this is the only place that can serve it.
 class ProxyRender {
   /// Renders the proxy of [project].
   ProxyRender({Project? project}) : project = project ?? globals.project;
@@ -77,31 +79,42 @@ class ProxyRender {
 
     final String written = renderTemplate(proxyFileName, await source.readAsString(), <String, String>{
       ...values,
-      'dashboard_site': _dashboardSite(project.manifest.dashboard),
+      'dashboard_site': _dashboardSite(values['app_name_snake']!, project.manifest.dashboard),
     });
 
     if (!target.existsSync()) target.createSync(recursive: true);
     final File destination = target.childFile(proxyFileName);
-    // The dashboard block is the last thing in the file and it is empty when no
-    // domain is named, so what is left is the blank lines that surrounded it,
-    // which `caddy fmt` takes off again.
     await destination.writeAsString('${written.trimRight()}\n');
 
     return destination;
   }
 
-  /// The site block that serves the dashboard, empty when no domain is named.
+  /// The site block that serves the dashboard.
   ///
-  /// A site block with an empty address is not an empty site: Caddy reads the
-  /// first block without a key as the global options, refuses to find them
-  /// second, and the whole file fails to adapt. A deployment that serves no
-  /// dashboard would therefore take the front door down with it, which is why
-  /// the block is rendered rather than given a domain that resolves nowhere.
-  static String _dashboardSite(String domain) {
-    if (domain.isEmpty) return '';
+  /// It always answers on `codex.<name>.scribe.localhost`, which resolves to
+  /// loopback on any machine without touching `/etc/hosts` or a deployed DNS
+  /// record, so a checkout with no `dashboard:` named still has somewhere to
+  /// reach the dashboard from during `scribe run`. The domain named in
+  /// `dashboard:`, when there is one, answers the same content, in addition:
+  /// both addresses share one block, since a request on either is served the
+  /// same way.
+  ///
+  /// Read as a bare host rather than the value `dashboard:` carries verbatim:
+  /// the scheme it may spell out describes what a browser sees, not what this
+  /// container listens on, since the router in front of it is what terminates
+  /// TLS. An address here that kept the scheme would ask Caddy to obtain and
+  /// serve its own certificate for a domain it is never reached on directly.
+  static String _dashboardSite(String appNameSnake, String dashboard) {
+    final String localHost = 'codex.$appNameSnake.scribe.localhost';
+    final String dashboardHost = dashboard.isEmpty ? '' : Uri.parse(dashboard).host;
+
+    final List<String> addresses = <String>[
+      'http://$localHost',
+      if (dashboardHost.isNotEmpty && dashboardHost != localHost) dashboardHost,
+    ];
 
     return <String>[
-      '$domain {',
+      '${addresses.join(', ')} {',
       '\tlog {',
       '\t\toutput stderr',
       '\t\tformat json',
@@ -111,9 +124,9 @@ class ProxyRender {
       '\timport compression',
       '',
       // The gauges are read by the page this block serves, and by nothing else:
-      // the gateway matches `/_codex` on this host only, and asks for a key on
-      // top. Serving it from the public site would put a load report behind a
-      // domain anyone knows.
+      // the gateway matches `/_codex` on these hosts only, and asks for a key
+      // on top. Serving it from the public API domain would put a load report
+      // behind a domain anyone knows.
       '\thandle_path /codex/* {',
       '\t\trewrite * /_codex{uri}',
       '\t\treverse_proxy kong:8000',

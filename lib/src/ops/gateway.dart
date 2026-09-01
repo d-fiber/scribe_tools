@@ -118,7 +118,7 @@ class GatewayRender {
     final String merged = mergeYamlDocuments(await source.readAsString(), fragments);
     final String written = renderTemplate(gatewayFileName, merged, <String, String>{
       ...values,
-      ..._gateway(Nodes.load(project: project).facingOutward, active),
+      ..._gateway(Nodes.load(project: project).facingOutward, active, values['app_name_snake']!),
     });
 
     refuseAmbiguousRoutes(routesOf(written, fragments));
@@ -156,7 +156,7 @@ class GatewayRender {
   /// Nothing here is a name the framework chose. The nodes come from the
   /// directories under `lib/src/`, and what each one gets comes from the
   /// manifest when it says something and from a default when it does not.
-  Map<String, String> _gateway(List<ProjectNode> nodes, List<Package> active) {
+  Map<String, String> _gateway(List<ProjectNode> nodes, List<Package> active, String appNameSnake) {
     final String origins = _originsBlock(project.manifest.origins, 'api.cors');
 
     return <String, String>{
@@ -165,24 +165,39 @@ class GatewayRender {
           .join('\n\n'),
       'api_node_acls': nodes.where(_keyed).map(_acl).join('\n'),
       'app_key_consumers': nodes.where(_keyed).map(_consumer).join('\n'),
-      'codex_service': _codexService(project.manifest.dashboard),
+      'codex_service': _codexService(appNameSnake, project.manifest.dashboard),
       for (final Package package in active) '${package.name}_cors_origins': origins,
     };
   }
 
-  /// The service the dashboard reads its gauges through, empty when none is served.
+  /// The service the dashboard reads its gauges through.
   ///
-  /// Two conditions guard it and neither is enough alone. The host match means a
-  /// request on the public domain never reaches the route at all, so the surface
-  /// is not merely unadvertised there. The key and the group mean a browser that
-  /// resolves the dashboard's domain still answers for itself, because that
-  /// domain is public DNS like any other.
-  static String _codexService(String dashboard) {
-    if (dashboard.isEmpty) return '';
+  /// It always answers `codex.<name>.scribe.localhost`, the host the proxy
+  /// always serves the dashboard's own site on, so a checkout with no
+  /// `dashboard:` named still has somewhere the page can read its gauges from
+  /// during `scribe run`. A domain named in `dashboard:` answers the same
+  /// route in addition, once one is set.
+  ///
+  /// Three conditions guard it and none alone is enough. The host match means
+  /// a request on the public API domain never reaches the route at all, so the
+  /// surface is not merely unadvertised there. The key and the group mean a
+  /// browser that resolves one of these hosts still answers for itself,
+  /// because a domain named in `dashboard:` is public DNS like any other. And
+  /// the internal secret this route stamps on every request it forwards is
+  /// what the host actually checks, `access()` in `codex/gauges.ts` requiring
+  /// the `service` caller role: a call that reaches `api-upstream` on the app
+  /// network without going through this route, key and host included, carries
+  /// no secret it could have guessed, and is refused there instead.
+  static String _codexService(String appNameSnake, String dashboard) {
+    final String localHost = 'codex.$appNameSnake.scribe.localhost';
+    final List<String> hosts = <String>[localHost];
 
-    final String host = Uri.parse(dashboard).host;
-    if (host.isEmpty) {
-      throwToolExit('config.yaml declares a dashboard at "$dashboard", which names no host.');
+    if (dashboard.isNotEmpty) {
+      final String host = Uri.parse(dashboard).host;
+      if (host.isEmpty) {
+        throwToolExit('config.yaml declares a dashboard at "$dashboard", which names no host.');
+      }
+      if (host != localHost) hosts.add(host);
     }
 
     return <String>[
@@ -200,7 +215,7 @@ class GatewayRender {
       '      methods:',
       '        - GET',
       '      hosts:',
-      '        - $host',
+      for (final String host in hosts) '        - $host',
       '      paths:',
       '        - /_codex',
       '  plugins:',
@@ -213,6 +228,18 @@ class GatewayRender {
       '      config:',
       '        allow:',
       '          - admin',
+      // Stamped only once the host and key checks above already passed, and
+      // only on this route: a caller who reaches the upstream any other way
+      // never carries it, which is what `access()` on the host actually
+      // checks. `remove` first refuses a client that tried to hand its own.
+      '    - name: request-transformer',
+      '      config:',
+      '        remove:',
+      '          headers:',
+      '            - x-internal-secret',
+      '        add:',
+      '          headers:',
+      '            - "x-internal-secret:\$INTERNAL_SECRET"',
       '    - name: rate-limiting',
       '      config:',
       '        second: 10',

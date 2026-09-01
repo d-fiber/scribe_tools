@@ -390,33 +390,63 @@ class ComposeRender {
   ///
   /// A project with no public name of its own declares one router for both,
   /// since neither name holds a certificate and there is nothing to separate.
+  /// The router labels every hostname this project answers on needs.
+  ///
+  /// `local` and its dashboard alias never carry a certificate: nothing
+  /// resolves either from outside the machine that runs them, so a resolver
+  /// spent on them would only fail. `public`, the host `api.url` names, and
+  /// the host `dashboard:` names when there is one, each get their own pair of
+  /// routers when a resolver is configured, because Traefik requests a
+  /// certificate per router and a single one covering both would ask for a
+  /// certificate that names two unrelated domains under one request.
   String _proxyRouters() {
     final String name = project.manifest.name;
     final String local = '$name.scribe.localhost';
+    final String localCodex = 'codex.$name.scribe.localhost';
     final String public = Uri.parse(_apiUrl).host;
+    final String dashboard = project.manifest.dashboard;
+    final String dashboardHost = dashboard.isEmpty ? '' : Uri.parse(dashboard).host;
     final String resolver = _tlsResolver();
 
+    final List<String> plainHosts = <String>[local, localCodex];
+    final List<MapEntry<String, String>> publicHosts = <MapEntry<String, String>>[
+      if (public.isNotEmpty && !plainHosts.contains(public)) MapEntry<String, String>('public', public),
+      if (dashboardHost.isNotEmpty && !plainHosts.contains(dashboardHost) && dashboardHost != public)
+        MapEntry<String, String>('dashboard', dashboardHost),
+    ];
+
     if (resolver.isEmpty) {
-      final String rule = public.isEmpty || public == local ? 'Host(`$local`)' : 'Host(`$local`) || Host(`$public`)';
+      final List<String> hosts = <String>[...plainHosts, ...publicHosts.map((MapEntry<String, String> e) => e.value)];
+      final String rule = hosts.map((String host) => 'Host(`$host`)').join(' || ');
 
       return '\n'
           '      traefik.http.routers.$name.rule: "$rule"\n'
           '      traefik.http.routers.$name.entrypoints: "web,websecure"';
     }
 
-    return '\n'
-        '      traefik.http.routers.$name.rule: "Host(`$local`)"\n'
-        '      traefik.http.routers.$name.entrypoints: "web,websecure"\n'
-        '      traefik.http.routers.$name-public.rule: "Host(`$public`)"\n'
-        '      traefik.http.routers.$name-public.entrypoints: "websecure"\n'
-        '      traefik.http.routers.$name-public.service: "$name"\n'
-        '      traefik.http.routers.$name-public.tls.certresolver: "$resolver"\n'
-        '      traefik.http.routers.$name-https.rule: "Host(`$public`)"\n'
-        '      traefik.http.routers.$name-https.entrypoints: "web"\n'
-        '      traefik.http.routers.$name-https.service: "$name"\n'
-        '      traefik.http.routers.$name-https.middlewares: "$name-https"\n'
-        '      traefik.http.middlewares.$name-https.redirectscheme.scheme: "https"\n'
-        '      traefik.http.middlewares.$name-https.redirectscheme.permanent: "true"';
+    final StringBuffer lines = StringBuffer()
+      ..write('\n      traefik.http.routers.$name.rule: "')
+      ..write(plainHosts.map((String host) => 'Host(`$host`)').join(' || '))
+      ..write('"\n      traefik.http.routers.$name.entrypoints: "web,websecure"');
+
+    for (final MapEntry<String, String> entry in publicHosts) {
+      final String router = entry.key == 'public' ? name : '$name-${entry.key}';
+      final String host = entry.value;
+
+      lines
+        ..write('\n      traefik.http.routers.$router-public.rule: "Host(`$host`)"\n')
+        ..write('      traefik.http.routers.$router-public.entrypoints: "websecure"\n')
+        ..write('      traefik.http.routers.$router-public.service: "$name"\n')
+        ..write('      traefik.http.routers.$router-public.tls.certresolver: "$resolver"\n')
+        ..write('      traefik.http.routers.$router-https.rule: "Host(`$host`)"\n')
+        ..write('      traefik.http.routers.$router-https.entrypoints: "web"\n')
+        ..write('      traefik.http.routers.$router-https.service: "$name"\n')
+        ..write('      traefik.http.routers.$router-https.middlewares: "$router-https"\n')
+        ..write('      traefik.http.middlewares.$router-https.redirectscheme.scheme: "https"\n')
+        ..write('      traefik.http.middlewares.$router-https.redirectscheme.permanent: "true"');
+    }
+
+    return lines.toString();
   }
 
   /// The `ports:` the proxy publishes, empty everywhere but on a workstation.
