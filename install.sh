@@ -44,6 +44,7 @@ TOOLS_REPOSITORY="${SCRIBE_TOOLS_REPOSITORY:-d-fiber/scribe_tools}"
 BINARIES="scribe_linux scribe_macos scribe_windows.exe"
 LAUNCHERS="scribe scribe.cmd"
 TEMPLATES_ASSET="scribe-templates.tar.gz"
+CHECKSUMS_ASSET="scribe-checksums.txt"
 
 say() { printf '%s\n' "$*"; }
 fail() { printf '%s\n' "$*" >&2; exit 1; }
@@ -104,13 +105,45 @@ download() {
   fi
 }
 
-fetch() {
+sha256_of() {
+  if have sha256sum; then
+    sha256sum "$1" | awk '{print $1}'
+  elif have shasum; then
+    shasum -a 256 "$1" | awk '{print $1}'
+  elif have openssl; then
+    openssl dgst -sha256 "$1" | awk '{print $NF}'
+  else
+    fail "Needs sha256sum, shasum or openssl to verify what was downloaded"
+  fi
+}
+
+verify() {
+  target=$1
+  name=$2
+
+  want=$(awk -v name="$name" '$2 == name { print $1 }' "$CHECKSUMS_FILE")
+  [ -n "$want" ] || fail "$name has no checksum in $CHECKSUMS_ASSET"
+
+  got=$(sha256_of "$target")
+  [ "$want" = "$got" ] || fail "$name failed its checksum: expected $want, got $got"
+}
+
+fetch_checksums() {
   destination="$ROOT/tools"
   mkdir -p "$destination"
+  CHECKSUMS_FILE="$destination/$CHECKSUMS_ASSET"
+
+  say "  $CHECKSUMS_ASSET"
+  download "$CHECKSUMS_ASSET" "$CHECKSUMS_FILE"
+}
+
+fetch() {
+  destination="$ROOT/tools"
 
   for asset in $BINARIES $LAUNCHERS; do
     say "  $asset"
     download "$asset" "$destination/$asset"
+    verify "$destination/$asset" "$asset"
   done
 
   chmod +x "$destination/scribe_linux" "$destination/scribe_macos" "$destination/scribe" 2>/dev/null || true
@@ -126,6 +159,7 @@ fetch_templates() {
 
   say "  $TEMPLATES_ASSET"
   download "$TEMPLATES_ASSET" "$archive"
+  verify "$archive" "$TEMPLATES_ASSET"
 
   rm -rf "$destination/templates"
   tar -xzf "$archive" -C "$destination"
@@ -147,8 +181,10 @@ main() {
 
   say ""
   say "Fetching the tools from the latest release of $TOOLS_REPOSITORY"
+  fetch_checksums
   fetch
   fetch_templates
+  rm -f "$CHECKSUMS_FILE"
 
   provision
 

@@ -108,6 +108,12 @@ jobs:
           tar -czf assets/scribe-templates.tar.gz templates
           ls -lh assets/scribe-templates.tar.gz
 
+      - name: Write a checksum for every asset, for install.sh to verify
+        run: |
+          set -eu
+          (cd assets && sha256sum * > scribe-checksums.txt)
+          cat assets/scribe-checksums.txt
+
       - name: Attach them to this release
         env:
           GH_TOKEN: ${{ github.token }}
