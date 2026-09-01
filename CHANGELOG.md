@@ -74,11 +74,49 @@ Puts the checkout back on an older version, named or picked from the list it pri
 version older than the one here, newest first, read from the history of `VERSION`. It leaves the
 checkout on a detached head, and `scribe upgrade` is the way back.
 
+### `scribe clean [--dry-run]`
+
+Removes what `forge` and `gen` derived, so the next run writes it fresh. In a project that is
+`.<name>/`, the derived tree `forge` and `gen` rewrite; in a package it is `.scribe/`, holding only
+`resolution.json`. It never touches `.scribe/state/`, the OpenTofu state `deploy` provisioned:
+that one stays `destroy`'s to take down. `--dry-run` lists what would go without removing it.
+
+### `--machine`
+
+`status`, `doctor` and `forge` each answer `--machine` with one line of JSON instead of the report
+a person reads: what a target is running, what the machine and the project are missing, what a
+project or a package resolved to. Nothing else reaches standard output when it is passed.
+
+### `scribe completion bash|zsh|fish`
+
+Prints a shell completion script, read off the command tree itself rather than a list kept apart
+from it. Bash and zsh share one generator, zsh reaching it through `bashcompinit`; fish gets its
+own, since it completes by condition rather than by position. Only command words and long flag
+names complete, never a flag's own value.
+
+### `--watch`
+
+`analyze`, `forge` and `run` answer `--watch` by running their own body again every time what they
+watch changes, instead of once. `analyze` watches the roots it was given; `forge` watches `lib/`
+and the manifest; `run` watches `lib/` alone, and only on the workstation a target with no host
+deploys to, restarting the api and, with `--worker`, the worker, since neither container reacts to
+its own mounted code on its own.
+
+### `scribe daemon`
+
+Answers requests as JSON lines on standard input, one line back per request, until told to stop:
+`doctor`, `forge` and `status`, each the same document `--machine` on the command of the same name
+would answer, plus `watch.start` / `watch.stop`, which push a `forge.changed` event on every change
+instead of blocking on one. It is what an editor keeps open instead of shelling out to the CLI for
+every question.
+
 ### How this file gets written
 
-The CI writes it. When a push to `dev` carries a version that moved, it reads every commit since the
-last tag, groups them by their tag, and writes the section before naming that commit. The commits
-that only raise the version or write this file are left out.
+The CI writes it, once the version has moved and been tagged for the first time. When a push to
+`dev` carries a version that moved, it reads every commit since the last tag, groups them by their
+tag, and writes the section before naming that commit. The commits that only raise the version or
+write this file are left out. Before the first tag, as while `1.0.0` is still unreleased, this
+section is kept by hand instead.
 
 ### What a newer framework looks like
 
