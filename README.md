@@ -41,6 +41,8 @@ realtime, search, and a foundation of cache, queue, cron and rate limiting are a
 
 [Framework](https://github.com/d-fiber/scribe) ·
 [Packages](https://github.com/d-fiber/scribe_packages) ·
+[Ops](https://github.com/d-fiber/scribe_ops) ·
+[Dashboard](https://github.com/d-fiber/scribe_codex) ·
 [VS Code extension](https://github.com/d-fiber/scribe_vscode_extensions)
 
 ## License
