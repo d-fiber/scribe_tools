@@ -46,6 +46,7 @@ import 'package:scribe_tools/src/base/logger.dart';
 import 'package:scribe_tools/src/base/platform.dart';
 import 'package:scribe_tools/src/base/process.dart';
 import 'package:scribe_tools/src/commands/analyze.dart';
+import 'package:scribe_tools/src/commands/clean.dart';
 import 'package:scribe_tools/src/commands/create.dart';
 import 'package:scribe_tools/src/commands/forge.dart';
 import 'package:scribe_tools/src/commands/test.dart';
@@ -138,7 +139,7 @@ class PackageHarness {
   /// Runs `scribe` with [args] against this machine, and answers the status it left with.
   Future<int> run(List<String> args) => runner.run(
     args,
-    () => <ScribeCommand>[AnalyzeCommand(), CreateCommand(), ForgeCommand(), TestCommand()],
+    () => <ScribeCommand>[AnalyzeCommand(), CleanCommand(), CreateCommand(), ForgeCommand(), TestCommand()],
     toolVersion: 'test',
     overrides: <Type, Generator>{
       FileSystem: () => fs,
