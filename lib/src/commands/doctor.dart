@@ -47,15 +47,21 @@ import 'package:scribe_tools/src/runner/scribe_command_runner.dart';
 class DoctorCommand extends ScribeCommand {
   /// Declares `--rescue`, which is what turns a report into a repair.
   DoctorCommand() {
-    argParser.addFlag(
-      rescueOption,
-      abbr: 'r',
-      negatable: false,
-      help:
-          'Repair what can be repaired from here: install the missing tools with the package '
-          'manager of this machine, and create the directories a project is missing. '
-          'What is left is what only a human can write.',
-    );
+    argParser
+      ..addFlag(
+        rescueOption,
+        abbr: 'r',
+        negatable: false,
+        help:
+            'Repair what can be repaired from here: install the missing tools with the package '
+            'manager of this machine, and create the directories a project is missing. '
+            'What is left is what only a human can write.',
+      )
+      ..addFlag(
+        ScribeCommand.machineOption,
+        negatable: false,
+        help: 'Print one line of JSON instead of the report, one object per section.',
+      );
   }
 
   /// The flag that turns the diagnosis into a repair.
@@ -88,10 +94,45 @@ class DoctorCommand extends ScribeCommand {
   Future<ScribeCommandResult> runCommand() async {
     if (boolArg(rescueOption)) await _rescue();
 
-    return printReport(await _look()) ? const ScribeCommandResult.success() : const ScribeCommandResult.warning();
+    final List<DoctorSection> sections = await _look();
+    final bool ok = sections.every((DoctorSection section) => section.isGood);
+
+    if (boolArg(ScribeCommand.machineOption)) {
+      printMachine(_machineReport(sections, ok: ok));
+    } else {
+      printReport(sections);
+    }
+
+    return ok ? const ScribeCommandResult.success() : const ScribeCommandResult.warning();
   }
 
   Future<List<DoctorSection>> _look() => diagnose(assumeYes: ScribeCommandRunner.assumesYes(globalResults));
+
+  /// [sections], in the shape `--machine` prints: one object per section, one
+  /// per finding underneath it. Nothing here decides what is shown or hidden
+  /// the way [printReport] does — every finding goes, `-v` or not, because a
+  /// caller parsing this is the one deciding what to do with it.
+  Map<String, Object?> _machineReport(List<DoctorSection> sections, {required bool ok}) => <String, Object?>{
+    'command': 'doctor',
+    'ok': ok,
+    'sections': <Object?>[
+      for (final DoctorSection section in sections)
+        <String, Object?>{
+          'title': section.title,
+          'summary': section.summary,
+          'ok': section.isGood,
+          'findings': <Object?>[
+            for (final Finding finding in section.findings)
+              <String, Object?>{
+                'kind': finding.kind.name,
+                'message': finding.message,
+                'hint': finding.hint,
+                'repairable': finding.repair != null,
+              },
+          ],
+        },
+    ],
+  };
 
   /// Runs every repair the sections offered, then lets the report say what is left.
   ///

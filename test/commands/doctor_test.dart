@@ -34,6 +34,8 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
+import 'dart:convert';
+
 import 'package:file/file.dart';
 import 'package:file/memory.dart';
 import 'package:scribe_tools/runner.dart' as runner;
@@ -254,6 +256,65 @@ void main() {
       expect(await runScribe(<String>['doctor', '--rescue'], installed: everything), 0);
       expect(processes.commands, isEmpty);
       expect(logger.statusText, contains('No issues found!'));
+    });
+  });
+
+  group('--machine', () {
+    test('a healthy machine prints one line of JSON and nothing a person reads', () async {
+      writeProject();
+
+      expect(await runScribe(<String>['doctor', '--machine'], installed: everything), 0);
+
+      final Map<String, Object?> document = jsonDecode(logger.statusText.trim()) as Map<String, Object?>;
+      expect(document['command'], 'doctor');
+      expect(document['ok'], isTrue);
+      expect(logger.statusText.trim().split('\n'), hasLength(1), reason: '--machine prints exactly one line');
+
+      final List<Object?> sections = document['sections']! as List<Object?>;
+      expect(sections, hasLength(3), reason: 'Machine, Tools, Project');
+
+      final Map<String, Object?> tools = sections.cast<Map<String, Object?>>().firstWhere(
+        (Map<String, Object?> section) => section['title'] == 'Tools',
+      );
+      expect(tools['ok'], isTrue);
+
+      final List<Object?> findings = tools['findings']! as List<Object?>;
+      expect(
+        findings.cast<Map<String, Object?>>(),
+        contains(
+          predicate<Map<String, Object?>>(
+            (Map<String, Object?> finding) => finding['kind'] == 'ok' && '${finding['message']}'.startsWith('docker'),
+          ),
+        ),
+      );
+    });
+
+    test('a missing tool is a problem in the JSON, the same one --rescue would repair', () async {
+      writeProject();
+
+      expect(
+        await runScribe(
+          <String>['doctor', '--machine'],
+          installed: <String>['git', 'deno', 'npm', 'tofu', 'ssh', 'rsync', 'brew'],
+        ),
+        0,
+      );
+
+      final Map<String, Object?> document = jsonDecode(logger.statusText.trim()) as Map<String, Object?>;
+      expect(document['ok'], isFalse);
+
+      final List<Object?> sections = document['sections']! as List<Object?>;
+      final Map<String, Object?> tools = sections.cast<Map<String, Object?>>().firstWhere(
+        (Map<String, Object?> section) => section['title'] == 'Tools',
+      );
+      expect(tools['ok'], isFalse);
+
+      final List<Object?> findings = tools['findings']! as List<Object?>;
+      final Map<String, Object?> docker = findings.cast<Map<String, Object?>>().firstWhere(
+        (Map<String, Object?> finding) => '${finding['message']}'.contains('docker'),
+      );
+      expect(docker['kind'], 'problem');
+      expect(docker['repairable'], isTrue);
     });
   });
 }

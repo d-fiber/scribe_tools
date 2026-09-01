@@ -34,6 +34,8 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
+import 'dart:convert';
+
 import 'package:file/file.dart';
 import 'package:file/memory.dart';
 import 'package:scribe_tools/runner.dart' as runner;
@@ -43,6 +45,7 @@ import 'package:scribe_tools/src/base/logger.dart';
 import 'package:scribe_tools/src/base/platform.dart';
 import 'package:scribe_tools/src/base/process.dart';
 import 'package:scribe_tools/src/commands/forge.dart';
+import 'package:scribe_tools/src/deploy/configuration.dart';
 import 'package:scribe_tools/src/package/lock.dart';
 import 'package:scribe_tools/src/runner/scribe_command.dart';
 import 'package:test/test.dart';
@@ -163,6 +166,32 @@ void main() {
     expect(importMap.readAsStringSync(), contains('@scribe/auth'));
     expect(registrations.readAsStringSync(), contains('from "@scribe/auth"'));
     expect(declarations.existsSync(), isTrue);
+  });
+
+  test('--machine prints one line of JSON naming the entries, the lock and the version', () async {
+    expect(await machine.run(<String>['forge', '--machine']), 0);
+
+    final Map<String, Object?> document = jsonDecode(machine.logger.statusText.trim()) as Map<String, Object?>;
+    expect(document['command'], 'forge');
+    expect(document['kind'], 'project');
+    expect(document['ok'], isTrue);
+    expect(document['dryRun'], isFalse);
+    expect(document['scribeVersion'], '1.4.0');
+    expect(document['lockFile'], '$kProjectDirectory/scribe.lock');
+    expect(document['entries'], <Object?>[
+      <String, Object?>{'name': mainConfigurationName, 'verdict': 'written'},
+    ]);
+    expect(machine.logger.statusText.trim().split('\n'), hasLength(1), reason: '--machine prints exactly one line');
+  });
+
+  test('--dry-run --machine reports what is missing, and neither writes nor names a lock', () async {
+    expect(await machine.run(<String>['forge', '--dry-run', '--machine']), 0);
+
+    final Map<String, Object?> document = jsonDecode(machine.logger.statusText.trim()) as Map<String, Object?>;
+    expect(document['dryRun'], isTrue);
+    expect(document['lockFile'], isNull);
+    expect(document['scribeVersion'], isNull);
+    expect(machine.fs.file('$kProjectDirectory/scribe.lock').existsSync(), isFalse);
   });
 
   test('a package a project mounts that accepts a version this checkout does not carry is refused', () async {

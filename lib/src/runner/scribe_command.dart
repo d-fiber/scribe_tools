@@ -35,6 +35,7 @@
 // LICENSE file, the LICENSE file governs.
 
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
@@ -242,6 +243,21 @@ abstract class ScribeCommand extends Command<void> {
   /// Prints the usage through the logger, so it obeys `-q` like everything else.
   @override
   void printUsage() => globals.logger.printStatus(usage);
+
+  /// The flag a command declares for one line of JSON instead of a report a person reads.
+  ///
+  /// Only `status`, `doctor` and `forge` declare it: an editor already has to
+  /// parse `.scribe/resolution.json`, and reading the same shape off these three
+  /// commands is what lets it show what a project is doing without shelling out
+  /// to grep text meant for a terminal.
+  static const String machineOption = 'machine';
+
+  /// Writes [document] as a single line of JSON, for a command run with `--machine`.
+  ///
+  /// One `printStatus` call and nothing else: a caller parsing standard output
+  /// reads exactly one line, whatever `-v` or a progress spinner would otherwise
+  /// have written around it.
+  void printMachine(Map<String, Object?> document) => globals.logger.printStatus(jsonEncode(document));
 
   /// Whether flag [name] was passed.
   bool boolArg(String name) => argResults?[name] as bool? ?? false;

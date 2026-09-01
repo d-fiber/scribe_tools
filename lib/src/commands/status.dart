@@ -52,7 +52,13 @@ import 'package:scribe_tools/src/tools.dart';
 class StatusCommand extends ScribeCommand {
   /// Declares the target it reads.
   StatusCommand() {
-    argParser.addOption('target', abbr: 't', help: 'The target of configuration/main.yaml this reads.');
+    argParser
+      ..addOption('target', abbr: 't', help: 'The target of configuration/main.yaml this reads.')
+      ..addFlag(
+        ScribeCommand.machineOption,
+        negatable: false,
+        help: 'Print one line of JSON instead of a report a person reads.',
+      );
   }
 
   @override
@@ -73,29 +79,62 @@ class StatusCommand extends ScribeCommand {
 
     final ProjectConfiguration configuration = ProjectConfiguration.load(project: project);
     final Target target = configuration.target(targetName);
+    final bool machine = boolArg(ScribeCommand.machineOption);
 
-    globals.logger.printStatus('');
-    globals.logger.printStatus('  ${target.name}  ${target.kind.name}${target.host.isEmpty ? '' : '  ${target.host}'}');
-    globals.logger.printStatus('');
-
-    _reportPlacements(configuration, target);
+    if (!machine) {
+      globals.logger.printStatus('');
+      globals.logger.printStatus(
+        '  ${target.name}  ${target.kind.name}${target.host.isEmpty ? '' : '  ${target.host}'}',
+      );
+      globals.logger.printStatus('');
+      _reportPlacements(configuration, target);
+    }
 
     final String? services = await _servicesOf(target);
-    if (services == null) return const ScribeCommandResult.fail();
+    if (services == null) {
+      if (machine) printMachine(_machineReport(configuration, target, services: const <ServiceStatus>[], ok: false));
+      return const ScribeCommandResult.fail();
+    }
+
+    final List<ServiceStatus> parsed = _parseServices(services);
+
+    if (machine) {
+      printMachine(_machineReport(configuration, target, services: parsed, ok: true));
+      return const ScribeCommandResult.success();
+    }
 
     globals.logger.printStatus('');
-    if (services.trim().isEmpty) {
+    if (parsed.isEmpty) {
       globals.logger.printStatus('Nothing is running. `scribe deploy --target ${target.name}` starts it.');
 
       return const ScribeCommandResult.success();
     }
 
-    for (final String line in services.trim().split('\n')) {
-      globals.logger.printStatus('  $line');
+    for (final ServiceStatus service in parsed) {
+      globals.logger.printStatus('  ${service.service}\t${service.state}\t${service.health}');
     }
 
     return const ScribeCommandResult.success();
   }
+
+  Map<String, Object?> _machineReport(
+    ProjectConfiguration configuration,
+    Target target, {
+    required List<ServiceStatus> services,
+    required bool ok,
+  }) => <String, Object?>{
+    'command': 'status',
+    'ok': ok,
+    'target': <String, Object?>{'name': target.name, 'kind': target.kind.name, 'host': target.host},
+    'placements': <Object?>[
+      for (final Resource resource in Resources.declared())
+        <String, Object?>{
+          'resource': resource.name,
+          'recipe': configuration.placementOf(target.name, resource.name).recipeName,
+        },
+    ],
+    'services': <Object?>[for (final ServiceStatus service in services) service.toJson()],
+  };
 
   /// Where each resource of this project sits on [target].
   ///
@@ -151,4 +190,38 @@ class StatusCommand extends ScribeCommand {
 
     return null;
   }
+}
+
+/// [raw], the tab-separated lines `--format` above asked `docker compose ps` for, one [ServiceStatus] each.
+List<ServiceStatus> _parseServices(String raw) => <ServiceStatus>[
+  for (final String line in raw.trim().split('\n'))
+    if (line.trim().isNotEmpty) ServiceStatus.parse(line),
+];
+
+/// One service `docker compose ps` reported, its state and its health.
+class ServiceStatus {
+  /// Records what was read for [service].
+  const ServiceStatus({required this.service, required this.state, required this.health});
+
+  /// Reads a `service\tstate\thealth` line, the shape `--format` above asked for.
+  factory ServiceStatus.parse(String line) {
+    final List<String> columns = line.split('\t');
+    return ServiceStatus(
+      service: columns.isNotEmpty ? columns[0] : '',
+      state: columns.length > 1 ? columns[1] : '',
+      health: columns.length > 2 ? columns[2] : '',
+    );
+  }
+
+  /// The name of the service, as the compose file names it.
+  final String service;
+
+  /// What `docker compose ps` reports it is doing.
+  final String state;
+
+  /// The health check's own verdict, empty when the service declares none.
+  final String health;
+
+  /// This service, in the shape `--machine` prints.
+  Map<String, Object?> toJson() => <String, Object?>{'service': service, 'state': state, 'health': health};
 }

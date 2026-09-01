@@ -37,6 +37,8 @@
 import 'package:file/file.dart';
 import 'package:path/path.dart' as p;
 import 'package:scribe_tools/src/base/common.dart';
+import 'package:scribe_tools/src/base/context.dart';
+import 'package:scribe_tools/src/base/logger.dart';
 import 'package:scribe_tools/src/deploy/configuration.dart';
 import 'package:scribe_tools/src/deploy/forge.dart';
 import 'package:scribe_tools/src/forge/declarations.dart';
@@ -50,6 +52,7 @@ import 'package:scribe_tools/src/package/sdk.dart';
 import 'package:scribe_tools/src/packages.dart';
 import 'package:scribe_tools/src/project.dart';
 import 'package:scribe_tools/src/runner/scribe_command.dart';
+import 'package:scribe_tools/src/runner/scribe_command_runner.dart';
 
 /// Gives a project or a package everything it derives from what it declares.
 ///
@@ -79,12 +82,18 @@ import 'package:scribe_tools/src/runner/scribe_command.dart';
 class ForgeCommand extends ScribeCommand {
   /// Declares the flag that looks without writing.
   ForgeCommand() {
-    argParser.addFlag(
-      'dry-run',
-      abbr: 'n',
-      negatable: false,
-      help: 'In a project, say what is missing and what is wrong and write nothing.',
-    );
+    argParser
+      ..addFlag(
+        'dry-run',
+        abbr: 'n',
+        negatable: false,
+        help: 'In a project, say what is missing and what is wrong and write nothing.',
+      )
+      ..addFlag(
+        ScribeCommand.machineOption,
+        negatable: false,
+        help: 'Print one line of JSON instead of a report a person reads.',
+      );
   }
 
   @override
@@ -94,7 +103,7 @@ class ForgeCommand extends ScribeCommand {
   String get description => 'Give this project or package everything it declares and does not yet carry.';
 
   @override
-  String get invocation => 'scribe forge [--dry-run]';
+  String get invocation => 'scribe forge [--dry-run] [--machine]';
 
   /// It decides for itself whether it is in a project or a package.
   @override
@@ -123,9 +132,51 @@ class ForgeCommand extends ScribeCommand {
     }
 
     final bool dryRun = boolArg('dry-run');
+    final bool machine = boolArg(ScribeCommand.machineOption);
     final Packages packages = Packages.load();
     final List<Package> mounted = packages.active;
     final ForgeReport report = Forge(project: project, packages: mounted).run(write: !dryRun);
+
+    String? lockPath;
+    String? scribeVersion;
+
+    if (!dryRun) {
+      scribeVersion = findSdk(from: project.sdk.path).version;
+      final File lockFile = globals.fs.file(p.join(project.directory.path, kProjectLockFile));
+      packages.lockOf(mounted, scribeVersion).writeTo(lockFile);
+      lockPath = lockFile.path;
+
+      Future<void> writeGenerated() async {
+        await generateScribeConfig(packages: packages);
+        await generateRegistrations(packages: packages);
+        await generateDeclarations(packages: packages);
+        await generateDiWiring();
+      }
+
+      // Each generator prints its own line as it writes, which --machine has no
+      // use for: the caller reads the one line this command prints once every
+      // generator is done, not a status a person would have watched scroll by.
+      //
+      // The logger is read before the child context opens: reading it inside the
+      // override that builds one trips AppContext's own recursion guard, since
+      // that override is what the context would resolve Logger to.
+      if (machine) {
+        final Logger outer = globals.logger;
+        await globals.context.run<void>(
+          name: 'forge --machine',
+          overrides: <Type, Generator>{Logger: () => QuietLogger(outer)},
+          body: writeGenerated,
+        );
+      } else {
+        await writeGenerated();
+      }
+    }
+
+    if (machine) {
+      printMachine(_machineProjectReport(report, dryRun: dryRun, lockFile: lockPath, scribeVersion: scribeVersion));
+
+      return report.hasProblems ? const ScribeCommandResult.fail() : const ScribeCommandResult.success();
+    }
 
     for (final ForgeEntry entry in report.entries) {
       globals.logger.printStatus(_lineOf(entry, dryRun: dryRun));
@@ -135,17 +186,9 @@ class ForgeCommand extends ScribeCommand {
       globals.logger.printError(problem);
     }
 
-    if (!dryRun) {
-      final String scribe = findSdk(from: project.sdk.path).version;
-      final File lockFile = globals.fs.file(p.join(project.directory.path, kProjectLockFile));
-      packages.lockOf(mounted, scribe).writeTo(lockFile);
+    if (lockPath != null) {
       globals.logger.printStatus('');
-      globals.logger.printStatus('${lockFile.path} written, freezing what this project mounts at $scribe.');
-
-      await generateScribeConfig(packages: packages);
-      await generateRegistrations(packages: packages);
-      await generateDeclarations(packages: packages);
-      await generateDiWiring();
+      globals.logger.printStatus('$lockPath written, freezing what this project mounts at $scribeVersion.');
     }
 
     globals.logger.printStatus('');
@@ -153,6 +196,26 @@ class ForgeCommand extends ScribeCommand {
 
     return report.hasProblems ? const ScribeCommandResult.fail() : const ScribeCommandResult.success();
   }
+
+  /// [report], in the shape `--machine` prints for a project.
+  Map<String, Object?> _machineProjectReport(
+    ForgeReport report, {
+    required bool dryRun,
+    required String? lockFile,
+    required String? scribeVersion,
+  }) => <String, Object?>{
+    'command': 'forge',
+    'kind': 'project',
+    'ok': !report.hasProblems,
+    'dryRun': dryRun,
+    'entries': <Object?>[
+      for (final ForgeEntry entry in report.entries)
+        <String, Object?>{'name': entry.name, 'verdict': entry.verdict.name},
+    ],
+    'problems': report.problems,
+    'lockFile': lockFile,
+    'scribeVersion': scribeVersion,
+  };
 
   /// Resolves the package in [directory] against the checkout and writes it down.
   ///
@@ -170,6 +233,20 @@ class ForgeCommand extends ScribeCommand {
 
     final Sdk sdk = findSdk(from: directory);
     final Resolution resolution = resolve(directory, sdk);
+
+    if (boolArg(ScribeCommand.machineOption)) {
+      printMachine(<String, Object?>{
+        'command': 'forge',
+        'kind': 'package',
+        'ok': true,
+        'sdk': <String, Object?>{'version': sdk.version, 'root': sdk.root},
+        'imports': resolution.imports,
+        'resolutionFile': resolution.file,
+        'lockFile': resolution.lockFile,
+      });
+
+      return const ScribeCommandResult.success();
+    }
 
     globals.logger.printStatus('Resolved against scribe ${sdk.version} in ${sdk.root}');
     for (final MapEntry<String, String> held in resolution.imports.entries) {

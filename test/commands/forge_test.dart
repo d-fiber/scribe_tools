@@ -126,6 +126,23 @@ void main() {
       expect(await machine.run(<String>['forge', '--dry-run']), 64);
       expect(machine.logger.errorText, contains('only means something in a project'));
     });
+
+    test('--machine prints one line of JSON naming the sdk, the imports and the two files', () async {
+      final String at = await package('notifications');
+      machine.logger.clear();
+
+      expect(await machine.run(<String>['forge', '--machine']), 0);
+
+      final Map<String, Object?> document = jsonDecode(machine.logger.statusText.trim()) as Map<String, Object?>;
+      expect(document['command'], 'forge');
+      expect(document['kind'], 'package');
+      expect(document['ok'], isTrue);
+      expect(document['sdk'], <String, Object?>{'version': '3.0.1', 'root': kCheckoutDirectory});
+      expect(document['resolutionFile'], '$at/$kResolutionDirectory/$kResolutionFile');
+      expect(document['lockFile'], '$at/$kPackageLockFile');
+      expect((document['imports']! as Map<String, Object?>)['@scribe/alchemy'], isNotNull);
+      expect(machine.logger.statusText.trim().split('\n'), hasLength(1), reason: '--machine prints exactly one line');
+    });
   });
 
   group('forge run where it is neither a project nor a package', () {
