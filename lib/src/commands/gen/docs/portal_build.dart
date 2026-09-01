@@ -56,14 +56,14 @@ Future<void> buildPortal(Directory root) async {
   final Directory workspace = portal.parent;
 
   if (!globals.fs.directory(p.join(workspace.path, 'node_modules')).existsSync()) {
-    globals.logger.printStatus('portal: installing workspace dependencies (npm ci)...');
+    globals.logger.printStatus('Installing workspace dependencies (npm ci)...');
 
     final ShellResult install = await Npm.ci().output(cwd: workspace.path);
-    if (install.failed) throwToolExit('portal: npm ci failed: ${install.error}');
+    if (install.failed) throwToolExit('npm ci failed: ${install.error}');
   }
 
   final ShellResult build = await Npm.run().script('build').output(cwd: portal.path);
-  if (build.failed) throwToolExit('portal: build failed: ${build.error}');
+  if (build.failed) throwToolExit('The portal build failed: ${build.error}');
 
-  globals.logger.printStatus('portal: ${globals.project.generatedDirectoryName}/docs/dist/ rebuilt');
+  globals.logger.printStatus('${globals.project.generatedDirectoryName}/docs/dist/ rebuilt');
 }

@@ -205,7 +205,7 @@ class ForgeCommand extends ScribeCommand {
       return const ScribeCommandResult.success();
     }
 
-    globals.logger.printStatus('Resolved against scribe ${sdk.version} in ${sdk.root}');
+    globals.logger.printStatus('Resolved against scribe ${sdk.version} in ${sdk.root}.');
     for (final MapEntry<String, String> held in resolution.imports.entries) {
       globals.logger.printStatus('  ${held.key} ${held.value}');
     }

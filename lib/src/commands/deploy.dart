@@ -344,7 +344,7 @@ class DeployCommand extends ScribeCommand {
     final RemoteHost host = RemoteHost(plan.target.host);
     final StackLocation location = StackLocation(project: project);
 
-    globals.logger.printStatus('shipping the stack to ${plan.target.host}');
+    globals.logger.printStatus('Shipping the stack to ${plan.target.host}...');
     if (!await host.ship(location.directory, root)) {
       return const ScribeCommandResult.fail();
     }
@@ -353,7 +353,7 @@ class DeployCommand extends ScribeCommand {
       for (final File file in documents.files) pathlib.posix.join(root, pathlib.basename(file.path)),
     ];
 
-    globals.logger.printStatus('starting it there');
+    globals.logger.printStatus('Starting it there...');
     final int status = await host.compose(
       // Never `--build`: a host that cannot pull an image has to say so, and
       // not fall back to building from a context that only this machine has.
@@ -398,10 +398,10 @@ class DeployCommand extends ScribeCommand {
     );
     final Compose compose = Compose(manifest);
 
-    globals.logger.printStatus('building the images this deployment carries');
+    globals.logger.printStatus('Building the images this deployment carries...');
     if (await compose.build() != 0) return const ScribeCommandResult.fail();
 
-    globals.logger.printStatus('pushing them to the registry');
+    globals.logger.printStatus('Pushing them to the registry...');
     if (await compose.push() != 0) return const ScribeCommandResult.fail();
 
     return null;

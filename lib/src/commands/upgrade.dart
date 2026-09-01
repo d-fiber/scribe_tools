@@ -73,7 +73,7 @@ class UpgradeCommand extends ScribeCommand {
 
     await requireCleanCheckout(framework);
 
-    globals.logger.printStatus('Fetching $kOrigin/$kReleaseBranch');
+    globals.logger.printStatus('Fetching $kOrigin/$kReleaseBranch...');
     if (!await framework.fetch()) {
       throwToolExit('Could not reach $kOrigin. The checkout is untouched.');
     }

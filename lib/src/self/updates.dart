@@ -84,7 +84,7 @@ Future<void> announceUpdate() async {
     if (await pendingUpdate(framework) case final Version newer) {
       globals.logger.printStatus('');
       globals.logger.printStatus(
-        'A new version of scribe is available: $newer, and this checkout is on ${framework.version}',
+        'A new version of scribe is available: $newer, and this checkout is on ${framework.version}.',
         emphasis: true,
       );
       globals.logger.printStatus('Run `scribe upgrade` to get it.');

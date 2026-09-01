@@ -310,7 +310,7 @@ class CreateCommand extends ScribeCommand {
   }
 
   Future<void> _write(ProjectScaffold scaffold, {required String projectName, required SdkTarget target}) async {
-    final Status status = globals.logger.startProgress('Creating $projectName on the ${target.label} SDK');
+    final Status status = globals.logger.startProgress('Creating $projectName on the ${target.label} SDK...');
 
     try {
       await scaffold.write();

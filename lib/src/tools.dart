@@ -293,7 +293,7 @@ class ToolProvisioner {
 
   Future<void> _install(ExternalTool tool, PackageManager manager) async {
     final List<String> command = manager.commandFor(tool);
-    final Status status = globals.logger.startProgress('Installing ${tool.name} with ${manager.name}');
+    final Status status = globals.logger.startProgress('Installing ${tool.name} with ${manager.name}...');
 
     try {
       final int code = await globals.processRunner.run(command);

@@ -63,7 +63,7 @@ Future<GeneratedPathsDocument> runWalker(Directory root, String surface) async {
   if (result.error.isNotEmpty) globals.logger.printWarning(result.error);
 
   if (result.failed) {
-    throwToolExit('deno walker failed ($surface), exit code ${result.exitCode}');
+    throwToolExit('Deno walker failed ($surface), exit code ${result.exitCode}.');
   }
 
   return GeneratedPathsDocument.fromJson(jsonDecode(result.stdout) as Map<String, dynamic>);
@@ -78,7 +78,7 @@ void validateTags(GeneratedPathsDocument doc, Set<String> knownTags) {
     if (!knownTags.contains(entry.tag)) {
       throwToolExit(
         '${doc.surface}: path "${entry.path}" uses unknown tag "${entry.tag}" '
-        '(not among ${knownTags.join(', ')})',
+        '(not among ${knownTags.join(', ')}).',
       );
     }
   }

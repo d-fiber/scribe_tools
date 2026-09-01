@@ -54,7 +54,7 @@ class RouteClaims {
     final String route = '$node:$path';
 
     if (_byRoute[route] case final String taken) {
-      throwToolExit('[gen:routes] $file and $taken both answer /$node$path.');
+      throwToolExit('$file and $taken both answer /$node$path.');
     }
 
     _byRoute[route] = file;

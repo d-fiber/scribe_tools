@@ -52,7 +52,7 @@ class CreateReport {
 
   /// Lists the files [created] left, under the directory they were written to.
   void package(CreatedPackage created) {
-    globals.logger.printStatus('Wrote ${created.directory}');
+    globals.logger.printStatus('Wrote ${created.directory}.');
     for (final String file in created.files) {
       globals.logger.printStatus('  $file');
     }

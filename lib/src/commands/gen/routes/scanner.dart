@@ -70,7 +70,7 @@ class RouteScanner {
   static Future<DiscoveredSource> discover() async {
     final Directory src = globals.project.lib;
     if (!src.existsSync()) {
-      throwToolExit('[gen:routes] ${src.path} is missing: create lib/src/ first.');
+      throwToolExit('${src.path} is missing: create lib/src/ first.');
     }
 
     return scan(src, globals.project.directory.path);
@@ -160,7 +160,7 @@ class RouteScanner {
       final String name = Conventions.withoutExtension(basename);
       if (directories.contains(name)) {
         throwToolExit(
-          '[gen:routes] ${_relative(file.path)} and ${_relative(p.join(directory.path, name))}/ '
+          '${_relative(file.path)} and ${_relative(p.join(directory.path, name))}/ '
           'both claim ${Conventions.join(prefix, name)}: keep one of the two.',
         );
       }
@@ -198,7 +198,7 @@ class RouteScanner {
     if (obsolete == null) return;
 
     throwToolExit(
-      '[gen:routes] ${_relative(obsolete.path)} is obsolete: "$node/" carries its caller by name now. '
+      '${_relative(obsolete.path)} is obsolete: "$node/" carries its caller by name now. '
       'Delete the file, and move anything it declared to _middleware.ts.',
     );
   }

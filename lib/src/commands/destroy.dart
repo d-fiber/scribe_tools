@@ -95,7 +95,7 @@ class DestroyCommand extends ScribeCommand {
     for (final Resource resource in provisioned) {
       globals.tools.require(ToolCatalog.tofu, reason: '${resource.name} was created by it');
 
-      globals.logger.printStatus('destroying ${resource.name}');
+      globals.logger.printStatus('Destroying ${resource.name}...');
       if (!await Tofu(_stateOf(target, resource)).destroy()) return const ScribeCommandResult.fail();
     }
 

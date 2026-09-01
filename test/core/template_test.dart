@@ -77,7 +77,7 @@ void main() {
       expect(
         () => renderTemplate('kong.yml', '{{a}}\n{{b}}\n{{a}}', const <String, String>{}),
         throwsA(
-          isA<ToolExit>().having((ToolExit e) => e.message, 'message', 'kong.yml: 2 unresolved variable(s): a, b'),
+          isA<ToolExit>().having((ToolExit e) => e.message, 'message', 'kong.yml: 2 unresolved variable(s): a, b.'),
         ),
       );
     });
