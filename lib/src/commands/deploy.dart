@@ -129,44 +129,36 @@ class DeployCommand extends ScribeCommand {
       globals.logger.printStatus('${target.host} runs $platform');
     }
 
-    final Map<String, Map<String, String>>? made = await _provision(target, dryRun: boolArg('plan'));
-    if (made == null) return const ScribeCommandResult.fail();
-
     final Hardware hardware = await Hardware.detect();
 
-    Future<ComposeDocuments> renderFor(String? seenAt, {Map<String, String> images = const <String, String>{}}) =>
-        ComposeRender(
-          project: project,
-          withWorker: boolArg('worker'),
-          targetName: targetName,
-          stackRoot: seenAt,
-          platform: platform,
-          images: images,
-          resourceOutputs: made,
-        ).render(hardware);
+    Future<ComposeDocuments> renderFor(
+      String? seenAt, {
+      Map<String, String> images = const <String, String>{},
+      Map<String, Map<String, String>> resourceOutputs = const <String, Map<String, String>>{},
+    }) => ComposeRender(
+      project: project,
+      withWorker: boolArg('worker'),
+      targetName: targetName,
+      stackRoot: seenAt,
+      platform: platform,
+      images: images,
+      resourceOutputs: resourceOutputs,
+    ).render(hardware);
 
-    // Rendered for this machine first: the images are built and pushed here, and
-    // `docker compose` reads the whole document to do it, mounts included. A
-    // path that names the host is a path this machine does not have.
-    final ComposeDocuments documents = await renderFor(null);
-
+    // Rendered once before anything is created, with no resource's outputs
+    // known yet. A class comes from where a target places a resource, never
+    // from what it produces, so the plan this builds is accurate; only the
+    // outputs a provisioned resource would show are still blank. Nothing here
+    // is started or published, and nothing here costs anything: it exists to
+    // be reported and judged against the blockers below before a single
+    // dollar is spent.
+    final ComposeDocuments planned = await renderFor(null);
     final DeploymentPlan plan = DeploymentPlan(
       target: target,
-      resources: documents.resources,
-      services: documents.profiles,
+      resources: planned.resources,
+      services: planned.profiles,
     );
     _report(plan);
-
-    if (boolArg('plan')) {
-      globals.logger.printStatus('Plan only: nothing was created and nothing was started.');
-      return const ScribeCommandResult.success();
-    }
-
-    if (plan.target.registry.isNotEmpty && !boolArg('plan')) {
-      if (await _publish(documents) case final ScribeCommandResult refusal) {
-        return refusal;
-      }
-    }
 
     if (plan.blockers.isNotEmpty) {
       for (final String blocker in plan.blockers) {
@@ -176,13 +168,39 @@ class DeployCommand extends ScribeCommand {
       return const ScribeCommandResult.fail();
     }
 
+    if (boolArg('plan')) {
+      if (await _provision(target, dryRun: true) == null) return const ScribeCommandResult.fail();
+      globals.logger.printStatus('Plan only: nothing was created and nothing was started.');
+      return const ScribeCommandResult.success();
+    }
+
+    if (plan.createsAnything && !boolArg('yes')) {
+      globals.logger.printStatus('Nothing was created. Pass --yes to create what is listed above.');
+      return const ScribeCommandResult.success();
+    }
+
+    final Map<String, Map<String, String>>? made = await _provision(target, dryRun: false);
+    if (made == null) return const ScribeCommandResult.fail();
+
+    // Rendered again for this machine, now that every resource has real
+    // outputs: the images are built and pushed here, and `docker compose`
+    // reads the whole document to do it, mounts included. A path that names
+    // the host is a path this machine does not have.
+    final ComposeDocuments documents = await renderFor(null, resourceOutputs: made);
+
+    if (plan.target.registry.isNotEmpty) {
+      if (await _publish(documents) case final ScribeCommandResult refusal) {
+        return refusal;
+      }
+    }
+
     if (!remote) return _start(plan, documents);
 
-    // Rendered again, for the host this time: what it mounts is its own, and the
-    // two documents are two readers rather than one document travelling. It is
-    // pinned to the digests the push returned, so the host pulls what it lacks
-    // and can only run what was just built.
-    return _startThere(plan, await renderFor(root, images: await _digestsOf(target)), root!);
+    // Rendered a third time, for the host this time: what it mounts is its
+    // own, and the documents are two readers rather than one document
+    // travelling. It is pinned to the digests the push returned, so the host
+    // pulls what it lacks and can only run what was just built.
+    return _startThere(plan, await renderFor(root, images: await _digestsOf(target), resourceOutputs: made), root!);
   }
 
   /// Creates the resources whose recipe is configuration, and returns what they made.
