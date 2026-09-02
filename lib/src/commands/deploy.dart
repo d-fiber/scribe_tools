@@ -61,6 +61,23 @@ import 'package:scribe_tools/src/stack/stack_location.dart';
 import 'package:scribe_tools/src/stack/stack_manifest.dart';
 import 'package:scribe_tools/src/tools.dart';
 
+/// One param as a `.tf.json` recipe receives it, quoted by the recipe and not by this.
+///
+/// A list or a map is encoded rather than printed, because a recipe holding
+/// `"subnets": {{subnet_ids}}` is read back as JSON: Dart printing a list gives
+/// `[a, b]`, which no parser accepts. A string keeps only what [jsonEncode]
+/// puts between its own quotes: the recipe already supplies the quotes around
+/// the placeholder, so passing the string through unescaped would let a `"` a
+/// project wrote in `params:` close that string early and inject whatever
+/// follows as new JSON, and encoding the whole value would nest a second pair
+/// of quotes inside the recipe's.
+String paramForRecipe(Object? value) {
+  if (value is! String) return jsonEncode(value);
+
+  final String encoded = jsonEncode(value);
+  return encoded.substring(1, encoded.length - 1);
+}
+
 /// Deploys this project onto one of the targets it declares.
 ///
 /// It is not `run --target`, and that is deliberate: `run` is the local loop,
@@ -272,17 +289,9 @@ class DeployCommand extends ScribeCommand {
   /// naming it a second time to say the same thing. A `params:` entry called
   /// `name` still wins, for a provider that limits what an identifier may hold.
   Map<String, String> _paramsOf(Resource resource, Placement placement) => <String, String>{
-    'name': resource.name,
-    for (final MapEntry<String, Object?> entry in placement.params.entries) entry.key: _flat(entry.value),
+    'name': paramForRecipe(resource.name),
+    for (final MapEntry<String, Object?> entry in placement.params.entries) entry.key: paramForRecipe(entry.value),
   };
-
-  /// One param as the recipe receives it.
-  ///
-  /// A list or a map is encoded rather than printed, because a recipe holding
-  /// `"subnets": {{subnet_ids}}` is read back as JSON: Dart printing a list
-  /// gives `[a, b]`, which no parser accepts. A string is passed through, since
-  /// quoting it again would put quotes inside the recipe's own.
-  static String _flat(Object? value) => value is String ? value : jsonEncode(value);
 
   /// Where the stack will sit on the host, null when the host cannot be reached.
   Future<String?> _rootOn(Target target) async {
