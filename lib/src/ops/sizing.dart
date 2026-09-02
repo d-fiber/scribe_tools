@@ -252,6 +252,7 @@ class ComposeRender {
       'proxy_ports': _proxyPorts(kind),
       'tls_resolver': _tlsResolver(),
       'proxy_routers': _proxyRouters(),
+      'db_schemas': _dbSchemas(active),
     };
 
     globals.logger.printTrace('[sizing] hardware $hardware');
@@ -466,6 +467,17 @@ class ComposeRender {
   /// `scribe run` reads the port back from the container and prints it, because
   /// a port nobody can name is a stack nobody can call.
   String _proxyPorts(TargetKind kind) => kind == TargetKind.dev ? '\n    ports: ["80"]' : '';
+
+  /// The Postgres schemas PostgREST exposes: `public`, plus one per resolved
+  /// package.
+  ///
+  /// Provisioning gives every package its own schema, named after the
+  /// package, so its tables never collide with another package's tables of
+  /// the same name. Listing every package's schema here is what lets the API
+  /// still reach them: a package a project drops falls out of `active`, and
+  /// its schema falls out of this list with it.
+  String _dbSchemas(List<Package> active) =>
+      (<String>['public', ...active.map((Package package) => package.name)]..sort()).join(',');
 
   Map<String, String> _identity() {
     final String name = project.manifest.name;
