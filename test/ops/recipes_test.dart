@@ -39,6 +39,8 @@ import 'dart:convert';
 import 'package:file/file.dart';
 import 'package:file/local.dart';
 import 'package:path/path.dart' as p;
+import 'package:scribe_tools/src/base/template.dart';
+import 'package:scribe_tools/src/commands/deploy.dart';
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
@@ -122,21 +124,21 @@ String plainly(File file) {
 
 /// A recipe with an answer in the place of each of its placeholders.
 ///
-/// Three passes, because the place decides the form. A placeholder that is a
-/// whole string, or that stands where a JSON value starts, receives a literal,
-/// so a list arrives as a list. One written inside a longer string receives its
-/// bare scalar, since `"postgres:{{version}}"` wants the version and not a
-/// second pair of quotes.
+/// Filled through [renderTemplate], the one production renderer, so this test
+/// proves something about the engine a real deploy uses rather than about a
+/// second implementation of it. A placeholder [params] answers renders through
+/// [paramForRecipe], the same escaping a real render applies; one it does not
+/// answer renders as its own name, since a recipe carries placeholders no
+/// `params.json` names an example for and this test only checks the shape of
+/// what comes back, never the value.
 String fill(String recipe, Map<String, Object?> params) {
-  String answer(String name) => jsonEncode(params[name] ?? name);
+  final Set<String> placeholders = RegExp(
+    r'\{\{[ \t]*(\w+)[ \t]*\}\}',
+  ).allMatches(recipe).map((Match match) => match.group(1)!).toSet();
 
-  return recipe
-      .replaceAllMapped(RegExp(r'"\{\{([a-z_]+)\}\}"'), (Match match) => answer(match.group(1)!))
-      .replaceAllMapped(
-        RegExp(r'(": |\[|, )\{\{([a-z_]+)\}\}'),
-        (Match match) => '${match.group(1)}${answer(match.group(2)!)}',
-      )
-      .replaceAllMapped(RegExp(r'\{\{([a-z_]+)\}\}'), (Match match) => '${params[match.group(1)] ?? match.group(1)}');
+  return renderTemplate('recipe', recipe, <String, String>{
+    for (final String key in placeholders) key: params.containsKey(key) ? paramForRecipe(params[key]) : key,
+  });
 }
 
 /// The values a project would write under `params:` for [recipe].
