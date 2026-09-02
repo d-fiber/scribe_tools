@@ -38,6 +38,7 @@ import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/package/constraint.dart';
 import 'package:scribe_tools/src/package/dependency_source.dart';
 import 'package:scribe_tools/src/package/name.dart';
+import 'package:scribe_tools/src/runtime/js_runtime.dart';
 import 'package:yaml/yaml.dart';
 
 /// What a package says about itself before anybody has written the sentence.
@@ -68,6 +69,10 @@ const String kDevDependenciesKey = 'dev_dependencies';
 /// The key, inside `environment:`, naming the framework a package is written against.
 const String kEnvironmentKey = 'scribe';
 
+/// The key, inside `environment:`, naming the JS runtime a package's own tooling runs its
+/// TypeScript on: its suite, and `schema/` when it has one.
+const String kRuntimeEnvironmentKey = 'runtime';
+
 /// What a package says about itself, and the whole of what its manifest holds.
 class Manifest {
   /// Holds what a manifest said, with nothing filled in on its behalf.
@@ -76,6 +81,7 @@ class Manifest {
     required this.description,
     required this.version,
     required this.scribe,
+    required this.runtime,
     required this.dependencies,
     required this.devDependencies,
   });
@@ -95,6 +101,12 @@ class Manifest {
   /// anything resolves. Without it a package would take whatever checkout is on
   /// hand and fail at type check, where nothing points back at the version.
   final String scribe;
+
+  /// The JS runtime this package's own tooling runs its TypeScript on: `deno` or `bun`.
+  ///
+  /// `deno` when `environment.runtime:` names none, which is what every package written before
+  /// this key existed already runs on.
+  final String runtime;
 
   /// The packages this one may import, from a name to where it comes from.
   ///
@@ -137,11 +149,16 @@ class Manifest {
     final String? problem = packageNameProblem(name);
     if (problem != null) throwToolExit('$where: $problem');
 
+    final String description = _optionalText(document, 'description', where) ?? kDefaultDescription;
+    final String version = _version(document, where);
+    final (String scribe, String runtime) = _environment(document, where);
+
     return Manifest(
       name: name,
-      description: _optionalText(document, 'description', where) ?? kDefaultDescription,
-      version: _version(document, where),
-      scribe: _environment(document, where),
+      description: description,
+      version: version,
+      scribe: scribe,
+      runtime: runtime,
       dependencies: _dependencies(document, 'dependencies', where),
       devDependencies: _dependencies(document, kDevDependenciesKey, where),
     );
@@ -182,7 +199,7 @@ String _version(Map<Object?, Object?> document, String where) {
   return written;
 }
 
-String _environment(Map<Object?, Object?> document, String where) {
+(String scribe, String runtime) _environment(Map<Object?, Object?> document, String where) {
   final Object? value = document['environment'];
   if (value == null) {
     throwToolExit(
@@ -198,10 +215,10 @@ String _environment(Map<Object?, Object?> document, String where) {
   }
 
   for (final Object? key in value.keys) {
-    if (key == kEnvironmentKey) continue;
+    if (key == kEnvironmentKey || key == kRuntimeEnvironmentKey) continue;
     throwToolExit(
       '$where holds "environment.$key:", which means nothing. The block names "$kEnvironmentKey:" '
-      'and nothing else.',
+      'and "$kRuntimeEnvironmentKey:".',
     );
   }
 
@@ -213,6 +230,21 @@ String _environment(Map<Object?, Object?> document, String where) {
 
   final String? problem = constraintProblem(asked);
   if (problem != null) throwToolExit('$where: $problem');
+
+  return (asked, _runtime(value, where));
+}
+
+String _runtime(Map<Object?, Object?> environment, String where) {
+  final Object? asked = environment[kRuntimeEnvironmentKey];
+  if (asked == null) return JsRuntime.deno.name;
+
+  final Iterable<String> known = JsRuntime.values.map((JsRuntime runtime) => runtime.name);
+  if (asked is! String || !known.contains(asked)) {
+    throwToolExit(
+      '$where holds "environment.$kRuntimeEnvironmentKey: $asked", which is not a runtime this tool '
+      'knows. Write one of: ${known.join(', ')}.',
+    );
+  }
 
   return asked;
 }

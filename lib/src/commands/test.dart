@@ -38,9 +38,11 @@ import 'package:path/path.dart' as p;
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/package/layout.dart';
+import 'package:scribe_tools/src/package/manifest.dart';
 import 'package:scribe_tools/src/package/resolution.dart';
 import 'package:scribe_tools/src/package/sdk.dart';
 import 'package:scribe_tools/src/runner/scribe_command.dart';
+import 'package:scribe_tools/src/runtime/js_runtime.dart';
 import 'package:scribe_tools/src/tools.dart';
 
 /// Resolves a framework package and runs its tests.
@@ -67,22 +69,11 @@ class TestCommand extends ScribeCommand {
   @override
   bool get requiresProject => false;
 
+  /// `deno` is the only runtime a preflight check can name before a package's own manifest is
+  /// read: a package that names `bun` under `environment.runtime:` still needs it on `PATH`, but
+  /// that is only known once [runCommand] reads the manifest, past the point this getter answers.
   @override
   List<ExternalTool> get requiredTools => const <ExternalTool>[ToolCatalog.deno];
-
-  /// What a package's tests are allowed to reach, and nothing beyond it.
-  ///
-  /// The four are what the framework grants its own suite. Reading the environment
-  /// is what an npm dependency does the moment it loads, reading the system is
-  /// what a runtime probe does, and reading files is what the runtime does to
-  /// reach the package at all. Writing is what a driver that puts a file on disk
-  /// does, and withholding it meant the tool could not test the packages that
-  /// have one: eighteen of foundation's tests failed on a temporary directory,
-  /// with no service involved.
-  ///
-  /// Nothing here reaches the network: a test that needs the stack up is an
-  /// end-to-end test, and those are run against a stack rather than from here.
-  static const List<String> kTestPermissions = <String>['--allow-env', '--allow-sys', '--allow-read', '--allow-write'];
 
   @override
   Future<ScribeCommandResult> runCommand() async {
@@ -90,21 +81,28 @@ class TestCommand extends ScribeCommand {
     final Sdk sdk = findSdk(from: directory);
 
     final Resolution resolution = resolve(directory, sdk);
+    final Manifest manifest = Manifest.parse(
+      globals.fs.file(p.join(directory, kManifestFile)).readAsStringSync(),
+      p.join(directory, kManifestFile),
+    );
+    final JsRuntime runtime = JsRuntime.named(manifest.runtime);
 
     if (!globals.fs.directory(p.join(directory, kTestsDirectory)).existsSync()) {
       throwToolExit('$directory has no $kTestsDirectory/, so there is nothing to run.');
     }
 
+    if (!runtime.tool.isInstalled) {
+      throwToolExit(
+        "${runtime.tool.executable} is needed to run this package's suite, named under "
+        '"environment.$kRuntimeEnvironmentKey:", and is not on PATH. ${runtime.tool.homepage}',
+      );
+    }
+
     final String? filter = stringArg('filter');
-    final int status = await globals.processRunner.run(<String>[
-      'deno',
-      'test',
-      '--import-map',
-      resolution.importMap,
-      ...kTestPermissions,
-      if (filter != null) ...<String>['--filter', filter],
-      kTestsDirectory,
-    ], workingDirectory: directory);
+    final int status = await globals.processRunner.run(
+      runtime.testCommand(testsDirectory: kTestsDirectory, imports: resolution.imports, filter: filter),
+      workingDirectory: directory,
+    );
 
     return status == 0 ? const ScribeCommandResult.success() : const ScribeCommandResult.fail();
   }

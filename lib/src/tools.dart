@@ -160,6 +160,16 @@ class ToolCatalog {
     packages: <String, String>{'winget': 'DenoLand.Deno'},
   );
 
+  /// The second runtime a package's own tooling may run its TypeScript on, named under
+  /// `environment.runtime:` in its `package.yaml`.
+  static const ExternalTool bun = ExternalTool(
+    name: 'bun',
+    executable: 'bun',
+    purpose: "runs a package's suite and schema/ when its manifest asks for it over deno",
+    homepage: 'https://bun.sh/docs/installation',
+    packages: <String, String>{'homebrew': 'oven-sh/bun/bun', 'winget': 'Oven-sh.Bun'},
+  );
+
   /// The runtime the documentation portal is built with.
   static const ExternalTool npm = ExternalTool(
     name: 'node',
@@ -227,7 +237,7 @@ class ToolCatalog {
   /// A tool that a command needs and this list forgets is a tool nobody is told
   /// about until the command fails on it, so the list is the catalogue itself
   /// rather than a copy of it kept somewhere else.
-  static const List<ExternalTool> all = <ExternalTool>[deno, npm, docker, git, tofu, ssh, rsync, curl];
+  static const List<ExternalTool> all = <ExternalTool>[deno, bun, npm, docker, git, tofu, ssh, rsync, curl];
 
   /// The tools no command can work without, which every run is stopped for.
   ///
