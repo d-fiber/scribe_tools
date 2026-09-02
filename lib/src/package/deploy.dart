@@ -144,9 +144,16 @@ List<String> _deployTreeProblems(String directory) {
         problems.add('it has no $kDeployDirectory/$kDatabaseDirectory/$moment/.');
       }
     }
+    for (final String moment in kDatabaseMoments) {
+      if (kRequiredDatabaseMoments.contains(moment)) continue;
+      problems.addAll(
+        _emptyOptionalDirectory(database.childDirectory(moment), '$kDeployDirectory/$kDatabaseDirectory/$moment'),
+      );
+    }
   }
 
   final Directory services = deploy.childDirectory(kServicesDirectory);
+  problems.addAll(_emptyOptionalDirectory(services, '$kDeployDirectory/$kServicesDirectory'));
   if (services.existsSync()) {
     for (final Directory service in services.listSync(followLinks: false).whereType<Directory>()) {
       if (_holdsA(service, kServiceFragments.contains)) continue;
@@ -158,6 +165,7 @@ List<String> _deployTreeProblems(String directory) {
   }
 
   final Directory recipes = deploy.childDirectory(kRecipesDirectory);
+  problems.addAll(_emptyOptionalDirectory(recipes, '$kDeployDirectory/$kRecipesDirectory'));
   if (recipes.existsSync()) {
     for (final Directory recipe in recipes.listSync(followLinks: false).whereType<Directory>()) {
       if (recipe.childFile(kRecipeContract).existsSync()) continue;
@@ -169,6 +177,18 @@ List<String> _deployTreeProblems(String directory) {
   }
 
   return problems;
+}
+
+/// A problem naming [directory] at [label], when it exists but holds nothing.
+///
+/// An optional directory says something by existing at all: `deploy/recipes/`
+/// present says this package owns a resource type, `deploy/services/` present
+/// says it carries a container. Left empty, it keeps saying that with nothing
+/// behind it, which is indistinguishable from a directory nobody finished.
+List<String> _emptyOptionalDirectory(Directory directory, String label) {
+  if (!directory.existsSync() || directory.listSync(followLinks: false).isNotEmpty) return const <String>[];
+
+  return <String>['its $label/ is there and empty, which says this package needs it and carries nothing of it.'];
 }
 
 List<String> _protocolProblems(String directory) {

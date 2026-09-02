@@ -89,6 +89,27 @@ void main() {
     expect(deployProblems(root.path), isEmpty);
   });
 
+  test('deploy/db/provisioning present and empty is reported', () {
+    scaffoldDeploy();
+    Directory(p.join(root.path, 'deploy', 'db', 'provisioning')).createSync(recursive: true);
+
+    expect(deployProblems(root.path).single, contains('deploy/db/provisioning/ is there and empty'));
+  });
+
+  test('deploy/services present and empty is reported', () {
+    scaffoldDeploy();
+    Directory(p.join(root.path, 'deploy', 'services')).createSync(recursive: true);
+
+    expect(deployProblems(root.path).single, contains('deploy/services/ is there and empty'));
+  });
+
+  test('deploy/recipes present and empty is reported', () {
+    scaffoldDeploy();
+    Directory(p.join(root.path, 'deploy', 'recipes')).createSync(recursive: true);
+
+    expect(deployProblems(root.path).single, contains('deploy/recipes/ is there and empty'));
+  });
+
   test('a stray file directly under deploy is reported', () {
     scaffoldDeploy();
     File(p.join(root.path, 'deploy', 'packages.yaml')).writeAsStringSync('');
