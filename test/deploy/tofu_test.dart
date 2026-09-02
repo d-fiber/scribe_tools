@@ -38,6 +38,7 @@ import 'dart:io' as io;
 import 'package:file/local.dart';
 import 'package:scribe_tools/src/base/context.dart';
 import 'package:scribe_tools/src/base/logger.dart';
+import 'package:scribe_tools/src/base/platform.dart';
 import 'package:scribe_tools/src/deploy/tofu.dart';
 import 'package:test/test.dart';
 
@@ -75,8 +76,16 @@ const Map<String, Object?> _configuration = <String, Object?>{
 void main() {
   late io.Directory workspace;
 
-  Future<T> inContext<T>(Future<T> Function() body) =>
-      AppContext.current.run<T>(overrides: <Type, Generator>{Logger: BufferLogger.new}, body: body);
+  Future<T> inContext<T>(
+    Future<T> Function() body, {
+    Map<String, String> environment = const <String, String>{kTofuStateKeyVariable: 'a-passphrase-of-16-plus'},
+  }) => AppContext.current.run<T>(
+    overrides: <Type, Generator>{
+      Logger: BufferLogger.new,
+      Platform: () => FakePlatform(environment: environment),
+    },
+    body: body,
+  );
 
   setUp(() => workspace = io.Directory.systemTemp.createTempSync('scribe-tofu-'));
 
@@ -119,6 +128,37 @@ void main() {
       expect(outputs?['host'], 'db.example.com');
       expect(outputs?['port'], '5432');
       expect(outputs?['password']?.length, 24, reason: 'a password a recipe made is what a consumer connects with');
+
+      expect(await tofu.destroy(), isTrue);
+    });
+  }, timeout: const Timeout(Duration(minutes: 5)));
+
+  test('refuses to touch a workspace when no passphrase is set', () async {
+    final String? binary = _binary;
+    if (binary == null) return;
+
+    final Tofu tofu = Tofu(const LocalFileSystem().directory(workspace.path), binary: binary)..write(_configuration);
+
+    await inContext(() async {
+      expect(await tofu.init(), isFalse);
+      expect(await tofu.plan(), isNull);
+    }, environment: const <String, String>{});
+  }, timeout: const Timeout(Duration(minutes: 5)));
+
+  test('a password a recipe made never sits in the state file in clear text', () async {
+    final String? binary = _binary;
+    if (binary == null) return;
+
+    final Tofu tofu = Tofu(const LocalFileSystem().directory(workspace.path), binary: binary)..write(_configuration);
+
+    await inContext(() async {
+      expect(await tofu.init(), isTrue);
+      expect(await tofu.apply(), isTrue);
+
+      final Map<String, String>? outputs = await tofu.outputs();
+      final String state = io.File('${workspace.path}/terraform.tfstate').readAsStringSync();
+
+      expect(state, isNot(contains(outputs!['password'])), reason: 'the state has to be unreadable without the key');
 
       expect(await tofu.destroy(), isTrue);
     });

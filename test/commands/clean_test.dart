@@ -117,6 +117,15 @@ void main() {
       expect(machine.fs.file('$kProjectDirectory/scribe.lock').existsSync(), isTrue);
     });
 
+    test('leaves .scribe/state alone, which only destroy is allowed to take down', () async {
+      await machine.run(<String>['forge']);
+      machine.fs.file('$kProjectDirectory/.scribe/state/prod/db/terraform.tfstate').createSync(recursive: true);
+
+      await machine.run(<String>['clean']);
+
+      expect(machine.fs.file('$kProjectDirectory/.scribe/state/prod/db/terraform.tfstate').existsSync(), isTrue);
+    });
+
     test('--dry-run lists what would go, and removes nothing', () async {
       await machine.run(<String>['forge']);
 

@@ -57,6 +57,14 @@ const String tofuBinary = 'tofu';
 /// the plain sense: deleting it costs a download and nothing else.
 const String pluginCacheDirectoryName = 'tofu-plugins';
 
+/// The environment variable a passphrase for encrypting a workspace's state comes from.
+///
+/// Never a project's `.env`, which is committed: this belongs to whoever runs
+/// the deployment, the same way `SCRIBE_AGE_KEY` does not live in a project
+/// either. Without it, a workspace refuses to touch its state rather than
+/// write, in clear text, a password a recipe just generated.
+const String kTofuStateKeyVariable = 'SCRIBE_TOFU_STATE_KEY';
+
 /// One run of OpenTofu against one workspace.
 ///
 /// It shells out rather than speaking any protocol, because what it buys is the
@@ -93,8 +101,11 @@ class Tofu {
   /// also the only way to know whether an apply would create anything at all.
   Future<String?> plan() async {
     final ProcessOutcome outcome = await _run(<String>['plan', '-input=false', '-no-color']);
+    if (outcome.succeeded) return outcome.stdout;
 
-    return outcome.succeeded ? outcome.stdout : null;
+    globals.logger.printError(outcome.stderr.trim().isEmpty ? outcome.stdout.trim() : outcome.stderr.trim());
+
+    return null;
   }
 
   /// Creates what the configuration describes.
@@ -126,14 +137,48 @@ class Tofu {
   }
 
   Future<ProcessOutcome> _run(List<String> arguments) {
+    final String? key = globals.platform.environment[kTofuStateKeyVariable];
+    if (key == null || key.isEmpty) {
+      return Future<ProcessOutcome>.value(
+        ProcessOutcome(
+          exitCode: 1,
+          stdout: '',
+          stderr:
+              '$kTofuStateKeyVariable is not set. A recipe writes production passwords into this '
+              'state, and nothing will touch ${workspace.path} without a passphrase to encrypt it '
+              'with. Set it to a random string of at least 16 characters and keep it: losing it '
+              'loses the state, which is losing the trace of what was created.',
+        ),
+      );
+    }
+
     globals.logger.printTrace('[tofu] ${<String>[binary, ...arguments].join(' ')}');
 
     return globals.processRunner.observe(
       <String>[binary, ...arguments],
       workingDirectory: workspace.path,
-      environment: <String, String>{'TF_PLUGIN_CACHE_DIR': _pluginCache().path},
+      environment: <String, String>{'TF_PLUGIN_CACHE_DIR': _pluginCache().path, 'TF_ENCRYPTION': _encryptionOf(key)},
     );
   }
+
+  /// The block OpenTofu's `TF_ENCRYPTION` variable reads [passphrase] from.
+  ///
+  /// PBKDF2 with 600 000 iterations and SHA-512 is the default the
+  /// documentation calls strong, and nothing here overrides it. Encoding
+  /// [passphrase] as JSON rather than interpolating it is what keeps a
+  /// passphrase holding a quote from breaking the block; it is not proof
+  /// against one holding OpenTofu's own `${` interpolation syntax; a
+  /// generated passphrase never does.
+  static String _encryptionOf(String passphrase) =>
+      'key_provider "pbkdf2" "state" {\n'
+      '  passphrase = ${jsonEncode(passphrase)}\n'
+      '}\n'
+      'method "aes_gcm" "state" {\n'
+      '  keys = key_provider.pbkdf2.state\n'
+      '}\n'
+      'state {\n'
+      '  method = method.aes_gcm.state\n'
+      '}\n';
 
   /// The shared provider cache, created the first time it is asked for.
   ///
