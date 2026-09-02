@@ -39,6 +39,8 @@ import 'package:file/memory.dart';
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/deploy/configuration.dart';
 import 'package:scribe_tools/src/deploy/resources.dart';
+import 'package:scribe_tools/src/packages.dart';
+import 'package:scribe_tools/src/project.dart';
 import 'package:scribe_tools/src/templates.dart';
 import 'package:test/test.dart';
 
@@ -69,7 +71,7 @@ void main() {
   }
 
   Resources read(File declaration, {Placement? placed}) => Resources.read(
-    <File>[declaration],
+    <(File, String)>[(declaration, 'the socle')],
     recipes: <Directory>[root.childDirectory(recipesDirectoryName)],
     placement: placed == null ? null : (String _) => placed,
   );
@@ -190,6 +192,118 @@ void main() {
         () => read(declare(_declaration)),
         throwsA(isA<ToolExit>().having((ToolExit e) => e.message, 'message', contains('"url"'))),
       );
+    });
+  });
+
+  group('a resource that names capabilities', () {
+    const String declaration = '''
+requires:
+  - name: db
+    type: postgres
+    capabilities: [pg_cron, create_role]
+''';
+
+    test('is refused when the recipe promises none of them', () {
+      recipe('postgres', 'outputs:\n  host: "db"\n');
+
+      expect(
+        () => read(declare(declaration)),
+        throwsA(
+          isA<ToolExit>().having(
+            (ToolExit e) => e.message,
+            'message',
+            allOf(contains('pg_cron, create_role'), contains('needs "db" to have')),
+          ),
+        ),
+      );
+    });
+
+    test('is refused when the recipe promises only some of them', () {
+      recipe('postgres', 'outputs:\n  host: "db"\n');
+      root
+          .childDirectory(recipesDirectoryName)
+          .childDirectory('postgres')
+          .childFile('$containerPlacement.capabilities.yaml')
+          .writeAsStringSync('provides:\n  - pg_cron\n');
+
+      expect(
+        () => read(declare(declaration)),
+        throwsA(isA<ToolExit>().having((ToolExit e) => e.message, 'message', contains('create_role'))),
+      );
+    });
+
+    test('is taken when the recipe promises every one of them', () {
+      recipe('postgres', 'outputs:\n  host: "db"\n');
+      root
+          .childDirectory(recipesDirectoryName)
+          .childDirectory('postgres')
+          .childFile('$containerPlacement.capabilities.yaml')
+          .writeAsStringSync('provides:\n  - pg_cron\n  - create_role\n  - pgcrypto\n');
+
+      expect(read(declare(declaration)).resolved.single.outputs['host'], 'db');
+    });
+
+    test('never refuses a resource that names none', () {
+      recipe('postgres', 'outputs:\n  host: "db"\n');
+
+      expect(read(declare('requires:\n  - name: db\n    type: postgres\n')).resolved.single.outputs['host'], 'db');
+    });
+
+    test('is never checked against an external placement, which the project vouches for itself', () {
+      recipe('postgres', 'outputs:\n  host: "\${DB_HOST}"\n', className: externalPlacement);
+
+      final ResolvedResource resolved = read(
+        declare(declaration),
+        placed: const Placement(className: externalPlacement),
+      ).resolved.single;
+
+      expect(resolved.className, externalPlacement);
+    });
+  });
+
+  group('who declared a resource', () {
+    test('is named by the module that read it, never by the shape of the path', () {
+      final File declaration = declare(_declaration);
+
+      expect(
+        () => Resources.read(
+          <(File, String)>[(declaration, 'storage')],
+          recipes: <Directory>[root.childDirectory(recipesDirectoryName)],
+        ),
+        throwsA(
+          isA<ToolExit>().having(
+            (ToolExit e) => e.message,
+            'message',
+            allOf(contains('storage needs'), isNot(contains('deploy needs'))),
+          ),
+        ),
+      );
+    });
+  });
+
+  group('where a recipe is looked for', () {
+    test("a project's own recipe answers before the socle's does", () {
+      recipe('redis', _recipe);
+      final Directory projectDirectory = root.fileSystem.directory('/work/koko')..createSync(recursive: true);
+      projectDirectory
+          .childDirectory('deploy')
+          .childDirectory(recipesDirectoryName)
+          .childDirectory('redis')
+          .childFile('$containerPlacement.yaml')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('outputs:\n  host: "from-the-project"\n  port: 6379\n  url: "redis://from-the-project"\n');
+
+      final List<Directory> roots = Resources.recipeRoots(
+        project: Project.fromDirectory(projectDirectory),
+        mounted: const <Package>[],
+      );
+
+      expect(roots.first.path, projectDirectory.childDirectory('deploy/recipes').path);
+      expect(Resources.recipeFor(roots, 'redis', containerPlacement)!.readAsStringSync(), contains('from-the-project'));
+    });
+
+    test('nothing is prepended when no project is given', () {
+      expect(Resources.recipeRoots(mounted: const <Package>[]).length, 1, reason: 'the socle alone');
     });
   });
 }

@@ -101,10 +101,13 @@ File? _theContractIn(Directory type) {
 
 /// Whether this file describes the recipes beside it rather than being one.
 ///
-/// A contract says what the type promises, and a `params.json` says what a
-/// project would write for one recipe: neither answers for the type itself.
+/// A contract says what the type promises, a `params.json` says what a
+/// project would write for one recipe, and a `capabilities.yaml` says what a
+/// recipe already has set up: none of the three answers for the type itself.
 bool _describesRecipes(File file) =>
-    plainly(file).startsWith('contract.yaml') || plainly(file).endsWith('.params.json');
+    plainly(file).startsWith('contract.yaml') ||
+    plainly(file).endsWith('.params.json') ||
+    plainly(file).endsWith('.capabilities.yaml');
 
 /// The name of [file] as the socle wrote it, without the suffix the copy adds.
 ///

@@ -231,7 +231,12 @@ class ComposeRender {
 
     final List<String> profiles = <String>[...Packages.profilesOf(active), if (withWorker) workerProfile]..sort();
 
-    final Resources resources = Resources.load(mounted: active, placement: _placement, outputs: resourceOutputs);
+    final Resources resources = Resources.load(
+      project: project,
+      mounted: active,
+      placement: _placement,
+      outputs: resourceOutputs,
+    );
     final Set<String> gone = resources.suppressedServices;
 
     final SizingRules rules = SizingRules(

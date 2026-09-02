@@ -212,7 +212,7 @@ class DeployCommand extends ScribeCommand {
   Future<Map<String, Map<String, String>>?> _provision(Target target, {required bool dryRun}) async {
     final ProjectConfiguration configuration = ProjectConfiguration.load(project: project);
     final List<Package> mounted = Packages.load().active;
-    final List<Directory> roots = Resources.recipeRoots(mounted: mounted);
+    final List<Directory> roots = Resources.recipeRoots(project: project, mounted: mounted);
     final Map<String, Map<String, String>> made = <String, Map<String, String>>{};
 
     for (final Resource resource in Resources.declared(mounted: mounted)) {

@@ -39,6 +39,7 @@ import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/deploy/configuration.dart';
 import 'package:scribe_tools/src/ops/socle.dart';
 import 'package:scribe_tools/src/packages.dart';
+import 'package:scribe_tools/src/project.dart';
 import 'package:scribe_tools/src/templates.dart';
 import 'package:yaml/yaml.dart';
 
@@ -62,7 +63,12 @@ const String contractFileName = 'contract.yaml';
 /// answers is decided by the target and never by the module that asked.
 class Resource {
   /// Holds one resource as the module that needs it declared it.
-  const Resource({required this.name, required this.type, required this.declaredBy});
+  const Resource({
+    required this.name,
+    required this.type,
+    required this.declaredBy,
+    this.capabilities = const <String>[],
+  });
 
   /// The name the bindings and the placement refer to it by, unique in a stack.
   final String name;
@@ -72,6 +78,14 @@ class Resource {
 
   /// The module that declared it, named in a refusal so the file is findable.
   final String declaredBy;
+
+  /// What the module needs a resource of this type to already know how to do.
+  ///
+  /// An extension it needs loaded, a right its role needs to hold: things a
+  /// placement can satisfy or not regardless of whether it answers with the
+  /// right host and port. Empty by default, which asks nothing beyond what
+  /// the type's contract already promises.
+  final List<String> capabilities;
 }
 
 /// A resource once a recipe has answered for it.
@@ -130,6 +144,7 @@ class Resources {
   /// nothing about a resource leaves it in a container, which is the stack as it
   /// was before anything could be placed anywhere else.
   static Resources load({
+    Project? project,
     List<Package>? mounted,
     Placement Function(String resource)? placement,
     Map<String, Map<String, String>> outputs = const <String, Map<String, String>>{},
@@ -138,23 +153,19 @@ class Resources {
     final List<Package> found = mounted ?? Packages.load().active;
 
     return read(
-      <File>[
-        root.childFile('$configurationFileName$kTemplateSuffix'),
+      <(File, String)>[
+        (root.childFile('$configurationFileName$kTemplateSuffix'), 'the socle'),
         for (final Package package in found)
-          package.directory.childDirectory(deployDirectory).childFile(configurationFileName),
+          (package.directory.childDirectory(deployDirectory).childFile(configurationFileName), package.name),
       ],
-      recipes: <Directory>[
-        root.childDirectory(recipesDirectoryName),
-        for (final Package package in found)
-          package.directory.childDirectory(deployDirectory).childDirectory(recipesDirectoryName),
-      ],
+      recipes: recipeRoots(project: project, mounted: found),
       placement: placement ?? (String _) => Placement.inContainer,
       outputs: outputs,
     );
   }
 
   /// What [file] asks for, before anything answers, none when it asks nothing.
-  static List<Resource> declaredIn(File file) => _readFile(file);
+  static List<Resource> declaredIn(File file) => _readFile(file, declaredBy: file.parent.basename);
 
   /// Every resource the socle and [mounted] declare, before anything answers.
   ///
@@ -165,23 +176,35 @@ class Resources {
     final List<Package> found = mounted ?? Packages.load().active;
 
     return <Resource>[
-      ..._readFile(SocleOps().root.childFile('$configurationFileName$kTemplateSuffix')),
+      ..._readFile(SocleOps().root.childFile('$configurationFileName$kTemplateSuffix'), declaredBy: 'the socle'),
       for (final Package package in found)
-        ..._readFile(package.directory.childDirectory(deployDirectory).childFile(configurationFileName)),
+        ..._readFile(
+          package.directory.childDirectory(deployDirectory).childFile(configurationFileName),
+          declaredBy: package.name,
+        ),
     ];
   }
 
   /// The file a recipe of [className] for [type] is written in, null when none.
   ///
   /// Two shapes exist: a `.yaml` holding the outputs, and a `.tf.json` holding
-  /// configuration a provider applies to produce them.
+  /// configuration a provider applies to produce them. [roots] is searched in
+  /// order, and the first match wins: a project's own recipe therefore always
+  /// beats one the socle or a package would have answered with instead.
   static File? recipeFor(List<Directory> roots, String type, String className) => _recipeIn(roots, type, className);
 
-  /// Where the recipes of the socle and of [mounted] are looked for.
-  static List<Directory> recipeRoots({List<Package>? mounted}) {
+  /// Where a recipe for the socle, [mounted] and [project] is looked for, in
+  /// the order a match is taken.
+  ///
+  /// [project]'s own `deploy/recipes/` comes first, so a project that needs a
+  /// fournisseur nobody has written does not wait for a release of the
+  /// framework: it writes its own recipe and deploys the same day. The socle
+  /// comes next, then each package, in the order [mounted] lists them.
+  static List<Directory> recipeRoots({Project? project, List<Package>? mounted}) {
     final List<Package> found = mounted ?? Packages.load().active;
 
     return <Directory>[
+      if (project != null) project.directory.childDirectory(deployDirectory).childDirectory(recipesDirectoryName),
       SocleOps().root.childDirectory(recipesDirectoryName),
       for (final Package package in found)
         package.directory.childDirectory(deployDirectory).childDirectory(recipesDirectoryName),
@@ -194,13 +217,13 @@ class Resources {
   /// that needs no resource of its own looks like. A missing socle declaration
   /// is a different thing and is refused by [load], which names it.
   static Resources read(
-    Iterable<File> declarations, {
+    Iterable<(File file, String declaredBy)> declarations, {
     required List<Directory> recipes,
     Placement Function(String resource)? placement,
     Map<String, Map<String, String>> outputs = const <String, Map<String, String>>{},
   }) => Resources(<ResolvedResource>[
-    for (final File file in declarations)
-      for (final Resource resource in _readFile(file))
+    for (final (File file, String declaredBy) in declarations)
+      for (final Resource resource in _readFile(file, declaredBy: declaredBy))
         _resolve(
           resource,
           recipes,
@@ -237,6 +260,17 @@ class Resources {
   }) {
     final String className = placement.recipeName;
 
+    final File? recipe = _recipeIn(recipes, resource.type, className);
+    if (recipe == null) {
+      throwToolExit(
+        'No $className recipe for a ${resource.type}, which ${resource.declaredBy} needs as "${resource.name}". '
+        'Whoever owns the type carries it, so it goes under '
+        '${resource.declaredBy}/$deployDirectory/$recipesDirectoryName/${resource.type}/$className.yaml',
+      );
+    }
+
+    _refuseAnUnpromisedCapability(resource, className, recipe);
+
     // A resource somebody already provisioned answers with what it produced, and
     // no file on disk can hold that: it did not exist before the apply.
     if (outputs[resource.name] case final Map<String, String> made) {
@@ -245,15 +279,6 @@ class Resources {
         className: className,
         containerServices: _servicesOf(_recipeIn(recipes, resource.type, containerPlacement)),
         outputs: made,
-      );
-    }
-
-    final File? recipe = _recipeIn(recipes, resource.type, className);
-    if (recipe == null) {
-      throwToolExit(
-        'No $className recipe for a ${resource.type}, which ${resource.declaredBy} needs as "${resource.name}". '
-        'Whoever owns the type carries it, so it goes under '
-        '${resource.declaredBy}/$deployDirectory/$recipesDirectoryName/${resource.type}/$className.yaml',
       );
     }
 
@@ -312,6 +337,56 @@ class Resources {
     );
   }
 
+  /// Refuses a placement whose recipe does not promise a capability [resource] needs.
+  ///
+  /// This runs before a single output is read, let alone applied: the cost of a
+  /// managed resource that cannot do what its consumer needs is a provisioned
+  /// instance nobody can use, and placement is the last step that is free.
+  ///
+  /// `external` is exempt. What it names already exists, and the only thing the
+  /// framework knows about it is what a project's `.env` says its address is;
+  /// there is nothing on disk that could honestly answer for what it can do.
+  /// Placing a resource there is the project vouching for it, not scribe.
+  static void _refuseAnUnpromisedCapability(Resource resource, String className, File recipe) {
+    if (resource.capabilities.isEmpty || className == externalPlacement) return;
+
+    final Set<String> provided = _providesOf(recipe, className);
+    final List<String> missing = <String>[
+      for (final String capability in resource.capabilities)
+        if (!provided.contains(capability)) capability,
+    ];
+    if (missing.isEmpty) return;
+
+    throwToolExit(
+      'The $className recipe of a ${resource.type} does not promise ${missing.join(', ')}, which '
+      '${resource.declaredBy} needs "${resource.name}" to have.\n'
+      'The recipe is ${recipe.path}; what it promises is declared beside it, in '
+      '$className.capabilities.yaml',
+    );
+  }
+
+  /// What [recipe] promises to already have set up, empty when it promises nothing.
+  ///
+  /// Read from `<class>.capabilities.yaml` beside the recipe and never from
+  /// inside it: a `.tf.json` recipe is read by a provider that refuses a key it
+  /// does not recognise, so what a recipe provides cannot live inside one, and a
+  /// `.yaml` recipe keeps the same sidecar for the one rule to hold for both.
+  static Set<String> _providesOf(File recipe, String className) {
+    for (final String suffix in <String>[kTemplateSuffix, '']) {
+      final File candidate = recipe.parent.childFile('$className.capabilities.yaml$suffix');
+      if (!candidate.existsSync()) continue;
+
+      final Object? document = loadYaml(candidate.readAsStringSync());
+      if (document is! YamlMap || document['provides'] is! YamlList) {
+        throwToolExit('${candidate.path}: the file must hold a list under "provides".');
+      }
+
+      return <String>{for (final Object? capability in document['provides'] as YamlList) '$capability'};
+    }
+
+    return const <String>{};
+  }
+
   /// What a type promises, empty when it promises nothing yet.
   static Set<String> _contractOf(List<Directory> recipes, String type) {
     for (final Directory root in recipes) {
@@ -364,8 +439,11 @@ class Resources {
   /// What [file] requires, nothing when it is not there or declares no resource.
   ///
   /// Both halves of a declaration are optional: a module may expose settings and
-  /// need no resource, or need one and expose nothing.
-  static List<Resource> _readFile(File file) {
+  /// need no resource, or need one and expose nothing. [declaredBy] names the
+  /// module for a refusal: every declaration file sits at the same
+  /// `deploy/configuration.yaml`, so the name has to come from whoever is
+  /// reading it, never from the path, which always ends in `deploy`.
+  static List<Resource> _readFile(File file, {required String declaredBy}) {
     if (!file.existsSync()) return const <Resource>[];
 
     final Object? document = loadYaml(file.readAsStringSync());
@@ -379,10 +457,10 @@ class Resources {
       throwToolExit('${file.path}: "requires" must be a list of resources.');
     }
 
-    return <Resource>[for (final Object? entry in required) _readResource(entry, file)];
+    return <Resource>[for (final Object? entry in required) _readResource(entry, file, declaredBy)];
   }
 
-  static Resource _readResource(Object? entry, File file) {
+  static Resource _readResource(Object? entry, File file, String declaredBy) {
     if (entry is! YamlMap) {
       throwToolExit('${file.path}: every required resource must be a mapping.');
     }
@@ -390,8 +468,20 @@ class Resources {
     return Resource(
       name: _string(entry, 'name', file),
       type: _string(entry, 'type', file),
-      declaredBy: file.parent.basename,
+      declaredBy: declaredBy,
+      capabilities: _capabilitiesOf(entry, file),
     );
+  }
+
+  /// The `capabilities:` a required resource asks for, empty when it names none.
+  static List<String> _capabilitiesOf(YamlMap entry, File file) {
+    final Object? listed = entry['capabilities'];
+    if (listed == null) return const <String>[];
+    if (listed is! YamlList) {
+      throwToolExit('${file.path}: "capabilities" must be a list of names.');
+    }
+
+    return <String>[for (final Object? name in listed) '$name'];
   }
 
   static String _string(YamlMap node, String key, File file) {
