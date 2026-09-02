@@ -101,7 +101,7 @@ class DeployCommand extends ScribeCommand {
       throwToolExit(_noTarget());
     }
 
-    if (_refuseAnUnforgedProject() case final String refusal) {
+    if (refusalForAnUnforgedProject(project) case final String refusal) {
       throwToolExit(refusal);
     }
 
@@ -423,23 +423,6 @@ class DeployCommand extends ScribeCommand {
     if (await compose.push() != 0) return const ScribeCommandResult.fail();
 
     return null;
-  }
-
-  /// The refusal a project that has not been forged gets, null when it is fine.
-  ///
-  /// A configuration file that disagrees with what its module declares must not
-  /// reach a stack, and least of all a stack somebody else's machine runs.
-  String? _refuseAnUnforgedProject() {
-    final ForgeReport report = Forge(project: project, packages: Packages.load().active).run(write: false);
-    if (report.written.isEmpty && !report.hasProblems) return null;
-
-    return <String>[
-      if (report.written.isNotEmpty)
-        'These files are missing: ${report.written.map((ForgeEntry e) => '$configurationDirectoryName/${e.name}.yaml').join(', ')}',
-      ...report.problems,
-      '',
-      'scribe forge    writes what is missing and says what is wrong',
-    ].join('\n');
   }
 
   String _noTarget() {

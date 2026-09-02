@@ -222,4 +222,37 @@ void main() {
       expect(await problemsOf('file_size_limit_mb: 5\ndeploy:\n  prod:\n    bucket: external\n'), isEmpty);
     });
   });
+
+  group('the refusal a project that has not been forged gets', () {
+    void generated() {
+      fs.file('/work/notes/.notes/sdk/js/scribe.json').createSync(recursive: true);
+      fs.file('/work/notes/.notes/sdk/js/scribe.container.json').createSync(recursive: true);
+    }
+
+    test('names scribe.container.json when only the import map was ever written', () async {
+      await inProject(() {
+        forgeOf(const <Package>[]).run();
+        fs.file('/work/notes/.notes/sdk/js/scribe.json').createSync(recursive: true);
+
+        expect(refusalForAnUnforgedProject(Project.current), contains('scribe.container.json'));
+      });
+    });
+
+    test('names configuration/main.yaml when the generated tree is there but configuration/ is not', () async {
+      await inProject(() {
+        generated();
+
+        expect(refusalForAnUnforgedProject(Project.current), contains('main.yaml'));
+      });
+    });
+
+    test('is null once both configuration/ and the generated tree are there', () async {
+      await inProject(() {
+        forgeOf(const <Package>[]).run();
+        generated();
+
+        expect(refusalForAnUnforgedProject(Project.current), isNull);
+      });
+    });
+  });
 }

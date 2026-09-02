@@ -350,3 +350,31 @@ class Forge {
     ];
   }
 }
+
+/// The refusal [project] gets for `run` or `deploy` when it has not been forged, null when it has.
+///
+/// `configuration/` is only half of what a forge writes: `scribe.json` and
+/// `scribe.container.json` are the other half, and `generateProjectCode` does
+/// not write them, only `forgeProject` does. A project whose `configuration/`
+/// is complete can still be missing both, which is exactly what a fixture
+/// copied straight from disk and never forged looks like: the stack renders,
+/// `api` starts, and it dies three layers from the cause on a config file
+/// that was never there.
+String? refusalForAnUnforgedProject(Project project) {
+  final ForgeReport report = Forge(project: project, packages: Packages.load().active).run(write: false);
+  final List<String> missingGenerated = <String>[
+    if (!project.generated.sdk.importMap.existsSync()) project.generated.sdk.importMap.path,
+    if (!project.generated.sdk.containerImportMap.existsSync()) project.generated.sdk.containerImportMap.path,
+  ];
+
+  if (report.written.isEmpty && !report.hasProblems && missingGenerated.isEmpty) return null;
+
+  return <String>[
+    if (report.written.isNotEmpty)
+      'These files are missing: ${report.written.map((ForgeEntry e) => '$configurationDirectoryName/${e.name}.yaml').join(', ')}',
+    if (missingGenerated.isNotEmpty) 'These files are missing: ${missingGenerated.join(', ')}',
+    ...report.problems,
+    '',
+    'scribe forge    writes what is missing and says what is wrong',
+  ].join('\n');
+}
