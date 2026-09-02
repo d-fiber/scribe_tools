@@ -335,6 +335,22 @@ void main() {
       expect(stack.childDirectory('sdk').childDirectory('web').existsSync(), isFalse);
     });
 
+    test("carries a mounted package's deploy/db into the stack, at the path a shipped mount reads", () async {
+      target('    kind: vps\n    registry: "ghcr.io/d-fiber"\n');
+      await render(target: 'elsewhere', stackRoot: there);
+
+      final Directory stack = fs.directory('$_stackHome/stacks').listSync().whereType<Directory>().single;
+      final Directory authDb = stack
+          .childDirectory('sdk')
+          .childDirectory('packages')
+          .childDirectory('auth')
+          .childDirectory('deploy')
+          .childDirectory('db');
+
+      expect(authDb.childDirectory('init').childFile('01_accounts.sql').existsSync(), isTrue);
+      expect(authDb.childDirectory('provisioning').childFile('jwt.sql').existsSync(), isTrue);
+    });
+
     test('carries nothing for the dashboard when the stack stays on this host', () async {
       fs.file('/work/koko/scribe/web/codex/index.html').createSync(recursive: true);
       fs.file('/work/koko/scribe/web/codex/index.html').writeAsStringSync('<html></html>');

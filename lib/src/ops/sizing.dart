@@ -599,7 +599,7 @@ class ComposeRender {
     if (!packages.existsSync()) return;
 
     for (final Directory package in packages.listSync().whereType<Directory>()) {
-      final Directory db = package.childDirectory('db');
+      final Directory db = package.childDirectory('deploy').childDirectory('db');
       if (!db.existsSync()) continue;
 
       _copyInto(
@@ -608,6 +608,7 @@ class ComposeRender {
             .childDirectory('sdk')
             .childDirectory('packages')
             .childDirectory(p.basename(package.path))
+            .childDirectory('deploy')
             .childDirectory('db'),
       );
     }
