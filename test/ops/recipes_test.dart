@@ -196,12 +196,22 @@ void main() {
       expect(family.recipes, isNotEmpty, reason: '${written.path} promises what nothing answers');
 
       for (final File recipe in family.recipes) {
+        final Set<String> returned = outputsOf(recipe);
+
         expect(
-          outputsOf(recipe),
+          returned,
           containsAll(promised),
           reason:
               '${recipe.path} does not return everything the ${family.type} type promises, '
               'and a consumer is written against the promise rather than against the recipe',
+        );
+
+        expect(
+          returned.difference(promised),
+          isEmpty,
+          reason:
+              '${recipe.path} returns ${returned.difference(promised).join(', ')}, which the ${family.type} '
+              'contract does not promise, so no consumer of the type can rely on it',
         );
       }
     });
