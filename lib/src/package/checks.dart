@@ -34,7 +34,9 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
+import 'package:file/file.dart';
 import 'package:path/path.dart' as p;
+import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/package/constraint.dart';
 import 'package:scribe_tools/src/package/declares.dart';
 import 'package:scribe_tools/src/package/dependency_source.dart';
@@ -88,6 +90,7 @@ List<Problem> check(List<DiscoveredPackage> packages) {
 List<Problem> problemsWithin(DiscoveredPackage found) => <Problem>[
   ..._misplaced(found),
   ...layoutProblems(found.directory, found.name).map((String missing) => Problem(found.name, missing)),
+  ..._ownerIndexes(found),
 ];
 
 List<Problem> _duplicates(List<DiscoveredPackage> packages) {
@@ -181,4 +184,112 @@ List<Problem> _declares(List<DiscoveredPackage> packages) {
   }
 
   return problems;
+}
+
+/// Matches a `registerTableOwners({ ... })` call, capturing its object literal body.
+final RegExp _ownersCall = RegExp(r'registerTableOwners\s*\(\s*\{([\s\S]*?)\}\s*\)');
+
+/// Matches one `table: "column"` entry inside a `registerTableOwners` call: a bare or quoted key
+/// naming the table, and a double-quoted string naming the column. A computed key, `[x]:`, never
+/// matches, since the table name it resolves to cannot be read without running the file.
+final RegExp _ownerEntry = RegExp(r'''(?:"([^"]+)"|'([^']+)'|([A-Za-z_$][A-Za-z0-9_$]*))\s*:\s*"([^"]+)"''');
+
+/// Every owner registration `source` declares, table to column.
+///
+/// The last one written wins when the same table is registered twice in one file, the same rule
+/// `registerTableOwners` itself applies at runtime.
+Map<String, String> _ownersDeclaredIn(String source) {
+  final Map<String, String> owners = <String, String>{};
+
+  for (final RegExpMatch call in _ownersCall.allMatches(source)) {
+    for (final RegExpMatch entry in _ownerEntry.allMatches(call.group(1) ?? '')) {
+      final String? table = entry.group(1) ?? entry.group(2) ?? entry.group(3);
+      final String? column = entry.group(4);
+      if (table != null && column != null) owners[table] = column;
+    }
+  }
+
+  return owners;
+}
+
+/// The text of every `.sql` file under `directory`'s `deploy/db/`, concatenated.
+String _sqlUnder(String directory) {
+  final Directory deploy = globals.fs.directory(p.join(directory, 'deploy', 'db'));
+  if (!deploy.existsSync()) return '';
+
+  final StringBuffer sql = StringBuffer();
+  for (final FileSystemEntity entity in deploy.listSync(recursive: true)) {
+    if (entity is File && entity.path.endsWith('.sql')) sql.writeln(entity.readAsStringSync());
+  }
+  return sql.toString();
+}
+
+/// Whether `sql` indexes `column` of `table`, through a primary key, a unique constraint, or an
+/// explicit index whose first column is `column`.
+///
+/// This reads the schema as text rather than as a parsed statement tree, the same trade the rest
+/// of this file makes: a column named `owner_id` on a table named `orders` is read as indexed by
+/// `create index ... on orders (owner_id, ...)`, by `owner_id ... primary key` or `... unique`
+/// written inline on the column, or by a table-level `primary key (owner_id, ...)` or
+/// `unique (owner_id, ...)`. A constraint added by a later `alter table` is not read at all: the
+/// migrations under `deploy/db/migrations/` are concatenated with everything under `deploy/db/init/`,
+/// so an index added there is still seen, but an `alter table ... add constraint` is a shape this
+/// does not look for.
+bool _isIndexed(String sql, String table, String column) {
+  final String escapedTable = RegExp.escape(table);
+  final String escapedColumn = RegExp.escape(column);
+
+  final RegExp explicitIndex = RegExp(
+    'create\\s+(?:unique\\s+)?index[^;]*\\bon\\s+(?:\\w+\\.)?"?$escapedTable"?\\s*\\(\\s*"?$escapedColumn"?\\b',
+    caseSensitive: false,
+  );
+  if (explicitIndex.hasMatch(sql)) return true;
+
+  final RegExp tableBlock = RegExp(
+    'create\\s+table[^;(]*\\b(?:\\w+\\.)?"?$escapedTable"?\\s*\\(([\\s\\S]*?)\\)\\s*;',
+    caseSensitive: false,
+  );
+  final RegExpMatch? block = tableBlock.firstMatch(sql);
+  if (block == null) return false;
+
+  final RegExp inlineConstraint = RegExp(
+    '"?$escapedColumn"?\\s+[\\w\\s]*?\\b(?:primary\\s+key|unique)\\b'
+    '|\\b(?:primary\\s+key|unique)\\s*\\(\\s*"?$escapedColumn"?\\b',
+    caseSensitive: false,
+  );
+  return inlineConstraint.hasMatch(block.group(1) ?? '');
+}
+
+/// Every owned table `found` registers without an index on its owner column.
+///
+/// `registerTableOwners` fills a map read at every scoped query, and nothing in the framework
+/// creates the index that map assumes. A table registered without one degrades from a lookup to
+/// a full scan of the whole table the day it holds real rows, silently, since nothing fails
+/// before then. Only `lib/` is read, never `tests/`: a registration in a fixture proves nothing
+/// about what the package actually deploys.
+List<Problem> _ownerIndexes(DiscoveredPackage found) {
+  final Directory lib = globals.fs.directory(p.join(found.directory, 'lib'));
+  if (!lib.existsSync()) return const <Problem>[];
+
+  final Map<String, String> owners = <String, String>{};
+  for (final FileSystemEntity entity in lib.listSync(recursive: true)) {
+    if (entity is File && entity.path.endsWith('.ts')) {
+      owners.addAll(_ownersDeclaredIn(entity.readAsStringSync()));
+    }
+  }
+  if (owners.isEmpty) return const <Problem>[];
+
+  final String sql = _sqlUnder(found.directory);
+
+  return <Problem>[
+    for (final MapEntry<String, String> owner in owners.entries)
+      if (!_isIndexed(sql, owner.key, owner.value))
+        Problem(
+          found.name,
+          'the table "${owner.key}" is registered with owner column "${owner.value}" through '
+          'registerTableOwners, and nothing under deploy/db/ indexes that column. A scoped read '
+          'reaches it on every call, so a table without the index degrades from a lookup to a full '
+          'scan the day it holds real data.',
+        ),
+  ];
 }

@@ -218,6 +218,74 @@ void main() {
 
     expect(problemsUnder().single, contains('no package of that name exists'));
   });
+
+  test('an owned table with no index on its owner column is reported', () {
+    final String audiences = written('audiences');
+    File(
+      p.join(audiences, 'lib', 'src', 'owners.ts'),
+    ).writeAsStringSync('registerTableOwners({ orders: "owner_id" });\n');
+    File(
+      p.join(audiences, 'deploy', 'db', 'init', '01_orders.sql'),
+    ).writeAsStringSync('create table public.orders (id bigserial primary key, owner_id uuid not null);\n');
+
+    expect(problemsUnder().single, contains('the table "orders" is registered with owner column "owner_id"'));
+  });
+
+  test('an owned table indexed by an explicit create index is not reported', () {
+    final String audiences = written('audiences');
+    File(
+      p.join(audiences, 'lib', 'src', 'owners.ts'),
+    ).writeAsStringSync('registerTableOwners({ orders: "owner_id" });\n');
+    File(p.join(audiences, 'deploy', 'db', 'init', '01_orders.sql')).writeAsStringSync(
+      'create table public.orders (id bigserial primary key, owner_id uuid not null);\n'
+      'create index orders_owner_id on public.orders (owner_id);\n',
+    );
+
+    expect(problemsUnder(), isEmpty);
+  });
+
+  test('an owned table whose owner column is itself the primary key is not reported', () {
+    final String audiences = written('audiences');
+    File(
+      p.join(audiences, 'lib', 'src', 'owners.ts'),
+    ).writeAsStringSync('registerTableOwners({ profiles: "user_id" });\n');
+    File(
+      p.join(audiences, 'deploy', 'db', 'init', '01_profiles.sql'),
+    ).writeAsStringSync('create table public.profiles (user_id uuid primary key, bio text);\n');
+
+    expect(problemsUnder(), isEmpty);
+  });
+
+  test('an owned table whose owner column carries a table-level unique constraint is not reported', () {
+    final String audiences = written('audiences');
+    File(
+      p.join(audiences, 'lib', 'src', 'owners.ts'),
+    ).writeAsStringSync('registerTableOwners({ profiles: "user_id" });\n');
+    File(p.join(audiences, 'deploy', 'db', 'init', '01_profiles.sql')).writeAsStringSync(
+      'create table public.profiles (id bigserial primary key, user_id uuid not null, unique (user_id));\n',
+    );
+
+    expect(problemsUnder(), isEmpty);
+  });
+
+  test('registerTableOwners called only from a test fixture proves nothing and is not read', () {
+    final String audiences = written('audiences');
+    File(p.join(audiences, 'tests', 'tests', 'owners.test.ts')).createSync(recursive: true);
+    File(
+      p.join(audiences, 'tests', 'tests', 'owners.test.ts'),
+    ).writeAsStringSync('registerTableOwners({ orders: "owner_id" });\n');
+
+    expect(problemsUnder(), isEmpty);
+  });
+
+  test('a table name reached through a computed key is not resolved, and reports nothing', () {
+    final String audiences = written('audiences');
+    File(
+      p.join(audiences, 'lib', 'src', 'owners.ts'),
+    ).writeAsStringSync('registerTableOwners({ [ORDERS]: "owner_id" });\n');
+
+    expect(problemsUnder(), isEmpty);
+  });
 }
 
 void _fragment(String path) => File(path)
