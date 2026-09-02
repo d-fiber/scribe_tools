@@ -84,6 +84,13 @@ const List<String> kServiceFragments = <String>[
   'tuning.yaml',
 ];
 
+/// The fragments a service directory cannot leave out.
+///
+/// `docker-compose.yaml` is the service itself, `capacity.yaml` is what a
+/// deployment sizes it by; neither has a default a directory could fall back
+/// to, unlike the five that stay conditional.
+const List<String> kMandatoryServiceFragments = <String>['capacity.yaml', 'docker-compose.yaml'];
+
 /// The file a resource type says what every recipe for it has to return in.
 ///
 /// It sits beside a recipe rather than inside one, and it is what tells [deployProblems] a
@@ -156,11 +163,11 @@ List<String> _deployTreeProblems(String directory) {
   problems.addAll(_emptyOptionalDirectory(services, '$kDeployDirectory/$kServicesDirectory'));
   if (services.existsSync()) {
     for (final Directory service in services.listSync(followLinks: false).whereType<Directory>()) {
-      if (_holdsA(service, kServiceFragments.contains)) continue;
-      problems.add(
-        'its $kDeployDirectory/$kServicesDirectory/${p.basename(service.path)}/ holds no fragment. A '
-        "service is recognised by the files that carry a base's own name: ${kServiceFragments.join(', ')}.",
-      );
+      final String name = p.basename(service.path);
+      for (final String fragment in kMandatoryServiceFragments) {
+        if (service.childFile(fragment).existsSync()) continue;
+        problems.add('its $kDeployDirectory/$kServicesDirectory/$name/ has no $fragment, which every service carries.');
+      }
     }
   }
 

@@ -133,18 +133,31 @@ void main() {
     expect(deployProblems(root.path), isEmpty);
   });
 
-  test('a service directory with no known fragment is reported', () {
+  test('a service directory with neither mandatory fragment is reported', () {
     scaffoldDeploy();
     keep('deploy/services/queue');
 
-    expect(deployProblems(root.path).single, contains('deploy/services/queue/ holds no fragment'));
+    final List<String> problems = deployProblems(root.path)..sort();
+    expect(problems, hasLength(2));
+    expect(problems[0], contains('deploy/services/queue/ has no capacity.yaml'));
+    expect(problems[1], contains('deploy/services/queue/ has no docker-compose.yaml'));
   });
 
-  test('a service directory carrying a known fragment is not reported', () {
+  test('a service directory carrying only one mandatory fragment is reported', () {
     scaffoldDeploy();
     File(p.join(root.path, 'deploy', 'services', 'queue', 'docker-compose.yaml'))
       ..parent.createSync(recursive: true)
       ..writeAsStringSync('services: {}\n');
+
+    expect(deployProblems(root.path).single, contains('deploy/services/queue/ has no capacity.yaml'));
+  });
+
+  test('a service directory carrying both mandatory fragments is not reported', () {
+    scaffoldDeploy();
+    File(p.join(root.path, 'deploy', 'services', 'queue', 'docker-compose.yaml'))
+      ..parent.createSync(recursive: true)
+      ..writeAsStringSync('services: {}\n');
+    File(p.join(root.path, 'deploy', 'services', 'queue', 'capacity.yaml')).writeAsStringSync('services: []\n');
 
     expect(deployProblems(root.path), isEmpty);
   });

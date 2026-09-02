@@ -100,6 +100,7 @@ void main() {
     write(p.join(at, 'deploy', 'services', 'listener', 'Dockerfile'), 'FROM scratch\n');
     write(p.join(at, 'deploy', 'services', 'listener', 'run-migrations.sh'), 'exit 0\n');
     write(p.join(at, 'deploy', 'services', 'reader', 'docker-compose.yaml'), 'services: {}\n');
+    write(p.join(at, 'deploy', 'services', 'reader', 'capacity.yaml'), 'weight: 1\n');
 
     return at;
   }
@@ -257,12 +258,12 @@ void main() {
       expect(reported(at).single, contains('it has no deploy/db/init/'));
     });
 
-    holding('a service directory holding no fragment', () {
+    holding('a service directory missing a mandatory fragment', () {
       final String at = sound();
       File(p.join(at, 'deploy', 'services', 'reader', 'docker-compose.yaml')).deleteSync();
       write(p.join(at, 'deploy', 'services', 'reader', 'Dockerfile'), 'FROM scratch\n');
 
-      expect(reported(at).single, contains('holds no fragment'));
+      expect(reported(at).single, contains('has no docker-compose.yaml'));
     });
 
     holding('a package whose entry file went', () {

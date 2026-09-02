@@ -129,9 +129,10 @@ void main() {
     expect(problemsUnder().single, contains('it has no deploy/db/init/'));
   });
 
-  test('a service directory carrying a fragment is not reported', () {
+  test('a service directory carrying its mandatory fragments is not reported', () {
     final String audiences = written('audiences');
     _fragment(p.join(audiences, 'deploy', 'services', 'db', 'docker-compose.yaml'));
+    _fragment(p.join(audiences, 'deploy', 'services', 'db', 'capacity.yaml'));
 
     expect(problemsUnder(), isEmpty);
   });
