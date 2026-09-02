@@ -306,4 +306,42 @@ requires:
       expect(Resources.recipeRoots(mounted: const <Package>[]).length, 1, reason: 'the socle alone');
     });
   });
+
+  group('two packages that carry the same recipe type', () {
+    Package packageWithRecipeType(String name, String type) {
+      final Directory directory = root.fileSystem.directory('/packages/$name')..createSync(recursive: true);
+      directory
+          .childDirectory('deploy')
+          .childDirectory(recipesDirectoryName)
+          .childDirectory(type)
+          .childFile('$containerPlacement.yaml')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('outputs: {}\n');
+
+      return Package(name: name, directory: directory);
+    }
+
+    test('are refused, naming both packages and the type', () {
+      final Package storage = packageWithRecipeType('storage', 'bucket');
+      final Package media = packageWithRecipeType('media', 'bucket');
+
+      expect(
+        () => Resources.load(mounted: <Package>[storage, media]),
+        throwsA(
+          isA<ToolExit>().having(
+            (ToolExit e) => e.message,
+            'message',
+            allOf(contains('storage'), contains('media'), contains('bucket')),
+          ),
+        ),
+      );
+    });
+
+    test('carrying different types is never refused', () {
+      final Package storage = packageWithRecipeType('storage', 'bucket');
+      final Package search = packageWithRecipeType('search', 'opensearch');
+
+      expect(() => Resources.load(mounted: <Package>[storage, search]), returnsNormally);
+    });
+  });
 }

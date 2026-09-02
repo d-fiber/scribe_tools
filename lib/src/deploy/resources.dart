@@ -149,8 +149,11 @@ class Resources {
     Placement Function(String resource)? placement,
     Map<String, Map<String, String>> outputs = const <String, Map<String, String>>{},
   }) {
-    final Directory root = SocleOps().root;
     final List<Package> found = mounted ?? Packages.load().active;
+
+    _refuseADuplicateRecipeType(found);
+
+    final Directory root = SocleOps().root;
 
     return read(
       <(File, String)>[
@@ -209,6 +212,35 @@ class Resources {
       for (final Package package in found)
         package.directory.childDirectory(deployDirectory).childDirectory(recipesDirectoryName),
     ];
+  }
+
+  /// Refuses two packages of [found] that both own recipes for the same type.
+  ///
+  /// A type belongs to whoever writes its recipes, and `recipeRoots` picks the
+  /// first match without saying which package that was. Two packages carrying
+  /// `bucket` would make the answer depend on mount order, silently, so this
+  /// closes the catalogue before it is searched.
+  static void _refuseADuplicateRecipeType(List<Package> found) {
+    final Map<String, List<String>> ownersByType = <String, List<String>>{};
+
+    for (final Package package in found) {
+      final Directory recipes = package.directory.childDirectory(deployDirectory).childDirectory(recipesDirectoryName);
+      if (!recipes.existsSync()) continue;
+
+      for (final FileSystemEntity entity in recipes.listSync()) {
+        if (entity is! Directory) continue;
+        ownersByType.putIfAbsent(entity.basename, () => <String>[]).add(package.name);
+      }
+    }
+
+    for (final MapEntry<String, List<String>> entry in ownersByType.entries) {
+      if (entry.value.length < 2) continue;
+
+      throwToolExit(
+        'Both ${entry.value.join(' and ')} carry recipes for a ${entry.key}, and only one package may '
+        'own a type: recipeRoots would pick between them by mount order instead of by design.',
+      );
+    }
   }
 
   /// The resources [declarations] ask for, each answered from one of [recipes].
