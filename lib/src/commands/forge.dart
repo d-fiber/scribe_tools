@@ -45,6 +45,7 @@ import 'package:scribe_tools/src/forge/declarations.dart';
 import 'package:scribe_tools/src/forge/di_wiring.dart';
 import 'package:scribe_tools/src/forge/registrations.dart';
 import 'package:scribe_tools/src/forge/scribe_config.dart';
+import 'package:scribe_tools/src/forge/sql/generate_package_sql.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/package/layout.dart';
 import 'package:scribe_tools/src/package/resolution.dart';
@@ -198,9 +199,10 @@ class ForgeCommand extends ScribeCommand {
 
     final Sdk sdk = findSdk(from: directory);
     final Resolution resolution = resolve(directory, sdk);
+    final GeneratedSqlReport? sql = await generatePackageSql(directory, resolution);
 
     if (boolArg(ScribeCommand.machineOption)) {
-      printMachine(forgePackageMachineReport(sdk, resolution));
+      printMachine(forgePackageMachineReport(sdk, resolution, sql));
 
       return const ScribeCommandResult.success();
     }
@@ -219,6 +221,15 @@ class ForgeCommand extends ScribeCommand {
       'The versions found are frozen in ${resolution.lockFile}, which is committed: '
       'run forge again after a dependency or the checkout changes, and it is rewritten to match.',
     );
+
+    if (sql != null) {
+      globals.logger.printStatus('');
+      globals.logger.printStatus(
+        '${sql.file} written from schema/: ${sql.enumCount} enum(s), ${sql.compositeTypeCount} composite '
+        'type(s), ${sql.tableCount} table(s), ${sql.functionCount} function(s), ${sql.triggerCount} '
+        'trigger(s), ${sql.cronJobCount} cron job(s).',
+      );
+    }
 
     return const ScribeCommandResult.success();
   }
@@ -347,12 +358,26 @@ Map<String, Object?> forgeProjectMachineReport(
 };
 
 /// What [resolution] resolved [sdk] to, in the shape `--machine` prints for a package.
-Map<String, Object?> forgePackageMachineReport(Sdk sdk, Resolution resolution) => <String, Object?>{
-  'command': 'forge',
-  'kind': 'package',
-  'ok': true,
-  'sdk': <String, Object?>{'version': sdk.version, 'root': sdk.root},
-  'imports': resolution.imports,
-  'resolutionFile': resolution.file,
-  'lockFile': resolution.lockFile,
-};
+///
+/// [sql] is null for a package that carries no `schema/`, and the report carries no `sql` key at
+/// all then, rather than one holding nulls a reader would have to explain.
+Map<String, Object?> forgePackageMachineReport(Sdk sdk, Resolution resolution, GeneratedSqlReport? sql) =>
+    <String, Object?>{
+      'command': 'forge',
+      'kind': 'package',
+      'ok': true,
+      'sdk': <String, Object?>{'version': sdk.version, 'root': sdk.root},
+      'imports': resolution.imports,
+      'resolutionFile': resolution.file,
+      'lockFile': resolution.lockFile,
+      if (sql != null)
+        'sql': <String, Object?>{
+          'file': sql.file,
+          'enums': sql.enumCount,
+          'compositeTypes': sql.compositeTypeCount,
+          'tables': sql.tableCount,
+          'functions': sql.functionCount,
+          'triggers': sql.triggerCount,
+          'cronJobs': sql.cronJobCount,
+        },
+    };

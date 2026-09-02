@@ -45,6 +45,7 @@ CODEX_REPOSITORY="${SCRIBE_CODEX_REPOSITORY:-d-fiber/scribe_codex}"
 BINARIES="scribe_linux scribe_macos scribe_windows.exe"
 LAUNCHERS="scribe scribe.cmd"
 TEMPLATES_ASSET="scribe-templates.tar.gz"
+SCRIPTS_ASSET="scribe-scripts.tar.gz"
 CHECKSUMS_ASSET="scribe-checksums.txt"
 CODEX_ASSET="scribe-codex.tar.gz"
 
@@ -175,6 +176,21 @@ fetch_templates() {
   [ -d "$destination/templates/project" ] || fail "$TEMPLATES_ASSET carried no templates/project/"
 }
 
+fetch_scripts() {
+  destination="$ROOT/tools"
+  archive="$destination/$SCRIPTS_ASSET"
+
+  say "  $SCRIPTS_ASSET"
+  download "$SCRIPTS_ASSET" "$archive"
+  verify "$archive" "$SCRIPTS_ASSET"
+
+  rm -rf "$destination/scripts"
+  tar -xzf "$archive" -C "$destination"
+  rm -f "$archive"
+
+  [ -f "$destination/scripts/sql/schema_bridge.ts" ] || fail "$SCRIPTS_ASSET carried no scripts/sql/schema_bridge.ts"
+}
+
 fetch_dashboard() {
   destination="$ROOT/web"
   archive="$destination/$CODEX_ASSET"
@@ -226,6 +242,7 @@ main() {
   fetch_checksums
   fetch
   fetch_templates
+  fetch_scripts
   rm -f "$CHECKSUMS_FILE"
 
   say ""

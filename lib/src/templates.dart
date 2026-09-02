@@ -43,6 +43,15 @@ import 'package:scribe_tools/src/globals.dart' as globals;
 /// The directory of this package holding everything the tool renders.
 const String kTemplatesDirectoryName = 'templates';
 
+/// The directory of this package holding what the tool runs instead of rendering.
+///
+/// A sibling of [kTemplatesDirectoryName], not a layer under it: nothing here carries a
+/// `{{placeholder}}` or gets copied into a project, a package or a stack. It is shipped the same
+/// way, next to the binary, and found the same way, off [TemplatePathProvider.root] — but a file
+/// under it is a script the CLI itself executes, like `scripts/sql/schema_bridge.ts`, and mixing
+/// the two under one name made a reader wonder why a "template" was never rendered.
+const String kScriptsDirectoryName = 'scripts';
+
 /// The layer of [kTemplatesDirectoryName] holding what `create` copies.
 ///
 /// It sits under its own name rather than at the top so that the directories

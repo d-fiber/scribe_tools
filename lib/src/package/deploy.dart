@@ -59,6 +59,21 @@ const String kRecipesDirectory = 'recipes';
 /// The directory, inside a package, holding its `.proto` contract.
 const String kProtocolDirectory = 'protocol';
 
+/// The directory, inside a package, holding the TypeScript its SQL schema is declared in.
+///
+/// It sits beside [kProtocolDirectory] rather than under [kDeployDirectory]: both are codegen
+/// sources rather than something a running stack reads directly, and `scribe forge` compiles this
+/// one into `deploy/$kDatabaseDirectory/init/$kGeneratedSchemaFile` the same way `protoc` compiles
+/// [kProtocolDirectory] into a stub.
+const String kSchemaDirectory = 'schema';
+
+/// The file `scribe forge` writes a package's declared schema into.
+///
+/// It is rebuilt whole on every forge, never patched, so its content only ever answers for what
+/// `schema/` currently declares. A package that hand-writes its SQL instead carries no `schema/`
+/// and never gets this file.
+const String kGeneratedSchemaFile = '00_schema.sql';
+
 /// The moments Postgres plays a package's SQL at, one directory each under `deploy/db/`.
 ///
 /// A directory is harvested whole, subdirectories included, and the files are played in the order
@@ -116,17 +131,24 @@ const List<String> kDeployEntries = <String>[
 /// The suffix of a file the stub generator compiles.
 const String kProtocolSuffix = '.proto';
 
+/// The suffix of a file the schema bridge compiles.
+const String kSchemaSuffix = '.ts';
+
 /// The suffix of a file the database plays.
 const String kSqlSuffix = '.sql';
 
 /// What is wrong with what the package at [directory] hands the stack, empty when nothing is.
 ///
-/// Two directories are read here, `deploy/` and the sibling `protocol/`, because both stand in for
-/// a declaration nobody writes: what they contain **is** what the package hands over, so a stray
-/// file where the tree does not expect one, or an optional directory carrying nothing of the kind
-/// it promises, is the only way any of this can be wrong.
+/// Three directories are read here, `deploy/` and the two siblings `protocol/` and `schema/`,
+/// because all three stand in for a declaration nobody writes: what they contain **is** what the
+/// package hands over, so a stray file where the tree does not expect one, or an optional
+/// directory carrying nothing of the kind it promises, is the only way any of this can be wrong.
 List<String> deployProblems(String directory) {
-  final List<String> problems = <String>[..._deployTreeProblems(directory), ..._protocolProblems(directory)];
+  final List<String> problems = <String>[
+    ..._deployTreeProblems(directory),
+    ..._protocolProblems(directory),
+    ..._schemaProblems(directory),
+  ];
   return problems;
 }
 
@@ -206,6 +228,17 @@ List<String> _protocolProblems(String directory) {
   const String problem =
       'its $kProtocolDirectory/ holds no $kProtocolSuffix file, so the directory says it speaks to a '
       'worker and nothing does.';
+  return <String>[problem];
+}
+
+List<String> _schemaProblems(String directory) {
+  final Directory schema = globals.fs.directory(p.join(directory, kSchemaDirectory));
+  if (!schema.existsSync()) return const <String>[];
+  if (_holdsA(schema, (String name) => name.endsWith(kSchemaSuffix))) return const <String>[];
+
+  const String problem =
+      'its $kSchemaDirectory/ holds no $kSchemaSuffix file, so the directory says its SQL is '
+      'generated and nothing declares any.';
   return <String>[problem];
 }
 

@@ -113,6 +113,12 @@ jobs:
           tar -czf assets/scribe-templates.tar.gz templates
           ls -lh assets/scribe-templates.tar.gz
 
+      - name: Pack the scripts the binary runs at runtime
+        run: |
+          set -eu
+          tar -czf assets/scribe-scripts.tar.gz scripts
+          ls -lh assets/scribe-scripts.tar.gz
+
       - name: Write a checksum for every asset, for install.sh to verify
         run: |
           set -eu

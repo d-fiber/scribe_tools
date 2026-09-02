@@ -44,6 +44,7 @@ import 'package:scribe_tools/src/commands/doctor/report.dart';
 import 'package:scribe_tools/src/commands/forge.dart';
 import 'package:scribe_tools/src/commands/status.dart';
 import 'package:scribe_tools/src/deploy/configuration.dart';
+import 'package:scribe_tools/src/forge/sql/generate_package_sql.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/package/layout.dart';
 import 'package:scribe_tools/src/package/resolution.dart';
@@ -190,7 +191,9 @@ class DaemonCommand extends ScribeCommand {
 
     if (here.childFile(kManifestFile).existsSync()) {
       final Sdk sdk = findSdk(from: here.path);
-      return forgePackageMachineReport(sdk, resolve(here.path, sdk));
+      final Resolution resolution = resolve(here.path, sdk);
+      final GeneratedSqlReport? sql = await generatePackageSql(here.path, resolution);
+      return forgePackageMachineReport(sdk, resolution, sql);
     }
 
     throw const _DaemonError(
