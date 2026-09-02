@@ -52,6 +52,14 @@ settings:
     default: 100
 ''';
 
+const String _declarationWithBucket =
+    '''
+$_declaration
+requires:
+  - name: bucket
+    type: bucket
+''';
+
 void main() {
   late MemoryFileSystem fs;
 
@@ -182,7 +190,7 @@ void main() {
 
   group('what a forge says about a file it will not touch', () {
     Future<List<String>> problemsOf(String written) => inProject(() {
-      final List<Package> mounted = <Package>[package('storage', _declaration)];
+      final List<Package> mounted = <Package>[package('storage', _declarationWithBucket)];
       forgeOf(mounted).run();
       configured('storage').writeAsStringSync(written);
 
@@ -209,7 +217,7 @@ void main() {
 
     test('names a setting a newer version of the module added, without writing it in', () async {
       await inProject(() {
-        final List<Package> mounted = <Package>[package('storage', _declaration)];
+        final List<Package> mounted = <Package>[package('storage', _declarationWithBucket)];
         forgeOf(mounted).run();
         configured('storage').writeAsStringSync('deploy: {}\n');
 
@@ -220,6 +228,29 @@ void main() {
 
     test('says nothing about a file that agrees with the module', () async {
       expect(await problemsOf('file_size_limit_mb: 5\ndeploy:\n  prod:\n    bucket: external\n'), isEmpty);
+    });
+
+    test('names a resource nothing declares under a target that exists, and the ones that do', () async {
+      expect(
+        await problemsOf('file_size_limit_mb: 5\ndeploy:\n  prod:\n    buckett: external\n'),
+        contains(allOf(contains('buckett'), contains('bucket'))),
+      );
+    });
+  });
+
+  group('main.yaml, audited like a module', () {
+    test('is no longer skipped: a target nothing declares is named', () async {
+      await inProject(() {
+        forgeOf(const <Package>[]).run();
+        configured(
+          'main',
+        ).writeAsStringSync('targets:\n  prod:\n    kind: machine\ndeploy:\n  staging:\n    x: external\n');
+
+        expect(
+          forgeOf(const <Package>[]).run().problems,
+          contains(allOf(contains('staging'), contains('no target is called that'))),
+        );
+      });
     });
   });
 

@@ -218,7 +218,26 @@ class Forge {
       return const ForgeEntry(name: mainConfigurationName, verdict: ForgeVerdict.written);
     }
 
-    return const ForgeEntry(name: mainConfigurationName, verdict: ForgeVerdict.kept);
+    return ForgeEntry(name: mainConfigurationName, verdict: ForgeVerdict.kept, problems: _auditMain(file));
+  }
+
+  /// Everything wrong inside [file], which holds `targets:` and the socle's own `deploy:`.
+  ///
+  /// `main.yaml` has no `settings:` a module declares, so it is not run through
+  /// [_audit]: only its targets and the names it places under `deploy:` can be
+  /// wrong, never a setting's shape.
+  List<String> _auditMain(File file) {
+    final Object? document = loadYaml(file.readAsStringSync());
+    if (document is! YamlMap) return <String>['the file must be a mapping.'];
+
+    final Set<String> targets = <String>{
+      for (final Target target in ProjectConfiguration.load(project: project).targets) target.name,
+    };
+    final Set<String> resources = <String>{
+      for (final Resource resource in Resources.declaredIn(_socleDeclaration())) resource.name,
+    };
+
+    return _deployProblems(document[deployKey], targets, resources);
   }
 
   ForgeEntry _module(
@@ -244,7 +263,11 @@ class Forge {
       return ForgeEntry(name: package.name, verdict: ForgeVerdict.written);
     }
 
-    return ForgeEntry(name: package.name, verdict: ForgeVerdict.kept, problems: _audit(file, declared));
+    return ForgeEntry(
+      name: package.name,
+      verdict: ForgeVerdict.kept,
+      problems: _audit(file, declared, resources.toSet()),
+    );
   }
 
   /// The version [package] declares, empty when its manifest does not say.
@@ -260,12 +283,14 @@ class Forge {
     return document is YamlMap && document['version'] is String ? document['version'] as String : '';
   }
 
-  /// Everything wrong inside [file], measured against what [declared] says.
+  /// Everything wrong inside [file], measured against what [declared] and
+  /// [resources] say.
   ///
-  /// Four things are looked for, and the last of them is not an error: a key the
-  /// module does not declare, a value of the wrong shape, a target nothing
-  /// declares, and a setting a newer version of the module added.
-  List<String> _audit(File file, Settings declared) {
+  /// Five things are looked for, and the last of them is not an error: a key
+  /// the module does not declare, a value of the wrong shape, a target nothing
+  /// declares, a resource name nothing declares, and a setting a newer version
+  /// of the module added.
+  List<String> _audit(File file, Settings declared, Set<String> resources) {
     final Object? document = loadYaml(file.readAsStringSync());
     if (document is! YamlMap) return <String>['the file must be a mapping.'];
 
@@ -280,7 +305,7 @@ class Forge {
     for (final MapEntry<Object?, Object?> entry in document.entries) {
       final String key = '${entry.key}';
       if (key == deployKey) {
-        problems.addAll(_deployProblems(entry.value, targets));
+        problems.addAll(_deployProblems(entry.value, targets, resources));
         continue;
       }
 
@@ -307,18 +332,39 @@ class Forge {
     return problems;
   }
 
-  List<String> _deployProblems(Object? deploy, Set<String> targets) {
+  List<String> _deployProblems(Object? deploy, Set<String> targets, Set<String> resources) {
     if (deploy is! YamlMap) return const <String>[];
 
-    return <String>[
-      for (final Object? name in deploy.keys)
-        if (!targets.contains('$name')) _noSuchTarget('$name', targets),
-    ];
+    final List<String> problems = <String>[];
+    for (final MapEntry<Object?, Object?> target in deploy.entries) {
+      final String name = '${target.key}';
+      if (!targets.contains(name)) {
+        problems.add(_noSuchTarget(name, targets));
+        continue;
+      }
+
+      problems.addAll(_resourceProblems(name, target.value, resources));
+    }
+
+    return problems;
   }
 
   static String _noSuchTarget(String name, Set<String> targets) =>
       '$deployKey.$name: no target is called that. '
       'This project declares: ${targets.isEmpty ? 'none' : targets.join(', ')}';
+
+  static List<String> _resourceProblems(String target, Object? placements, Set<String> resources) {
+    if (placements is! YamlMap) return const <String>[];
+
+    return <String>[
+      for (final Object? name in placements.keys)
+        if (!resources.contains('$name')) _noSuchResource('$name', target, resources),
+    ];
+  }
+
+  static String _noSuchResource(String name, String target, Set<String> resources) =>
+      '$deployKey.$target.$name: no resource is called that. '
+      'This module declares: ${resources.isEmpty ? 'none' : resources.join(', ')}';
 
   static bool _matches(Object? value, String type) => switch (type) {
     'string' => value is String,
