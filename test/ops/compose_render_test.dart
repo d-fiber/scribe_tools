@@ -309,6 +309,46 @@ void main() {
       expect(compose, contains('$_stackHome/stacks/'));
       expect(compose, isNot(contains('/home/deploy')));
     });
+
+    test('carries the dashboard build into the stack, bytes untouched', () async {
+      const List<int> wasmLikeBytes = <int>[0x00, 0x61, 0x73, 0x6d, 0xff, 0xfe, 0x80, 0x01];
+      fs.file('/work/koko/scribe/web/codex/index.html').createSync(recursive: true);
+      fs.file('/work/koko/scribe/web/codex/index.html').writeAsStringSync('<html></html>');
+      fs.file('/work/koko/scribe/web/codex/canvaskit.wasm').writeAsBytesSync(wasmLikeBytes);
+
+      target('    kind: vps\n    registry: "ghcr.io/d-fiber"\n');
+      await render(target: 'elsewhere', stackRoot: there);
+
+      final Directory stack = fs.directory('$_stackHome/stacks').listSync().whereType<Directory>().single;
+      final Directory codex = stack.childDirectory('sdk').childDirectory('web').childDirectory('codex');
+
+      expect(codex.childFile('index.html').readAsStringSync(), '<html></html>');
+      expect(codex.childFile('canvaskit.wasm').readAsBytesSync(), wasmLikeBytes);
+    });
+
+    test('carries nothing for the dashboard when it was never installed', () async {
+      target('    kind: vps\n    registry: "ghcr.io/d-fiber"\n');
+      await render(target: 'elsewhere', stackRoot: there);
+
+      final Directory stack = fs.directory('$_stackHome/stacks').listSync().whereType<Directory>().single;
+
+      expect(stack.childDirectory('sdk').childDirectory('web').existsSync(), isFalse);
+    });
+
+    test('carries nothing for the dashboard when the stack stays on this host', () async {
+      fs.file('/work/koko/scribe/web/codex/index.html').createSync(recursive: true);
+      fs.file('/work/koko/scribe/web/codex/index.html').writeAsStringSync('<html></html>');
+
+      await renderFiles();
+
+      final Directory stack = fs.directory('$_stackHome/stacks').listSync().whereType<Directory>().single;
+
+      expect(
+        stack.childDirectory('sdk').existsSync(),
+        isFalse,
+        reason: 'the checkout mounted here is the one right next to the project, not a copy',
+      );
+    });
   });
 
   group('a resource a target placed somewhere else', () {

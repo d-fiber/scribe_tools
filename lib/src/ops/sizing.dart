@@ -294,6 +294,7 @@ class ComposeRender {
     final StackLocation stack = StackLocation(project: project);
     await _carrySecrets(stack.directory);
     _carryFrameworkSql(stack.directory);
+    _carryDashboard(stack.directory);
     await GatewayRender(project: project).render(stack.services.childDirectory('gateway'), values, active);
     await ProxyRender(project: project).render(stack.services.childDirectory('proxy'), values);
     await _renderServiceAssets(stack.services, values);
@@ -622,6 +623,38 @@ class ComposeRender {
         continue;
       }
       if (entity is Directory) _copyInto(entity, to.childDirectory(p.basename(entity.path)));
+    }
+  }
+
+  /// Copies the dashboard build out of the framework into the stack.
+  ///
+  /// The same reason [_carryFrameworkSql] copies SQL: the proxy mounts
+  /// `{{sdk_root}}/web`, and on a host that path is the stack rather than the
+  /// checkout `scribe upgrade` filled. Skipped without a word when nothing was
+  /// ever installed there: the proxy already answers that plainly on its own.
+  void _carryDashboard(Directory into) {
+    if (stackRoot == null) return;
+
+    final Directory codex = project.sdk.directory.childDirectory('web').childDirectory('codex');
+    if (!codex.existsSync()) return;
+
+    _copyBytesInto(codex, into.childDirectory('sdk').childDirectory('web').childDirectory('codex'));
+  }
+
+  /// Copies every file under [from] into [to] as raw bytes, directories included.
+  ///
+  /// Unlike [_copyInto], which reads and writes SQL as text, a dashboard build
+  /// carries real binary assets, CanvasKit's `.wasm` files chief among them: a
+  /// string round trip is not a copy for those, it is corruption.
+  void _copyBytesInto(Directory from, Directory to) {
+    to.createSync(recursive: true);
+
+    for (final FileSystemEntity entity in from.listSync()) {
+      if (entity is File) {
+        to.childFile(p.basename(entity.path)).writeAsBytesSync(entity.readAsBytesSync());
+        continue;
+      }
+      if (entity is Directory) _copyBytesInto(entity, to.childDirectory(p.basename(entity.path)));
     }
   }
 
