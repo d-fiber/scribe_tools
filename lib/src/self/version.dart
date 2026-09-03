@@ -34,11 +34,11 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
-/// A version as the framework's `VERSION` file writes it: `major.minor.patch`.
+/// A version as `scribe.workspace.json`'s `version` key writes it: `major.minor.patch`.
 ///
-/// Nothing else is accepted. `bump.py` is the only writer of that file and it
-/// writes three whole numbers, so a line that does not parse is a file someone
-/// edited by hand, and reading it as a version would be a guess.
+/// Nothing else is accepted. It is moved by hand, in its own commit, always
+/// three whole numbers, so a value that does not parse is a file someone
+/// wrote some other way, and reading it as a version would be a guess.
 class Version implements Comparable<Version> {
   /// Holds the version [major].[minor].[patch].
   const Version(this.major, this.minor, this.patch);
