@@ -34,6 +34,7 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
+import 'package:fiber_shell/fiber_shell.dart';
 import 'package:file/file.dart';
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
@@ -65,16 +66,9 @@ class Router {
   /// Idempotent, because every `scribe run` calls it and a machine has one.
   Future<bool> ensureUp() async {
     final File document = await _document();
-    final int code = await globals.processRunner.run(<String>[
-      'docker',
-      'compose',
-      '-p',
-      routerProjectName,
-      '-f',
-      document.path,
-      'up',
-      '-d',
-    ]);
+    final int code = await globals.processRunner.run(
+      commandArgv(DockerCompose.arg('-p').arg(routerProjectName).arg('-f').arg(document.path).up().arg('-d')),
+    );
 
     return code == 0;
   }
@@ -85,7 +79,9 @@ class Router {
   /// so it has to be let in one network at a time. Joining a network it is
   /// already on is not an error and not worth a word.
   Future<void> attach(String network) async {
-    await globals.processRunner.observe(<String>['docker', 'network', 'connect', network, routerContainerName]);
+    await globals.processRunner.observe(
+      commandArgv(Docker.network().arg('connect').arg(network).arg(routerContainerName)),
+    );
   }
 
   /// The hostnames a running stack other than [projectName] already answers on.
@@ -94,14 +90,13 @@ class Router {
   /// second would be unreachable, or would steal the first, depending on which
   /// the router saw last. The caller refuses instead.
   Future<List<String>> hostnamesTakenBesides(String projectName) async {
-    final String written = await globals.processRunner.capture(<String>[
-      'docker',
-      'ps',
-      '--filter',
-      'label=traefik.enable=true',
-      '--format',
-      '{{.Label "com.docker.compose.project"}}\t{{.Label "scribe.hostnames"}}',
-    ]);
+    final String written = await globals.processRunner.capture(
+      commandArgv(
+        Docker.ps()
+            .filter('label=traefik.enable=true')
+            .format('{{.Label "com.docker.compose.project"}}\t{{.Label "scribe.hostnames"}}'),
+      ),
+    );
 
     return <String>[
       for (final String line in written.split('\n'))

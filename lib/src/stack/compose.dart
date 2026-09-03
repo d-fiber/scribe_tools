@@ -36,6 +36,7 @@
 
 import 'dart:convert';
 
+import 'package:fiber_shell/fiber_shell.dart';
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/base/process.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
@@ -62,13 +63,7 @@ class Compose {
   /// with go-yaml, the two disagree, and it is Compose that decides what runs.
   /// It needs no daemon, so it costs one exec.
   Future<bool> reads() async {
-    final ProcessOutcome outcome = await globals.processRunner.observe(<String>[
-      'docker',
-      'compose',
-      ...manifest.arguments,
-      'config',
-      '--quiet',
-    ]);
+    final ProcessOutcome outcome = await globals.processRunner.observe(commandArgv(_forManifest().config().quiet()));
     if (outcome.succeeded) return true;
 
     globals.logger.printError(outcome.stderr.trim());
@@ -77,7 +72,7 @@ class Compose {
   }
 
   /// Starts the stack in the background, and returns its status.
-  Future<int> up() => _run(<String>['up', '-d', '--remove-orphans']);
+  Future<int> up() => _run(_forManifest().up().arg('-d').removeOrphans());
 
   /// Restarts [services], and returns the status.
   ///
@@ -86,7 +81,13 @@ class Compose {
   /// mounts did, and the api and worker containers mount the project's own
   /// code read-only rather than baking it into the image. A restart is the
   /// only way a code change reaches a container already running.
-  Future<int> restart(List<String> services) => _run(<String>['restart', ...services]);
+  Future<int> restart(List<String> services) {
+    DockerComposeCmd command = _forManifest().restart();
+    for (final String service in services) {
+      command = command.arg(service);
+    }
+    return _run(command);
+  }
 
   /// Starts the stack and returns once every container has settled, or fails.
   ///
@@ -116,15 +117,9 @@ class Compose {
   /// otherwise, and a stack whose migration has finished would look like a
   /// stack whose migration never ran.
   Future<String> _containers() async {
-    final ProcessOutcome outcome = await globals.processRunner.observe(<String>[
-      'docker',
-      'compose',
-      ...manifest.arguments,
-      'ps',
-      '--format',
-      'json',
-      '--all',
-    ]);
+    final ProcessOutcome outcome = await globals.processRunner.observe(
+      commandArgv(_forManifest().ps().format('json').all()),
+    );
 
     return outcome.stdout;
   }
@@ -134,19 +129,23 @@ class Compose {
   /// It is a step of its own rather than `up --build`, because a deployment
   /// builds where the sources are and starts where the host is, and those are
   /// two machines as soon as a target names one.
-  Future<int> build() => _run(<String>['build']);
+  Future<int> build() => _run(_forManifest().build());
 
   /// Pushes the images this stack declares to the registry naming them.
   ///
   /// `--include-deps` is left off on purpose: what is pushed is what this stack
   /// builds, and an image it merely pulls belongs to whoever publishes it.
-  Future<int> push() => _run(<String>['push']);
+  Future<int> push() => _run(_forManifest().push());
 
   /// Stops the stack and removes what it created, and returns its status.
   ///
   /// [volumes] also removes the named volumes, which is what empties the
   /// database rather than leaving it behind for the next start to adopt.
-  Future<int> down({bool volumes = false}) => _run(<String>['down', if (volumes) '--volumes', '--remove-orphans']);
+  Future<int> down({bool volumes = false}) {
+    DockerComposeCmd command = _forManifest().down();
+    if (volumes) command = command.removeVolumes();
+    return _run(command.removeOrphans());
+  }
 
   /// The host port [service] publishes [containerPort] on, or null when none.
   ///
@@ -154,14 +153,9 @@ class Compose {
   /// daemon pick the port and the render therefore does not know it. The answer
   /// is `0.0.0.0:49154` or `[::]:49154`, and what a caller needs is the number.
   Future<String?> publishedPortOf(String service, int containerPort) async {
-    final String written = await globals.processRunner.capture(<String>[
-      'docker',
-      'compose',
-      ...manifest.arguments,
-      'port',
-      service,
-      '$containerPort',
-    ]);
+    final String written = await globals.processRunner.capture(
+      commandArgv(_forManifest().port().arg(service).arg('$containerPort')),
+    );
 
     final int colon = written.trim().lastIndexOf(':');
     if (colon < 0) return null;
@@ -176,15 +170,11 @@ class Compose {
   /// Returns null when nothing of this stack is up, which is the ordinary case
   /// before a first start and is not an error.
   Future<String?> labelOf(String label) async {
-    final String written = await globals.processRunner.capture(<String>[
-      'docker',
-      'ps',
-      '--all',
-      '--filter',
-      'label=com.docker.compose.project=${manifest.projectName}',
-      '--format',
-      '{{.Label "$label"}}',
-    ]);
+    final String written = await globals.processRunner.capture(
+      commandArgv(
+        Docker.ps().all().filter('label=com.docker.compose.project=${manifest.projectName}').format('{{.Label "$label"}}'),
+      ),
+    );
 
     final List<String> lines = <String>[
       for (final String line in written.split('\n'))
@@ -194,8 +184,16 @@ class Compose {
     return lines.isEmpty ? null : lines.first;
   }
 
-  Future<int> _run(List<String> verb) =>
-      globals.processRunner.run(<String>['docker', 'compose', ...manifest.arguments, ...verb]);
+  /// [DockerCompose], with [manifest]'s own project flags already applied.
+  DockerComposeCmd _forManifest() {
+    DockerComposeCmd command = DockerCompose;
+    for (final String argument in manifest.arguments) {
+      command = command.arg(argument);
+    }
+    return command;
+  }
+
+  Future<int> _run(DockerComposeCmd verb) => globals.processRunner.run(commandArgv(verb));
 }
 
 /// Refuses to drive a stack that another checkout of the same project started.

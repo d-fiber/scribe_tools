@@ -34,6 +34,7 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
+import 'package:fiber_shell/fiber_shell.dart';
 import 'package:file/file.dart';
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/deploy/drivers/ssh.dart';
@@ -147,18 +148,18 @@ class DestroyCommand extends ScribeCommand {
       final Directory stack = location.directory;
       if (!stack.existsSync()) return true;
 
-      return await globals.processRunner.run(<String>[
-            'docker',
-            'compose',
-            '--project-directory',
-            project.directory.absolute.path,
-            '-p',
-            project.manifest.name,
-            for (final File document in stack.listSync().whereType<File>())
-              if (document.path.endsWith('.yaml')) ...<String>['-f', document.path],
-            ...arguments,
-          ]) ==
-          0;
+      DockerComposeCmd command = DockerCompose
+          .arg('--project-directory')
+          .arg(project.directory.absolute.path)
+          .arg('-p')
+          .arg(project.manifest.name);
+      for (final File document in stack.listSync().whereType<File>()) {
+        if (document.path.endsWith('.yaml')) command = command.arg('-f').arg(document.path);
+      }
+      command = command.down().removeOrphans();
+      if (boolArg('data')) command = command.removeVolumes();
+
+      return await globals.processRunner.run(commandArgv(command)) == 0;
     }
 
     final RemoteHost host = RemoteHost(target.host);
