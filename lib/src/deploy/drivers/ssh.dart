@@ -34,8 +34,10 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
+import 'package:fiber_shell/fiber_shell.dart';
 import 'package:file/file.dart';
 import 'package:scribe_tools/src/base/process.dart';
+import 'package:scribe_tools/src/deploy/drivers/rsync_cmd.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 
 /// A host reached over SSH, and the three things a deployment asks of it.
@@ -58,7 +60,9 @@ class RemoteHost {
   /// rendered path that is wrong on the host makes the daemon create a directory
   /// where a file should be, and the container dies three layers from the cause.
   Future<String?> home() async {
-    final ProcessOutcome outcome = await globals.processRunner.observe(<String>['ssh', address, 'echo \$HOME']);
+    final ProcessOutcome outcome = await globals.processRunner.observe(
+      commandArgv(Ssh.destination(address).remoteCommand('echo \$HOME')),
+    );
     if (!outcome.succeeded) {
       globals.logger.printError(outcome.stderr.trim());
 
@@ -75,16 +79,13 @@ class RemoteHost {
   /// `--delete` on purpose: a document an earlier deployment wrote and this one
   /// does not is a document Compose would still read.
   Future<bool> ship(Directory stack, String destination) async {
-    if (await _run(<String>['ssh', address, 'mkdir -p $destination']) != 0) return false;
+    if (await _run(commandArgv(Ssh.destination(address).remoteCommand('mkdir -p $destination'))) != 0) return false;
 
-    return await _run(<String>[
-          'rsync',
-          '--archive',
-          '--delete',
-          '--compress',
-          '${stack.path}/',
-          '$address:$destination/',
-        ]) ==
+    return await _run(
+          commandArgv(
+            Rsync.archive().delete().compress().source('${stack.path}/').destination('$address:$destination/'),
+          ),
+        ) ==
         0;
   }
 
@@ -93,7 +94,8 @@ class RemoteHost {
   /// It is the other half of [ship]: a directory of documents left behind is a
   /// deployment somebody can start again by hand long after the project stopped
   /// describing it.
-  Future<bool> remove(String path) async => await _run(<String>['ssh', address, 'rm -rf $path']) == 0;
+  Future<bool> remove(String path) async =>
+      await _run(commandArgv(Ssh.destination(address).remoteCommand('rm -rf $path'))) == 0;
 
   /// Runs `docker compose` on the host, against the stack laid at [root].
   ///
@@ -104,20 +106,13 @@ class RemoteHost {
     required String root,
     required String projectName,
     required List<String> documents,
-  }) => _run(<String>[
-    'ssh',
-    address,
-    <String>[
-      'docker',
-      'compose',
-      '--project-directory',
-      root,
-      '-p',
-      projectName,
-      for (final String document in documents) ...<String>['-f', document],
-      ...arguments,
-    ].join(' '),
-  ]);
+  }) => _run(
+    commandArgv(
+      Ssh.destination(
+        address,
+      ).remoteCommand(_composeLine(arguments, root: root, projectName: projectName, documents: documents)),
+    ),
+  );
 
   /// Asks Compose on the host what the containers of [projectName] are doing.
   ///
@@ -130,22 +125,34 @@ class RemoteHost {
     required String projectName,
     required List<String> documents,
   }) async {
-    final ProcessOutcome outcome = await globals.processRunner.observe(<String>[
-      'ssh',
-      address,
-      <String>[
-        'docker',
-        'compose',
-        '--project-directory',
-        root,
-        '-p',
-        projectName,
-        for (final String document in documents) ...<String>['-f', document],
-        ...arguments,
-      ].join(' '),
-    ]);
+    final ProcessOutcome outcome = await globals.processRunner.observe(
+      commandArgv(
+        Ssh.destination(
+          address,
+        ).remoteCommand(_composeLine(arguments, root: root, projectName: projectName, documents: documents)),
+      ),
+    );
 
     return outcome.stdout;
+  }
+
+  /// A `docker compose` invocation against [root], flattened into the one string the remote
+  /// shell parses: `ssh`'s own command is text, never an argv, once it crosses onto the host.
+  String _composeLine(
+    List<String> arguments, {
+    required String root,
+    required String projectName,
+    required List<String> documents,
+  }) {
+    DockerComposeCmd command = DockerCompose.arg('--project-directory').arg(root).arg('-p').arg(projectName);
+    for (final String document in documents) {
+      command = command.arg('-f').arg(document);
+    }
+    for (final String argument in arguments) {
+      command = command.arg(argument);
+    }
+
+    return commandArgv(command).join(' ');
   }
 
   Future<int> _run(List<String> command) async {

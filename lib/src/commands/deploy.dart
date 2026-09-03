@@ -37,6 +37,7 @@
 import 'dart:convert';
 
 import 'package:change_case/change_case.dart';
+import 'package:fiber_shell/fiber_shell.dart';
 import 'package:file/file.dart';
 import 'package:path/path.dart' as pathlib;
 import 'package:scribe_tools/src/base/common.dart';
@@ -339,7 +340,9 @@ class DeployCommand extends ScribeCommand {
   /// built for the wrong one is refused at the pull with a message about a
   /// manifest that says nothing about the cause.
   Future<String> _platformOf(Target target) async {
-    final ProcessOutcome outcome = await globals.processRunner.observe(<String>['ssh', target.host, 'uname -m']);
+    final ProcessOutcome outcome = await globals.processRunner.observe(
+      commandArgv(Ssh.destination(target.host).remoteCommand('uname -m')),
+    );
     if (!outcome.succeeded) {
       globals.logger.printError('${target.host} did not say what it runs on.');
 
