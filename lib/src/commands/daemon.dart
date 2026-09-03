@@ -137,7 +137,16 @@ class DaemonCommand extends ScribeCommand {
         return;
       }
 
-      final Map<String, Object?> params = decoded['params'] as Map<String, Object?>? ?? const <String, Object?>{};
+      final Object? rawParams = decoded['params'];
+      final Map<String, Object?> params;
+      if (rawParams == null) {
+        params = const <String, Object?>{};
+      } else if (rawParams is Map<String, Object?>) {
+        params = rawParams;
+      } else {
+        throw const _DaemonError('"params" must be a JSON object.');
+      }
+
       _respond(id, result: await _dispatch(method, params));
     } on _DaemonError catch (error) {
       _respond(id, error: error.message);
@@ -158,8 +167,8 @@ class DaemonCommand extends ScribeCommand {
         return _forge();
 
       case 'status':
-        final String? targetName = params['target'] as String?;
-        if (targetName == null) throw const _DaemonError('status needs params.target.');
+        final Object? targetName = params['target'];
+        if (targetName is! String) throw const _DaemonError('status needs params.target as a string.');
         return _status(targetName);
 
       case 'watch.start':

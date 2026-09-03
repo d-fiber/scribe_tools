@@ -195,7 +195,37 @@ void main() {
     ]);
 
     expect(await run, 0);
-    expect(machine.lines[1], <String, Object?>{'id': 1, 'error': 'status needs params.target.'});
+    expect(machine.lines[1], <String, Object?>{'id': 1, 'error': 'status needs params.target as a string.'});
+  });
+
+  test('a target that is not a string is an error, not a crash that ends the daemon', () async {
+    final Future<int> run = machine.start();
+
+    machine.sendAll(<Map<String, Object?>>[
+      <String, Object?>{
+        'id': 1,
+        'method': 'status',
+        'params': <String, Object?>{'target': 123},
+      },
+      <String, Object?>{'id': 2, 'method': 'shutdown'},
+    ]);
+
+    expect(await run, 0);
+    expect(machine.lines[1], <String, Object?>{'id': 1, 'error': 'status needs params.target as a string.'});
+    expect(machine.lines[2]['id'], 2);
+  });
+
+  test('params that is not a JSON object is an error, not a crash that ends the daemon', () async {
+    final Future<int> run = machine.start();
+
+    machine.sendAll(<Map<String, Object?>>[
+      <String, Object?>{'id': 1, 'method': 'status', 'params': 'x'},
+      <String, Object?>{'id': 2, 'method': 'shutdown'},
+    ]);
+
+    expect(await run, 0);
+    expect(machine.lines[1], <String, Object?>{'id': 1, 'error': '"params" must be a JSON object.'});
+    expect(machine.lines[2]['id'], 2);
   });
 
   test('an unknown method is an error naming it', () async {
