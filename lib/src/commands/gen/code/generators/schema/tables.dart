@@ -58,6 +58,9 @@ Future<void> generateTables(Set<String> projectEnums) async {
   await loadComposites();
   globals.logger.printStatus('${composites.length} composite types loaded');
 
+  await loadEnums();
+  globals.logger.printStatus('${enumNames.length} enums loaded');
+
   final SqlSchema schema = await scanSqlSchema();
   globals.logger.printStatus('${schema.frameworkTables.length} kernel tables read from the SDK');
 

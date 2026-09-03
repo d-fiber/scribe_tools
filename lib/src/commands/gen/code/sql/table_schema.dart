@@ -75,7 +75,14 @@ final RegExp alterTableAddColumnRe = RegExp(
   caseSensitive: false,
 );
 
-final RegExp _constraintRe = RegExp(r'^(primary\s+key|foreign\s+key|unique|check|constraint)\b', caseSensitive: false);
+/// Matches a table-level constraint, never a column: a bare `unique`, `check`, `primary key` or
+/// `foreign key` is only one of these when it opens straight onto `(`, the shape Postgres requires
+/// for the columns or the expression it constrains. A column named `unique` or `check` is written
+/// `unique boolean not null`, a type after the word rather than a parenthesis, and does not match.
+final RegExp _constraintRe = RegExp(
+  r'^(?:constraint\s+\w+\s+)?(primary\s+key|foreign\s+key|unique|check)\s*\(',
+  caseSensitive: false,
+);
 
 final RegExp _addColumnRe = RegExp(
   r'^add\s+column\s+(?:if\s+not\s+exists\s+)?(\w+)\s+((?:public\.)?\w+(?:\([\d\s,]+\))?(?:\[\])?)(.*)?$',

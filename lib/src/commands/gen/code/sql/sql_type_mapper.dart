@@ -36,6 +36,7 @@
 
 import 'package:change_case/change_case.dart';
 import 'package:file/file.dart';
+import 'package:scribe_tools/src/commands/gen/code/generators/schema/enum_scan.dart';
 import 'package:scribe_tools/src/commands/gen/sql_scanner.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 
@@ -45,6 +46,14 @@ import 'package:scribe_tools/src/globals.dart' as globals;
 /// that run, so a mapping asked for too early answers `unknown` rather than
 /// failing, which is why nothing calls it before the scan.
 final Map<String, String> composites = <String, String>{};
+
+/// The name of every `create type ... as enum (...)` the SQL declares, framework and project alike.
+///
+/// Filled by [loadEnums] and read by [mapPublicType], the same way [composites] is: a
+/// `public.<name>` this set does not carry and [composites] does not carry either is neither a
+/// composite nor an enum, a Postgres `DOMAIN` among the possible reasons, and mapping it as one
+/// would emit an import for a TypeScript symbol nothing generates.
+final Set<String> enumNames = <String>{};
 
 /// The TypeScript type to write for a Postgres enum, where the generated one is wrong.
 ///
@@ -107,11 +116,33 @@ class MappedType {
   final String? enumName;
 }
 
-/// The TypeScript for `public.<name>`, which is a composite or an enum.
+/// Reads every enum of the socle and of the project into [enumNames].
+///
+/// It runs once before any table is mapped, the same as [loadComposites]: a scan that ran only
+/// over the project would leave every framework enum reading as an unclassifiable type the
+/// moment a project's own table carried one.
+Future<void> loadEnums() async {
+  final List<ParsedEnum> fromFramework = await scanEnums(kernelSqlRoots());
+  final List<ParsedEnum> fromProject = await scanEnums(<Directory>[globals.project.init]);
+
+  enumNames
+    ..clear()
+    ..addAll(fromFramework.map((ParsedEnum parsed) => parsed.name))
+    ..addAll(fromProject.map((ParsedEnum parsed) => parsed.name));
+}
+
+/// The TypeScript for `public.<name>`, which is a composite, an enum, or neither.
+///
+/// A name that is neither, a Postgres `DOMAIN` among the possible reasons, maps to `unknown`
+/// rather than being guessed at as an enum: the symbol an enum's name resolves to is never
+/// generated for one, and importing it would break the build of every file that does.
 MappedType mapPublicType(String name) {
   if (composites.containsKey(name)) return MappedType(composites[name]!);
-  final String ts = enumOverrides[name] ?? name.toPascalCase();
-  return MappedType(ts, ts);
+  if (enumNames.contains(name)) {
+    final String ts = enumOverrides[name] ?? name.toPascalCase();
+    return MappedType(ts, ts);
+  }
+  return MappedType('unknown');
 }
 
 /// The TypeScript for the SQL type [raw], however it is spelled.
