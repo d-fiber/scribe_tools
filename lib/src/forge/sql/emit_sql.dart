@@ -100,6 +100,18 @@ String _emitCompositeType(String packageName, DeclaredSqlCompositeType composite
 }
 
 String _emitTable(String packageName, DeclaredSqlTable table) {
+  final List<String> primaryKeys = <String>[
+    for (final MapEntry<String, DeclaredSqlColumn> column in table.columns.entries)
+      if (column.value.primaryKey) column.key,
+  ];
+  if (primaryKeys.length > 1) {
+    throwToolExit(
+      '${table.name} names a primary key on more than one column: ${primaryKeys.join(', ')}.\n'
+      'A table has exactly one primary key: keep it on one column, and reach for a unique '
+      'constraint on the others.',
+    );
+  }
+
   final String columns = table.columns.entries
       .map((MapEntry<String, DeclaredSqlColumn> column) => '  ${_emitColumn(packageName, column.key, column.value)}')
       .join(',\n');
