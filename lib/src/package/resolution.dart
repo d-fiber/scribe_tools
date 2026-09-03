@@ -93,9 +93,11 @@ const String kPackagesDirectory = 'packages';
 /// list up instead once handed a caller only the entry, so every subject door of a
 /// dependency went unresolved and nothing that imported one could be type checked.
 ///
-/// Three doors the layout fixes are added on top: the test harness, its settings,
-/// and the end-to-end stack, that last one only when the package's e2e is a Deno
-/// suite rather than a shell scenario.
+/// Three doors the layout fixes are added on top, each only when the file behind it exists:
+/// the test harness, its settings, and the end-to-end stack, that last one only when the
+/// package's e2e is a Deno suite rather than a shell scenario. `scribe create --package` does
+/// not scaffold a test harness, so a package that never wrote one does not advertise a door
+/// that resolves to nothing.
 ///
 /// The one door never handed to a dependent is `@scribe/<name>/`, which opens
 /// every file under the package. [own] is true only for the package being
@@ -119,8 +121,14 @@ Map<String, String> _doorsOf(String name, String directory, {required bool own})
     }
   }
 
-  open('@scribe/$name/testing', p.join(directory, kHarnessEntry));
-  open('@scribe/$name/testing/settings', p.join(directory, kHarnessSettings));
+  // A package a scaffold just wrote carries neither: `scribe create --package` does not write
+  // a test harness, only `layout.dart`'s `tests/testing/` recommendation.
+  if (globals.fs.file(p.join(directory, kHarnessEntry)).existsSync()) {
+    open('@scribe/$name/testing', p.join(directory, kHarnessEntry));
+  }
+  if (globals.fs.file(p.join(directory, kHarnessSettings)).existsSync()) {
+    open('@scribe/$name/testing/settings', p.join(directory, kHarnessSettings));
+  }
 
   // Only a package whose e2e is a Deno suite publishes this door. One whose
   // `tests/e2e/` is a shell scenario has no `stack.ts` to point at.

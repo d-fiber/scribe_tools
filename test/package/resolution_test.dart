@@ -373,7 +373,10 @@ void main() {
 
   group('what a package reaches is what it declared', () {
     resolving('a package it depends on is reached under its own name', () {
-      packageDeclaring('dependencies:\n', name: 'audiences');
+      final String dependency = packageDeclaring('dependencies:\n', name: 'audiences');
+      File(p.join(dependency, 'tests', 'testing', 'testing.ts'))
+        ..createSync(recursive: true)
+        ..writeAsStringSync('export {};\n');
       final String at = packageDeclaring('dependencies:\n  audiences: ^1.0.0\n');
 
       resolve(at, sdkOfCheckout());
@@ -391,6 +394,19 @@ void main() {
         isNull,
         reason: 'a specifier ending in a slash would let any file under the package be imported',
       );
+    });
+
+    resolving('a package with no test harness advertises no testing door for it', () {
+      final CreatedPackage created = createPackage(root.path, 'notifications', sdkOfCheckout());
+      resolve(created.directory, sdkOfCheckout());
+
+      final Map<String, Object?> imports = importsOf(created.directory);
+      expect(
+        imports.containsKey('@scribe/notifications/testing'),
+        isFalse,
+        reason: 'scribe create --package writes no tests/testing/testing.ts, so this door would resolve to nothing',
+      );
+      expect(imports.containsKey('@scribe/notifications/testing/settings'), isFalse);
     });
 
     resolving('a subject door of a dependency reaches the file that backs it', () {
