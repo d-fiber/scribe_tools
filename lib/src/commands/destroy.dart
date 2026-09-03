@@ -148,11 +148,9 @@ class DestroyCommand extends ScribeCommand {
       final Directory stack = location.directory;
       if (!stack.existsSync()) return true;
 
-      DockerComposeCmd command = DockerCompose
-          .arg('--project-directory')
-          .arg(project.directory.absolute.path)
-          .arg('-p')
-          .arg(project.manifest.name);
+      DockerComposeCmd command = DockerCompose.arg(
+        '--project-directory',
+      ).arg(project.directory.absolute.path).arg('-p').arg(project.manifest.name);
       for (final File document in stack.listSync().whereType<File>()) {
         if (document.path.endsWith('.yaml')) command = command.arg('-f').arg(document.path);
       }

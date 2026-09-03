@@ -319,7 +319,8 @@ class ConfigurationAudit {
   /// module added, a notice.
   _Audit _audit(File file, Settings declared, Set<String> resources) {
     final Object? document = loadYaml(file.readAsStringSync());
-    if (document is! YamlMap) return const _Audit(problems: <String>['the file must be a mapping.'], notices: <String>[]);
+    if (document is! YamlMap)
+      return const _Audit(problems: <String>['the file must be a mapping.'], notices: <String>[]);
 
     final Map<String, Setting> known = <String, Setting>{
       for (final Setting setting in declared.settings) setting.name: setting,

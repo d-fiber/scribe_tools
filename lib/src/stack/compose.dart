@@ -172,7 +172,10 @@ class Compose {
   Future<String?> labelOf(String label) async {
     final String written = await globals.processRunner.capture(
       commandArgv(
-        Docker.ps().all().filter('label=com.docker.compose.project=${manifest.projectName}').format('{{.Label "$label"}}'),
+        Docker.ps()
+            .all()
+            .filter('label=com.docker.compose.project=${manifest.projectName}')
+            .format('{{.Label "$label"}}'),
       ),
     );
 

@@ -42,9 +42,7 @@ import 'package:test/test.dart';
 void main() {
   test('a single file field carries format: binary', () {
     final Indented out = Indented.empty();
-    renderRequestBody(out, 0, <RequestBodyField>[
-      RequestBodyField(name: 'avatar', type: 'file', required: true),
-    ]);
+    renderRequestBody(out, 0, <RequestBodyField>[RequestBodyField(name: 'avatar', type: 'file', required: true)]);
 
     expect(out.render(), contains('type: string'));
     expect(out.render(), contains('format: binary'));

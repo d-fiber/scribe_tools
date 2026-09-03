@@ -248,10 +248,8 @@ class SecretsStore {
   static String _escape(String value) => value.replaceAll('\\', '\\\\').replaceAll('\n', '\\n');
 
   /// The inverse of [_escape].
-  static String _unescape(String value) => value.replaceAllMapped(
-    RegExp(r'\\[\\n]'),
-    (Match match) => match[0] == r'\n' ? '\n' : '\\',
-  );
+  static String _unescape(String value) =>
+      value.replaceAllMapped(RegExp(r'\\[\\n]'), (Match match) => match[0] == r'\n' ? '\n' : '\\');
 }
 
 /// One `NAME=VALUE` pair, as `secrets --set` is given it.
