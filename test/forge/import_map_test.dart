@@ -38,6 +38,7 @@ import 'dart:convert';
 
 import 'package:file/file.dart';
 import 'package:file/memory.dart';
+import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/base/context.dart';
 import 'package:scribe_tools/src/base/logger.dart';
 import 'package:scribe_tools/src/forge/import_map.dart';
@@ -269,6 +270,104 @@ void main() {
         expect(imports['@services/'], '/work/notes/services/');
         expect(imports['@jobs/'], '/work/notes/jobs/');
       });
+    });
+  });
+
+  group('renderContainerTsconfig', () {
+    Map<String, dynamic> renderedPaths({Map<String, String> sourceRoots = const <String, String>{}}) {
+      final Map<String, dynamic> document =
+          jsonDecode(
+                renderContainerTsconfig(
+                  inheritedImports(_mixedFramework),
+                  frameworkRoot: '/app/scribe/',
+                  libRoot: '/app/lib/',
+                  assetsRoot: '/app/assets/',
+                  sourceRoots: sourceRoots,
+                  doors: const <String, String>{},
+                ),
+              )
+              as Map<String, dynamic>;
+
+      return (document['compilerOptions'] as Map<String, dynamic>)['paths'] as Map<String, dynamic>;
+    }
+
+    test('a specifier and its address both ending in a slash become a jokered pair', () async {
+      await _run(() {
+        expect(renderedPaths()['@app/*'], <String>['/app/lib/*']);
+      });
+    });
+
+    test('an exact specifier keeps its one address, unjokered', () async {
+      await _run(() {
+        expect(renderedPaths()['@scribe/sdk'], <String>['/app/scribe/sdk/js/mod.ts']);
+      });
+    });
+
+    test('a source root opens its own jokered pair, next to @app/*', () async {
+      await _run(() {
+        final Map<String, dynamic> paths = renderedPaths(
+          sourceRoots: const <String, String>{'services': '/app/services/'},
+        );
+
+        expect(paths['@services/*'], <String>['/app/services/*']);
+      });
+    });
+
+    test('a third-party dependency carries no path, so it is left for bun install rather than named here', () async {
+      await _run(() {
+        final Map<String, dynamic> paths = renderedPaths();
+
+        expect(paths, isNot(contains('ioredis')));
+        expect(paths, isNot(contains('@std/assert')));
+      });
+    });
+  });
+
+  group('renderContainerPackageJson', () {
+    Map<String, dynamic> dependenciesOf(Map<String, String> inherited) {
+      final Map<String, dynamic> document = jsonDecode(renderContainerPackageJson(inherited)) as Map<String, dynamic>;
+
+      return document['dependencies'] as Map<String, dynamic>;
+    }
+
+    test('a npm: specifier keeps its own name and version, mechanically', () {
+      expect(dependenciesOf(const <String, String>{'ioredis': 'npm:ioredis@5.11.1'}), <String, String>{
+        'ioredis': '5.11.1',
+      });
+    });
+
+    test('a scoped npm: specifier keeps its scope', () {
+      expect(
+        dependenciesOf(const <String, String>{'@bufbuild/protobuf': 'npm:@bufbuild/protobuf@2.14.0'}),
+        <String, String>{'@bufbuild/protobuf': '2.14.0'},
+      );
+    });
+
+    test('a jsr: specifier known to jsrNpmNames becomes the npm name it actually ships as', () {
+      expect(dependenciesOf(const <String, String>{'jose': 'jsr:@panva/jose@6.2.10'}), <String, String>{
+        'jose': '6.2.10',
+      });
+    });
+
+    test('@std/ and the deno-only nats transport are left out rather than refused', () {
+      expect(
+        dependenciesOf(const <String, String>{
+          '@std/assert': 'jsr:@std/assert@1.0.19',
+          '@nats-io/transport-deno': 'jsr:@nats-io/transport-deno@3.4.0',
+        }),
+        isEmpty,
+      );
+    });
+
+    test('a jsr: specifier this framework has never verified an npm equivalent for is refused', () {
+      expect(
+        () => renderContainerPackageJson(const <String, String>{'hono': 'jsr:@hono/nope@1.0.0'}),
+        throwsA(isA<ToolExit>().having((ToolExit exit) => exit.message, 'message', contains('@hono/nope'))),
+      );
+    });
+
+    test('a path into the checkout, @scribe/... among them, is not a dependency', () {
+      expect(dependenciesOf(const <String, String>{'@scribe/alchemy': './alchemy/mod.ts'}), isEmpty);
     });
   });
 }

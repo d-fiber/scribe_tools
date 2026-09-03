@@ -291,6 +291,20 @@ class GeneratedSdk {
   /// The import map used inside the container, where the paths differ.
   File get containerImportMap => directory.childFile('scribe.container.json');
 
+  /// The same import map, as `paths` a Bun container reads through `--tsconfig-override`.
+  ///
+  /// Written only when `api.stack: bun`: a Deno project has no use for it, and Bun has no
+  /// `--import-map` of its own for [containerImportMap] to answer for instead.
+  File get containerTsconfig => directory.childFile('scribe.container.tsconfig.json');
+
+  /// The third-party half of the same import map, as a `package.json` a Bun container's own
+  /// Dockerfile runs `bun install` against at build time.
+  ///
+  /// Written only when `api.stack: bun`, for the same reason [containerTsconfig] is: Deno reads
+  /// a third-party specifier straight out of [containerImportMap], and never needs a
+  /// `node_modules` of its own.
+  File get containerPackageJson => directory.childFile('scribe.container.package.json');
+
   /// The enum types mirrored from the SQL schema.
   File get enums => directory.childFile('enums.ts');
 

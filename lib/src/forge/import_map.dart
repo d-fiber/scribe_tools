@@ -39,6 +39,7 @@ import 'dart:convert';
 import 'package:file/file.dart';
 
 import 'package:path/path.dart' as p;
+import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/package/sdk.dart';
 import 'package:scribe_tools/src/packages.dart';
@@ -193,24 +194,15 @@ String renderImportMap(
   required Map<String, String> doors,
   bool lock = true,
 }) {
-  final String engine = '${frameworkRoot}engine/';
-
   final Map<String, dynamic> document = <String, dynamic>{
-    'imports': <String, String>{
-      ...inherited,
-      for (final MapEntry<String, String> door in doors.entries)
-        door.key: p.isAbsolute(door.value) ? door.value : '$frameworkRoot${door.value}',
-      for (final String layer in _layers) '@scribe/$layer/': '$engine$layer/',
-      '@scribe/protocol/': '${frameworkRoot}protocol/',
-      '@scribe/public/': '${frameworkRoot}public/',
-      '@scribe/sdk': '${frameworkRoot}sdk/js/mod.ts',
-      '@scribe/sdk/': '${frameworkRoot}sdk/js/',
-      '@app/': libRoot,
-      for (final MapEntry<String, String> source in sourceRoots.entries) '@${source.key}/': source.value,
-      '@assets/': assetsRoot,
-      globals.project.generatedAlias: './',
-      '@generated/': './',
-    },
+    'imports': _imports(
+      inherited,
+      frameworkRoot: frameworkRoot,
+      libRoot: libRoot,
+      assetsRoot: assetsRoot,
+      sourceRoots: sourceRoots,
+      doors: doors,
+    ),
     if (!lock) 'lock': false,
     if (frameworkConfig['compilerOptions'] != null) 'compilerOptions': frameworkConfig['compilerOptions'],
     if (frameworkConfig['fmt'] != null) 'fmt': frameworkConfig['fmt'],
@@ -219,5 +211,150 @@ String renderImportMap(
   return '${const JsonEncoder.withIndent('  ').convert(document)}\n';
 }
 
+/// The specifier-to-address map both [renderImportMap] and [renderContainerTsconfig] carry,
+/// built once so the two only differ in the shape they write it as.
+Map<String, String> _imports(
+  Map<String, String> inherited, {
+  required String frameworkRoot,
+  required String libRoot,
+  required String assetsRoot,
+  required Map<String, String> sourceRoots,
+  required Map<String, String> doors,
+}) {
+  final String engine = '${frameworkRoot}engine/';
+
+  return <String, String>{
+    ...inherited,
+    for (final MapEntry<String, String> door in doors.entries)
+      door.key: p.isAbsolute(door.value) ? door.value : '$frameworkRoot${door.value}',
+    for (final String layer in _layers) '@scribe/$layer/': '$engine$layer/',
+    '@scribe/protocol/': '${frameworkRoot}protocol/',
+    '@scribe/public/': '${frameworkRoot}public/',
+    '@scribe/sdk': '${frameworkRoot}sdk/js/mod.ts',
+    '@scribe/sdk/': '${frameworkRoot}sdk/js/',
+    '@app/': libRoot,
+    for (final MapEntry<String, String> source in sourceRoots.entries) '@${source.key}/': source.value,
+    '@assets/': assetsRoot,
+    globals.project.generatedAlias: './',
+    '@generated/': './',
+  };
+}
+
+/// The same map [renderImportMap]'s container copy carries, translated into the `paths` a Bun
+/// container reads through `--tsconfig-override`, since Bun has no `--import-map` of its own.
+///
+/// Only an entry whose address is a path under [frameworkRoot], [libRoot], [assetsRoot] or a
+/// `sources:` root becomes a `paths` entry: those are the specifiers this project's own files
+/// reach by name. A third-party entry `inherited` carries, `jose` and the rest, keeps a scheme
+/// (`jsr:`, `npm:`) rather than a path, and is left out on purpose: a `paths` entry tells the
+/// resolver where a name already on disk lives, it does not install a package the way
+/// `bun install` does, so keeping a schemed address in `paths` would resolve to a file that is
+/// never there.
+///
+/// A prefix, a specifier and an address both ending in `/`, becomes a `*` on both sides, the same
+/// jokered form `dev_tools/resolution/bun/generate.sh` already proved against the framework's own
+/// specifiers. An exact specifier, `@scribe/sdk` for the one file it names, becomes an exact entry.
+String renderContainerTsconfig(
+  Map<String, String> inherited, {
+  required String frameworkRoot,
+  required String libRoot,
+  required String assetsRoot,
+  required Map<String, String> sourceRoots,
+  required Map<String, String> doors,
+}) {
+  final Map<String, String> imports = _imports(
+    inherited,
+    frameworkRoot: frameworkRoot,
+    libRoot: libRoot,
+    assetsRoot: assetsRoot,
+    sourceRoots: sourceRoots,
+    doors: doors,
+  );
+
+  final Map<String, List<String>> paths = <String, List<String>>{
+    for (final MapEntry<String, String> entry in imports.entries)
+      if (p.isAbsolute(entry.value))
+        if (entry.key.endsWith('/') && entry.value.endsWith('/'))
+          '${entry.key}*': <String>['${entry.value}*']
+        else
+          entry.key: <String>[entry.value],
+  };
+
+  final Map<String, dynamic> document = <String, dynamic>{
+    'compilerOptions': <String, Object>{'baseUrl': '.', 'paths': paths},
+  };
+
+  return '${const JsonEncoder.withIndent('  ').convert(document)}\n';
+}
+
 /// [path] with a trailing separator, which an import map prefix needs.
 String asDirectory(String path) => path.endsWith(p.separator) ? path : '$path${p.separator}';
+
+/// The npm package a `jsr:` specifier this framework resolves to actually ships as.
+///
+/// Verified by hand against the npm registry rather than derived, because a JSR scope is rarely
+/// its npm name: `@panva/jose` on JSR is plain `jose` on npm, `@hono/hono` is plain `hono`, and
+/// `@nats-io/jetstream` happens to keep its scope on both. A `jsr:` specifier reached neither here
+/// nor by [_jsrSkippedUnderBun] has no verified npm equivalent, and [renderContainerPackageJson]
+/// refuses it rather than guessing one.
+const Map<String, String> jsrNpmNames = <String, String>{
+  '@panva/jose': 'jose',
+  '@hono/hono': 'hono',
+  '@nats-io/jetstream': '@nats-io/jetstream',
+};
+
+/// A `jsr:` scope [renderContainerPackageJson] leaves out on purpose, rather than refuses.
+///
+/// `@nats-io/transport-deno` answers for a concern Bun never reaches: `foundation`'s own
+/// `dial()` picks `@nats-io/transport-node` under Bun instead, at its own call, so nothing a Bun
+/// container runs ever imports the Deno one. `@std/` is the standard library, read only under
+/// `tests/`, which a container never runs either.
+bool _jsrSkippedUnderBun(String scope) => scope == '@nats-io/transport-deno' || scope.startsWith('@std/');
+
+final RegExp _npmSpecifier = RegExp(r'^npm:(@[^/@]+/[^/@]+|[^/@]+)@([^/]+)');
+final RegExp _jsrSpecifier = RegExp(r'^jsr:(@[^/@]+/[^/@]+)@([^/]+)');
+
+/// `package.json`'s `dependencies:`, for the `bun install` a Bun image's own Dockerfile runs at
+/// build time, one entry per third-party specifier [inherited] carries.
+///
+/// A `npm:` specifier becomes its own name and version, mechanically: Bun and Deno read the same
+/// registry, and most of what this framework depends on is already `npm:`, so most of it needs no
+/// entry in [jsrNpmNames] at all. A `jsr:` specifier is looked up there instead, since a JSR scope
+/// is not an npm name.
+///
+/// Throws a [ToolExit] naming the one address [jsrNpmNames] and [_jsrSkippedUnderBun] both leave
+/// unanswered, so a project asking for `api.stack: bun` refuses at render, before a build spends
+/// minutes on an image that would have refused its first import instead.
+///
+/// Everything else [inherited] carries, `@scribe/...`, a path into this checkout, is not a third
+/// party dependency and plays no part here: [renderContainerTsconfig] answers for those instead.
+String renderContainerPackageJson(Map<String, String> inherited) {
+  final Map<String, String> dependencies = <String, String>{};
+
+  for (final String address in inherited.values) {
+    final RegExpMatch? npm = _npmSpecifier.firstMatch(address);
+    if (npm != null) {
+      dependencies[npm.group(1)!] = npm.group(2)!;
+      continue;
+    }
+
+    final RegExpMatch? jsr = _jsrSpecifier.firstMatch(address);
+    if (jsr == null) continue;
+
+    final String scope = jsr.group(1)!;
+    if (_jsrSkippedUnderBun(scope)) continue;
+
+    final String? npmName = jsrNpmNames[scope];
+    if (npmName == null) {
+      throwToolExit(
+        '"$address" has no known npm equivalent for Bun.\n'
+        'Verify it on the npm registry, then add "$scope" to jsrNpmNames in import_map.dart.',
+      );
+    }
+    dependencies[npmName] = jsr.group(2)!;
+  }
+
+  final Map<String, dynamic> document = <String, dynamic>{'private': true, 'dependencies': dependencies};
+
+  return '${const JsonEncoder.withIndent('  ').convert(document)}\n';
+}

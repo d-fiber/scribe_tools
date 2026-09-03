@@ -53,6 +53,7 @@ import 'package:scribe_tools/src/ops/sizing_rules.dart';
 import 'package:scribe_tools/src/ops/socle.dart';
 import 'package:scribe_tools/src/packages.dart';
 import 'package:scribe_tools/src/project.dart';
+import 'package:scribe_tools/src/runtime/js_runtime.dart';
 import 'package:scribe_tools/src/scribe_manifest.dart';
 import 'package:scribe_tools/src/stack/stack_location.dart';
 import 'package:scribe_tools/src/templates.dart';
@@ -244,8 +245,9 @@ class ComposeRender {
       Capacity.load(mounted: active, profiles: profiles.toSet(), without: gone),
       cpuCap: cpuCap,
     );
+    final Map<String, String> sizing = rules.resolve();
     final Map<String, String> values = <String, String>{
-      ...rules.resolve(),
+      ...sizing,
       ...resources.values,
       ..._settings(active),
       ..._identity(),
@@ -253,6 +255,14 @@ class ComposeRender {
       'tls_resolver': _tlsResolver(),
       'proxy_routers': _proxyRouters(),
       'db_schemas': _dbSchemas(active),
+      'runtime_command_api': _runtimeCommand(
+        maxOldSpaceMb: sizing['api_max_old_space']!,
+        entryPoint: '/app/scribe/engine/shell/platform/server/main.ts',
+      ),
+      'runtime_command_worker': _runtimeCommand(
+        maxOldSpaceMb: sizing['worker_max_old_space']!,
+        entryPoint: '/app/scribe/engine/shell/platform/worker/main.ts',
+      ),
     };
 
     globals.logger.printTrace('[sizing] hardware $hardware');
@@ -548,18 +558,105 @@ class ComposeRender {
       'build_context_functions': _bakes
           ? project.directory.absolute.path
           : stack.services.childDirectory('functions').absolute.path,
-      'source_mounts_api': _bakes
-          ? ''
-          : '      - "./${p.basename(project.sdk.path)}:/app/scribe:ro"\n'
-                '      - "./${p.basename(project.generated.path)}/sdk/js:/app/${p.basename(project.generated.path)}/sdk/js:ro"\n'
-                '      - "./lib:/app/lib:ro"\n'
-                '${_sourceMounts()}',
       'source_mounts_functions': _bakes
           ? ''
           : '      - "./${p.basename(project.sdk.path)}/engine:/home/deno/functions:ro"\n'
                 '      - "./${p.basename(project.generated.path)}/sdk/js:/home/deno/${p.basename(project.generated.path)}/sdk/js:ro"\n',
       'bake_project': _bakes ? _bakeInto('/app') : '',
       'bake_functions': _bakes ? _bakeFunctionsInto('/home/deno') : '',
+      'volumes_api': _volumesBlock(),
+      'runtime_base_image_api': switch (project.manifest.apiStack) {
+        JsRuntime.deno => 'denoland/deno:alpine-2.7.14',
+        JsRuntime.bun => 'oven/bun:1.4.0-alpine',
+      },
+      'user_api': project.manifest.apiStack.name,
+      'runtime_install_api': project.manifest.apiStack == JsRuntime.bun ? _bunInstallStep() : '',
+    };
+  }
+
+  /// Every `- "./<host>:<container>:ro"` `api` and `worker` mount, the key itself included, `[]`
+  /// when a baked Bun image mounts nothing.
+  ///
+  /// Deno resolves a specifier at boot rather than at build, so `deno-cache` persists what it
+  /// downloaded across a restart; Bun resolves everything the `bun install` its own Dockerfile
+  /// runs already settled, so a rebuilt image carries `node_modules` in a layer Docker caches on
+  /// its own, and nothing is left for a named volume to hold.
+  String _volumesBlock() {
+    final String sources = _bakes
+        ? ''
+        : '      - "./${p.basename(project.sdk.path)}:/app/scribe:ro"\n'
+              '      - "./${p.basename(project.generated.path)}/sdk/js:/app/${p.basename(project.generated.path)}/sdk/js:ro"\n'
+              '      - "./lib:/app/lib:ro"\n'
+              '${_sourceMounts()}';
+    final String cache = switch (project.manifest.apiStack) {
+      JsRuntime.deno => '      - "deno-cache:/deno-dir"\n',
+      JsRuntime.bun => '',
+    };
+    final String mounts = '$sources$cache';
+
+    return mounts.isEmpty ? '    volumes: []' : '    volumes:\n$mounts'.trimRight();
+  }
+
+  /// The `RUN` steps a Bun `api`/`worker` image needs before [_bakeInto] or [_bakeFunctionsInto]
+  /// run, empty under Deno, which needs none.
+  ///
+  /// The `package.json` is embedded rather than `COPY`'d: a baked build's context is the project
+  /// itself, a mounted build's is the stack, and the two never agree on where a copied file would
+  /// land, while a heredoc a Dart string interpolates needs neither to agree on anything. `forge`
+  /// writes the file this reads, `renderContainerPackageJson` in `forge/import_map.dart` decides
+  /// what it holds.
+  ///
+  /// Throws a [ToolExit] naming the file when it is missing, which means `scribe forge` has not
+  /// run since `api.stack: bun` was written.
+  String _bunInstallStep() {
+    final File packageJson = project.generated.sdk.containerPackageJson;
+    if (!packageJson.existsSync()) {
+      throwToolExit('${packageJson.path} does not exist yet. Run scribe forge before rendering a bun stack.');
+    }
+
+    const String marker = 'SCRIBE_PACKAGE_JSON';
+    return "RUN cat > package.json <<'$marker'\n"
+        '${packageJson.readAsStringSync()}'
+        '$marker\n'
+        'RUN bun install --production\n';
+  }
+
+  /// The `command:` list `api` or `worker` starts its process with, one entry per line the way
+  /// Compose reads a list.
+  ///
+  /// Deno keeps the permission flags this container always ran with: `--allow-net`, a `--allow-read`
+  /// scoped to `/app` and `/deno-dir`, and the rest. Bun has no permission flags of its own — every
+  /// `--allow-*` here is Deno-only, and a Bun container runs with whatever the container's own user
+  /// and filesystem already allow, nothing narrower. Deno also caps the V8 heap through
+  /// `--v8-flags=--max-old-space-size`; Bun has no working equivalent; `BUN_JSC_forceRAMSize` and
+  /// `BUN_JSC_gcMaxHeapSize` exist but do not bound the heap in practice
+  /// (oven-sh/bun#34917), so a Bun deployment relies on the container's own memory ceiling alone,
+  /// with none of the headroom a V8 cap leaves under it.
+  ///
+  /// [maxOldSpaceMb] is read out of the already-resolved [SizingRules.resolve] map rather than
+  /// left as a `{{...}}` token: this string becomes the *value* of another placeholder, and
+  /// [renderTemplate] scans a template's source for `{{...}}` exactly once, so a token nested
+  /// inside a value it substitutes is never seen and would reach the compose file unresolved.
+  String _runtimeCommand({required String maxOldSpaceMb, required String entryPoint}) {
+    final String alchemyDir = p.basename(project.generated.path);
+
+    return switch (project.manifest.apiStack) {
+      JsRuntime.deno =>
+        '      - "run"\n'
+            '      - "--v8-flags=--max-old-space-size=$maxOldSpaceMb"\n'
+            '      - "--allow-net"\n'
+            '      - "--allow-env"\n'
+            '      - "--allow-read=/app,/deno-dir"\n'
+            '      - "--allow-sys=osRelease,osUptime,hostname"\n'
+            '      - "--allow-run=ffmpeg"\n'
+            '      - "--allow-write=/tmp"\n'
+            '      - "--config"\n'
+            '      - "/app/$alchemyDir/sdk/js/scribe.container.json"\n'
+            '      - "$entryPoint"',
+      JsRuntime.bun =>
+        '      - "run"\n'
+            '      - "--tsconfig-override=/app/$alchemyDir/sdk/js/scribe.container.tsconfig.json"\n'
+            '      - "$entryPoint"',
     };
   }
 

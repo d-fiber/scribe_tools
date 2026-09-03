@@ -575,6 +575,102 @@ void main() {
       );
     });
   });
+
+  group('api.stack: bun', () {
+    void projectOnBun() {
+      fs
+          .file('/work/koko/config.yaml')
+          .writeAsStringSync(
+            'name: "koko"\n'
+            'url: "https://koko.example.com"\n'
+            'email: "dev@koko.example.com"\n'
+            'api:\n'
+            '  stack: bun\n'
+            '  cors:\n'
+            '    - "https://koko.example.com"\n'
+            'dependencies:\n'
+            '  - auth\n'
+            '  - audience\n',
+          );
+    }
+
+    void forge(String packageJson) => (fs.file(
+      '/work/koko/.koko/sdk/js/scribe.container.package.json',
+    )..createSync(recursive: true)).writeAsStringSync(packageJson);
+
+    test('the api and worker images build from oven/bun, not denoland/deno', () async {
+      projectOnBun();
+      forge('{"dependencies": {}}');
+
+      final List<File> written = await renderFiles();
+      final File dockerfile = written.first.parent
+          .childDirectory('services')
+          .childDirectory('api')
+          .childFile('Dockerfile');
+
+      expect(dockerfile.readAsStringSync(), contains('FROM oven/bun:1.4.0-alpine'));
+    });
+
+    test('the image installs the package.json forge wrote, and nothing invents its own', () async {
+      projectOnBun();
+      forge('{"private": true, "dependencies": {"jose": "6.2.10"}}');
+
+      final List<File> written = await renderFiles();
+      final File dockerfile = written.first.parent
+          .childDirectory('services')
+          .childDirectory('api')
+          .childFile('Dockerfile');
+
+      expect(dockerfile.readAsStringSync(), contains('"jose": "6.2.10"'));
+      expect(dockerfile.readAsStringSync(), contains('RUN bun install --production'));
+    });
+
+    test('rendering before forge refuses, naming what is missing', () async {
+      projectOnBun();
+
+      await expectLater(
+        renderFiles,
+        throwsA(
+          isA<Exception>().having((Exception e) => e.toString(), 'message', contains('scribe.container.package.json')),
+        ),
+      );
+    });
+
+    test('the api and worker services run as bun, and mount no cache volume', () async {
+      projectOnBun();
+      forge('{"dependencies": {}}');
+
+      final List<File> written = await renderFiles();
+      final File compose = written.firstWhere((File file) => p.basename(file.path) == 'docker-compose.yaml');
+      final YamlMap services = (loadYaml(compose.readAsStringSync()) as YamlMap)['services'] as YamlMap;
+
+      expect((services['api'] as YamlMap)['user'], 'bun');
+      expect((services['api'] as YamlMap)['volumes'], isNot(contains('deno-cache:/deno-dir')));
+    });
+
+    test('the api command resolves through a tsconfig, carries no --allow flag', () async {
+      projectOnBun();
+      forge('{"dependencies": {}}');
+
+      final List<File> written = await renderFiles();
+      final File compose = written.firstWhere((File file) => p.basename(file.path) == 'docker-compose.yaml');
+      final YamlMap services = (loadYaml(compose.readAsStringSync()) as YamlMap)['services'] as YamlMap;
+      final List<Object?> command = (services['api'] as YamlMap)['command'] as YamlList;
+
+      expect(command, contains(contains('--tsconfig-override=')));
+      expect(command.whereType<String>(), everyElement(isNot(contains('--allow'))));
+    });
+
+    test('leaves no placeholder behind, the same standard a deno render is held to', () async {
+      projectOnBun();
+      forge('{"dependencies": {}}');
+
+      final List<File> written = await renderFiles();
+      for (final File file in written) {
+        expect(_placeholder.hasMatch(file.readAsStringSync()), isFalse, reason: 'unresolved in ${file.path}');
+      }
+    });
+  });
 }
 
 /// The address the rendered `api` service is given to reach the worker on.

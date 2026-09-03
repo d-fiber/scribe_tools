@@ -39,6 +39,7 @@ import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/ops/hardware.dart';
 import 'package:scribe_tools/src/package/dependency_source.dart';
+import 'package:scribe_tools/src/runtime/js_runtime.dart';
 import 'package:yaml/yaml.dart';
 
 /// The shortest password `api.auth` is allowed to accept.
@@ -149,6 +150,13 @@ class ScribeManifest {
   /// or an ingress does the rest, which is the deployment this says nothing
   /// about on purpose.
   String get apiUrl => _string(<String>['api', 'url']) ?? '';
+
+  /// The JS runtime the `api` and `worker` containers run on, `deno` when the manifest names none.
+  ///
+  /// The key is `api.stack:`, read once here rather than through [_string] plus a switch at every
+  /// call site: [JsRuntime.named] already refuses a name this tool does not know, the same check
+  /// `environment.runtime:` goes through for a package's own tooling.
+  JsRuntime get apiStack => JsRuntime.named(_string(<String>['api', 'stack']) ?? JsRuntime.deno.name);
 
   /// The address the project's mail is sent from.
   String get email => _string(<String>['email']) ?? '';

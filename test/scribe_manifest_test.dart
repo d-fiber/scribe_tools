@@ -40,6 +40,7 @@ import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/base/context.dart';
 import 'package:scribe_tools/src/base/platform.dart';
 import 'package:scribe_tools/src/package/dependency_source.dart';
+import 'package:scribe_tools/src/runtime/js_runtime.dart';
 import 'package:scribe_tools/src/scribe_manifest.dart';
 import 'package:test/test.dart';
 
@@ -214,6 +215,31 @@ void main() {
       );
 
       expect(manifest.problems.map((ManifestProblem p) => p.field), contains('api.cors'));
+    });
+  });
+
+  test('a manifest naming no stack runs api and worker on deno', () async {
+    await withEnvironment(const <String, String>{}, () {
+      expect(manifestOf(_minimal).apiStack, JsRuntime.deno);
+    });
+  });
+
+  test('api.stack: bun is read as the bun runtime', () async {
+    await withEnvironment(const <String, String>{}, () {
+      final ScribeManifest manifest = manifestOf('$_minimal  stack: bun\n');
+
+      expect(manifest.apiStack, JsRuntime.bun);
+    });
+  });
+
+  test('an api.stack this tool does not know is refused, naming what it does', () async {
+    await withEnvironment(const <String, String>{}, () {
+      final ScribeManifest manifest = manifestOf('$_minimal  stack: node\n');
+
+      expect(
+        () => manifest.apiStack,
+        throwsA(isA<ToolExit>().having((ToolExit exit) => exit.message, 'message', contains('deno, bun'))),
+      );
     });
   });
 

@@ -39,6 +39,7 @@ import 'dart:convert';
 import 'package:scribe_tools/src/forge/import_map.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/packages.dart';
+import 'package:scribe_tools/src/runtime/js_runtime.dart';
 
 /// Writes the project's two import maps.
 ///
@@ -102,6 +103,20 @@ Future<void> generateScribeConfig({Packages? packages}) async {
       lock: false,
     ),
   );
+
+  if (globals.project.manifest.apiStack == JsRuntime.bun) {
+    await globals.project.generated.sdk.containerTsconfig.writeAsString(
+      renderContainerTsconfig(
+        inherited,
+        frameworkRoot: '/app/scribe/',
+        libRoot: '/app/lib/',
+        assetsRoot: '/app/assets/',
+        sourceRoots: containerSourceRoots,
+        doors: doors,
+      ),
+    );
+    await globals.project.generated.sdk.containerPackageJson.writeAsString(renderContainerPackageJson(inherited));
+  }
 
   globals.logger.printStatus(
     '${inherited.length} deps inherited, written to '
