@@ -670,7 +670,71 @@ void main() {
         expect(_placeholder.hasMatch(file.readAsStringSync()), isFalse, reason: 'unresolved in ${file.path}');
       }
     });
+
+    test('a project rendered once on deno switches cleanly when config.yaml moves to bun', () async {
+      final List<File> deno = await renderFiles();
+      final File denoDockerfile = _dockerfileOf(deno);
+      final YamlMap denoApi = _serviceOf(deno, 'api');
+
+      expect(denoDockerfile.readAsStringSync(), contains('FROM denoland/deno:alpine-2.7.14'));
+      expect(denoApi['user'], 'deno');
+      expect(denoApi['volumes'], contains('deno-cache:/deno-dir'));
+
+      // The same edit a person makes by hand: config.yaml gains api.stack: bun, forge runs again.
+      projectOnBun();
+      forge('{"dependencies": {}}');
+
+      final List<File> bun = await renderFiles();
+      final File bunDockerfile = _dockerfileOf(bun);
+      final YamlMap bunApi = _serviceOf(bun, 'api');
+      final List<Object?> bunCommand = bunApi['command'] as YamlList;
+
+      expect(bunDockerfile.readAsStringSync(), contains('FROM oven/bun:1.4.0-alpine'));
+      expect(
+        bunDockerfile.readAsStringSync(),
+        isNot(contains('denoland/deno')),
+        reason: 'the deno render must not survive into the bun one',
+      );
+      expect(bunApi['user'], 'bun');
+      expect(bunApi['volumes'], isNot(contains('deno-cache:/deno-dir')));
+      expect(bunCommand.whereType<String>(), everyElement(isNot(contains('--allow'))));
+    });
+
+    test('a project rendered on bun switches cleanly back when config.yaml drops the stack', () async {
+      projectOnBun();
+      forge('{"dependencies": {}}');
+      await renderFiles();
+
+      // The same edit undone: api.stack: bun is removed, back to the plain project deno defaults to.
+      project(<String>['auth', 'audience']);
+
+      final List<File> written = await renderFiles();
+      final File dockerfile = _dockerfileOf(written);
+      final YamlMap api = _serviceOf(written, 'api');
+
+      expect(dockerfile.readAsStringSync(), contains('FROM denoland/deno:alpine-2.7.14'));
+      expect(dockerfile.readAsStringSync(), isNot(contains('oven/bun')));
+      expect(
+        dockerfile.readAsStringSync(),
+        isNot(contains('bun install')),
+        reason: 'a stale RUN from the earlier bun render must not survive',
+      );
+      expect(api['user'], 'deno');
+      expect(api['volumes'], contains('deno-cache:/deno-dir'));
+    });
   });
+}
+
+/// The `Dockerfile` a render wrote for `api`.
+File _dockerfileOf(List<File> rendered) =>
+    rendered.first.parent.childDirectory('services').childDirectory('api').childFile('Dockerfile');
+
+/// The `services.<name>` block a render's `docker-compose.yaml` declares.
+YamlMap _serviceOf(List<File> rendered, String name) {
+  final File compose = rendered.firstWhere((File file) => p.basename(file.path) == 'docker-compose.yaml');
+  final YamlMap services = (loadYaml(compose.readAsStringSync()) as YamlMap)['services'] as YamlMap;
+
+  return services[name] as YamlMap;
 }
 
 /// The address the rendered `api` service is given to reach the worker on.
