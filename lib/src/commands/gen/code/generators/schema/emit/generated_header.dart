@@ -48,10 +48,14 @@ List<String> generatedHeader() => <String>[
   '',
 ];
 
-/// The names of the enum types [columns] use, each stripped of its array suffix.
+/// The names of the enum types [columns] use.
+///
+/// `Col.enumName` already carries the bare name whether the column is an array or not:
+/// `mapSqlType` appends `[]` to the TypeScript type it renders, never to the enum name, so there
+/// is no array suffix here to strip.
 Set<String> enumsUsedBy(Iterable<Col> columns) => <String>{
   for (final Col column in columns)
-    if (column.enumName case final String name) name.replaceFirst('[]', ''),
+    if (column.enumName case final String name) name,
 };
 
 /// The `import type` lines that bring [used] into a generated file.
