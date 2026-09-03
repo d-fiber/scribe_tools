@@ -204,7 +204,8 @@ class Nodes {
     ]);
   }
 
-  /// The versions [name] serves, read from what its directory holds.
+  /// The versions [name] serves, read from what its directory holds, sorted by the number after
+  /// `v` rather than as plain text, so `v10` never sorts before `v2`.
   ///
   /// Throws a [ToolExit] when the directory holds both version directories and
   /// routes of its own, since there is no answer to what the loose ones are a
@@ -233,7 +234,7 @@ class Nodes {
       );
     }
 
-    return versions..sort();
+    return versions..sort((String a, String b) => int.parse(a.substring(1)).compareTo(int.parse(b.substring(1))));
   }
 
   /// Says so when `lib/` holds a directory no node declares.
@@ -255,8 +256,8 @@ class Nodes {
     if (stray.isEmpty) return;
 
     globals.logger.printWarning(
-      'lib/ holds ${stray.length} directory that no node declares: ${stray.join(', ')}. '
-      'Nothing serves them until config.yaml names them under api.nodes.',
+      'lib/ holds ${stray.length} director${stray.length == 1 ? 'y' : 'ies'} that no node declares: '
+      '${stray.join(', ')}. Nothing serves them until config.yaml names them under api.nodes.',
     );
   }
 }
