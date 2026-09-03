@@ -154,9 +154,7 @@ class SizingRules {
       if (!service.isOneShot) {
         values['${service.key}_mem_res'] = _mib(limit * _reservationShare);
       }
-      values['${service.key}_cpu_ceiling'] = cpuCap
-          ? '\n          cpus: "${_cpusFor(service.key).toStringAsFixed(2)}"'
-          : '';
+      values['${service.key}_cpu_ceiling'] = _ceilingLineFor(service);
       values.addAll(_tunables(service));
     }
 
@@ -169,12 +167,14 @@ class SizingRules {
     return values;
   }
 
-  /// The ceiling line a service's limits carry, empty when the target wants none.
+  /// The ceiling line [service]'s limits carry, empty when the target wants none.
   ///
   /// It is rendered rather than written in the template because a template that
   /// named the value directly would fail to render on every target that does not
   /// cap, and a value of zero would be read by Compose as no CPU at all.
-  ///
+  String _ceilingLineFor(ServiceCapacity service) =>
+      cpuCap ? '\n          cpus: "${_cpusFor(service.key).toStringAsFixed(2)}"' : '';
+
   /// The share of the machine's cores [service] may take, as a ceiling.
   ///
   /// It is the share the memory is cut by, applied to the cores, and never below
@@ -283,7 +283,6 @@ class SizingRules {
         'opensearch_node_processors': '${_clamp(hardware.cores / 2, 1, 16)}',
         'opensearch_cpu_limit': _cpuCap(0.35, 0.5, 12),
       },
-      'gorse' => <String, String>{'gorse_gomaxprocs': '${_parallelism(6)}', 'gorse_cpu_limit': _cpuCap(0.20, 0.25, 6)},
       _ => const <String, String>{},
     };
   }
