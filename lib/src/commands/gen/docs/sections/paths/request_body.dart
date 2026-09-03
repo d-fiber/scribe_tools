@@ -97,6 +97,12 @@ void _renderField(Indented out, int depth, RequestBodyField field) {
         if (items == null) return;
 
         out.add(depth + 1, 'items:');
+        if (items.type == 'file') {
+          out
+            ..add(depth + 2, 'type: string')
+            ..add(depth + 2, 'format: binary');
+          return;
+        }
         if (items.type != 'nested') {
           out.add(depth + 2, 'type: ${openApiType(items.type)}');
           return;
