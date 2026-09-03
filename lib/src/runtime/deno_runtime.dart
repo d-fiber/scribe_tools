@@ -63,16 +63,16 @@ Future<ShellResult> runScript(
 }
 
 /// `JsRuntime.testCommand`'s Deno implementation: `deno test --import-map <...>`.
-List<String> testCommand({required String testsDirectory, required Map<String, String> imports, String? filter}) =>
-    <String>[
-      'deno',
-      'test',
-      '--import-map',
-      _importMap(imports),
-      ...kTestPermissions,
-      if (filter != null) ...<String>['--filter', filter],
-      testsDirectory,
-    ];
+List<String> testCommand({required String testsDirectory, required Map<String, String> imports, String? filter}) {
+  DenoCmd command = Deno.test().importMap(_importMap(imports));
+  for (final String permission in kTestPermissions) {
+    command = command.token(permission);
+  }
+  if (filter != null) command = command.filter(filter);
+  command = command.file(testsDirectory);
+
+  return commandArgv(command);
+}
 
 /// [imports], as the `data:` URL a `--import-map` flag takes directly.
 ///

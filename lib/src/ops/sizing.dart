@@ -35,6 +35,7 @@
 // LICENSE file, the LICENSE file governs.
 
 import 'package:change_case/change_case.dart';
+import 'package:fiber_shell/fiber_shell.dart';
 import 'package:file/file.dart';
 import 'package:path/path.dart' as p;
 import 'package:scribe_tools/src/base/common.dart';
@@ -795,7 +796,7 @@ class ComposeRender {
     if (!declared.existsSync()) return;
 
     final File carried = into.childFile('.env')..writeAsStringSync(declared.readAsStringSync());
-    await globals.processRunner.run(<String>['chmod', '600', carried.path]);
+    await globals.processRunner.run(commandArgv(Chmod.mode('600').path(carried.path)));
   }
 
   /// Where a container will see [here], which is elsewhere when the stack ships.
