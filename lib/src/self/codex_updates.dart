@@ -36,10 +36,12 @@
 
 import 'dart:convert';
 
+import 'package:fiber_shell/fiber_shell.dart';
 import 'package:file/file.dart';
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/framework.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
+import 'package:scribe_tools/src/self/gh_cmd.dart';
 import 'package:scribe_tools/src/self/release_feed.dart';
 import 'package:scribe_tools/src/self/version.dart';
 
@@ -107,21 +109,16 @@ Future<void> applyCodexUpdate(Framework framework) async {
   if (archive.existsSync()) archive.deleteSync();
 
   if (globals.os.has('curl')) {
-    final int code = await globals.processRunner.run(<String>['curl', '-fsSL', '-o', archive.path, url]);
+    final int code = await globals.processRunner.run(
+      commandArgv(Curl.failFast().silent().showError().location().outputFile(archive.path).url(url)),
+    );
     if (code != 0) throwToolExit('No release of $kCodexRepository carries $kCodexAsset yet.');
   } else if (globals.os.has('gh')) {
-    final int code = await globals.processRunner.run(<String>[
-      'gh',
-      'release',
-      'download',
-      '--repo',
-      kCodexRepository,
-      '--pattern',
-      kCodexAsset,
-      '--output',
-      archive.path,
-      '--clobber',
-    ]);
+    final int code = await globals.processRunner.run(
+      commandArgv(
+        Gh.release().download().repo(kCodexRepository).pattern(kCodexAsset).outputFile(archive.path).clobber(),
+      ),
+    );
     if (code != 0) throwToolExit('No release of $kCodexRepository carries $kCodexAsset yet.');
   } else {
     throwToolExit('Needs curl or the GitHub CLI to fetch $kCodexAsset.');
@@ -134,7 +131,9 @@ Future<void> applyCodexUpdate(Framework framework) async {
   final Directory codex = web.childDirectory('codex');
   if (codex.existsSync()) codex.deleteSync(recursive: true);
 
-  final int extracted = await globals.processRunner.run(<String>['tar', '-xzf', archive.path, '-C', web.path]);
+  final int extracted = await globals.processRunner.run(
+    commandArgv(Tar.extract().gzip().file(archive.path).changeDirectory(web.path)),
+  );
   archive.deleteSync();
   if (extracted != 0 || !codex.childFile('index.html').existsSync()) {
     throwToolExit('$kCodexAsset carried no codex/index.html.');

@@ -35,10 +35,12 @@
 // LICENSE file, the LICENSE file governs.
 
 import 'package:crypto/crypto.dart';
+import 'package:fiber_shell/fiber_shell.dart';
 import 'package:file/file.dart';
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/framework.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
+import 'package:scribe_tools/src/self/gh_cmd.dart';
 import 'package:scribe_tools/src/self/release_feed.dart';
 import 'package:scribe_tools/src/self/tool_version.dart';
 import 'package:scribe_tools/src/self/version.dart';
@@ -140,7 +142,7 @@ Future<void> applyToolUpdate(Framework framework) async {
   if (backup.existsSync()) backup.deleteSync();
 
   if (!globals.platform.isWindows) {
-    await globals.processRunner.run(<String>['chmod', '+x', target.path]);
+    await globals.processRunner.run(commandArgv(Chmod.mode('+x').path(target.path)));
   }
 }
 
@@ -148,21 +150,14 @@ Future<void> _download(String url, File target, {required String name}) async {
   if (target.existsSync()) target.deleteSync();
 
   if (globals.os.has('curl')) {
-    final int code = await globals.processRunner.run(<String>['curl', '-fsSL', '-o', target.path, url]);
+    final int code = await globals.processRunner.run(
+      commandArgv(Curl.failFast().silent().showError().location().outputFile(target.path).url(url)),
+    );
     if (code == 0 && target.existsSync() && target.lengthSync() > 0) return;
   } else if (globals.os.has('gh')) {
-    final int code = await globals.processRunner.run(<String>[
-      'gh',
-      'release',
-      'download',
-      '--repo',
-      kToolRepository,
-      '--pattern',
-      name,
-      '--output',
-      target.path,
-      '--clobber',
-    ]);
+    final int code = await globals.processRunner.run(
+      commandArgv(Gh.release().download().repo(kToolRepository).pattern(name).outputFile(target.path).clobber()),
+    );
     if (code == 0 && target.existsSync() && target.lengthSync() > 0) return;
   } else {
     throwToolExit('Needs curl or the GitHub CLI to fetch $name.');

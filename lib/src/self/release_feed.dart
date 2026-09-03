@@ -36,8 +36,10 @@
 
 import 'dart:convert';
 
+import 'package:fiber_shell/fiber_shell.dart';
 import 'package:file/file.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
+import 'package:scribe_tools/src/self/gh_cmd.dart';
 import 'package:scribe_tools/src/self/version.dart';
 
 /// How long a cached "latest release" answer is trusted before refreshing it.
@@ -59,18 +61,16 @@ Future<String?> fetchLatestTag(String repository) async {
 
   try {
     if (globals.os.has('curl')) {
-      final String body = await globals.processRunner.capture(<String>['curl', '-fsSL', url]);
+      final String body = await globals.processRunner.capture(
+        commandArgv(Curl.failFast().silent().showError().location().url(url)),
+      );
       return _tagIn(body);
     }
 
     if (globals.os.has('gh')) {
-      return (await globals.processRunner.capture(<String>[
-        'gh',
-        'api',
-        'repos/$repository/releases/latest',
-        '-q',
-        '.tag_name',
-      ])).trim();
+      return (await globals.processRunner.capture(
+        commandArgv(Gh.api().arg('repos/$repository/releases/latest').query('.tag_name')),
+      )).trim();
     }
   } catch (error) {
     globals.logger.printTrace('[release_feed] $error');
@@ -119,7 +119,9 @@ void scheduleTagFetch(String repository, File cacheFile, File marker) {
   if (!globals.os.has('curl')) return;
 
   final String url = 'https://api.github.com/repos/$repository/releases/latest';
-  globals.processRunner.detach(<String>['curl', '-fsSL', '-o', cacheFile.path, url]);
+  globals.processRunner.detach(
+    commandArgv(Curl.failFast().silent().showError().location().outputFile(cacheFile.path).url(url)),
+  );
 }
 
 String? _tagIn(String body) {
