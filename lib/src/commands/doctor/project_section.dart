@@ -36,9 +36,9 @@
 
 import 'package:file/file.dart';
 import 'package:scribe_tools/src/commands/doctor/report.dart';
+import 'package:scribe_tools/src/commands/secrets/store.dart';
 import 'package:scribe_tools/src/project.dart';
 import 'package:scribe_tools/src/scribe_manifest.dart';
-import 'package:scribe_tools/src/secrets.dart';
 
 /// The project here, and what is missing from it.
 ///

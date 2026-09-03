@@ -35,7 +35,7 @@
 // LICENSE file, the LICENSE file governs.
 
 import 'package:scribe_tools/src/base/common.dart';
-import 'package:scribe_tools/src/secrets.dart';
+import 'package:scribe_tools/src/commands/secrets/store.dart';
 
 /// The changes one run of `scribe secrets` was asked to make.
 ///

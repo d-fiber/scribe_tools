@@ -36,8 +36,8 @@
 
 import 'package:scribe_tools/src/base/terminal.dart';
 import 'package:scribe_tools/src/commands/secrets/secret_edits.dart';
+import 'package:scribe_tools/src/commands/secrets/store.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
-import 'package:scribe_tools/src/secrets.dart';
 
 /// Everything `scribe secrets` prints, kept out of the command itself.
 ///

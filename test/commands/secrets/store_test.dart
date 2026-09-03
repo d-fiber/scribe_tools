@@ -40,7 +40,7 @@ import 'package:file/memory.dart';
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/base/context.dart';
 import 'package:scribe_tools/src/base/platform.dart';
-import 'package:scribe_tools/src/secrets.dart';
+import 'package:scribe_tools/src/commands/secrets/store.dart';
 import 'package:test/test.dart';
 
 late MemoryFileSystem fs;

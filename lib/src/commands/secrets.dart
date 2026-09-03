@@ -38,8 +38,8 @@ import 'package:dage/dage.dart';
 import 'package:scribe_tools/src/commands/secrets/manifest_references.dart';
 import 'package:scribe_tools/src/commands/secrets/secret_edits.dart';
 import 'package:scribe_tools/src/commands/secrets/secrets_report.dart';
+import 'package:scribe_tools/src/commands/secrets/store.dart';
 import 'package:scribe_tools/src/runner/scribe_command.dart';
-import 'package:scribe_tools/src/secrets.dart';
 
 /// Lists, adds and removes the secrets a project carries in `secrets.age`.
 class SecretsCommand extends ScribeCommand {

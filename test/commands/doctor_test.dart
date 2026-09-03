@@ -45,8 +45,8 @@ import 'package:scribe_tools/src/base/logger.dart';
 import 'package:scribe_tools/src/base/platform.dart';
 import 'package:scribe_tools/src/base/process.dart';
 import 'package:scribe_tools/src/commands/doctor.dart';
+import 'package:scribe_tools/src/commands/secrets/store.dart';
 import 'package:scribe_tools/src/runner/scribe_command.dart';
-import 'package:scribe_tools/src/secrets.dart';
 import 'package:test/test.dart';
 
 late MemoryFileSystem fs;
