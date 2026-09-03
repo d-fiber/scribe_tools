@@ -305,6 +305,25 @@ requires:
     test('nothing is prepended when no project is given', () {
       expect(Resources.recipeRoots(mounted: const <Package>[]).length, 1, reason: 'the socle alone');
     });
+
+    test('a class answers from a provider directory of its own, not only flat under its type', () {
+      root
+          .childDirectory(recipesDirectoryName)
+          .childDirectory('redis')
+          .childDirectory('aws')
+          .childFile('aws-elasticache.tf.json')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('{}');
+
+      final File? found = Resources.recipeFor(
+        <Directory>[root.childDirectory(recipesDirectoryName)],
+        'redis',
+        'aws-elasticache',
+      );
+
+      expect(found, isNotNull);
+      expect(found!.path, endsWith('redis/aws/aws-elasticache.tf.json'));
+    });
   });
 
   group('two packages that carry the same recipe type', () {

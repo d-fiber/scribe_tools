@@ -86,8 +86,9 @@ List<RecipeFamily> _familiesUnder(Directory root) {
       RecipeFamily(
         type: p.basename(type.path),
         contract: _theContractIn(type),
-        recipes: type.listSync().whereType<File>().where((File file) => !_describesRecipes(file)).toList()
-          ..sort((File a, File b) => a.path.compareTo(b.path)),
+        recipes:
+            type.listSync(recursive: true).whereType<File>().where((File file) => !_describesRecipes(file)).toList()
+              ..sort((File a, File b) => a.path.compareTo(b.path)),
       ),
   ];
 }

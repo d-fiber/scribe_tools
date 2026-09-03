@@ -452,17 +452,35 @@ class Resources {
   ///
   /// The socle is searched first and a package after it, so a project that owns
   /// a type nothing else does simply adds a directory and is found.
+  ///
+  /// Searched at any depth under the type's own directory, not only directly in
+  /// it: a type free to group its managed classes under a provider directory of
+  /// its own, `aws/aws-rds.tf.json` rather than `aws-rds.tf.json` flat, answers
+  /// to the same class name either way, so a project's own `className` never has
+  /// to change to follow where the file actually sits.
   static File? _recipeIn(List<Directory> recipes, String type, String className) {
     for (final Directory root in recipes) {
+      final Directory typeRoot = root.childDirectory(type);
+      if (!typeRoot.existsSync()) continue;
+
       for (final String name in <String>[
         '$className.yaml$kTemplateSuffix',
         '$className.yaml',
         '$className.tf.json$kTemplateSuffix',
         '$className.tf.json',
       ]) {
-        final File candidate = root.childDirectory(type).childFile(name);
-        if (candidate.existsSync()) return candidate;
+        final File? found = _fileNamed(typeRoot, name);
+        if (found != null) return found;
       }
+    }
+
+    return null;
+  }
+
+  /// The file under [root], at any depth, whose own name is [name] — or null when none is.
+  static File? _fileNamed(Directory root, String name) {
+    for (final FileSystemEntity entity in root.listSync(recursive: true)) {
+      if (entity is File && entity.basename == name) return entity;
     }
 
     return null;
