@@ -227,7 +227,7 @@ class SecretsStore {
       final int separator = entry.indexOf('=');
       if (separator <= 0) continue;
 
-      secrets[entry.substring(0, separator)] = entry.substring(separator + 1);
+      secrets[entry.substring(0, separator)] = _unescape(entry.substring(separator + 1));
     }
 
     return secrets;
@@ -236,8 +236,22 @@ class SecretsStore {
   static String _render(Map<String, String> secrets) {
     final List<String> names = secrets.keys.toList()..sort();
 
-    return <String>[for (final String name in names) '$name=${secrets[name]}'].join('\n');
+    return <String>[for (final String name in names) '$name=${_escape(secrets[name]!)}'].join('\n');
   }
+
+  /// [value], with a backslash and a newline turned into a two-character escape.
+  ///
+  /// The store is one `NAME=VALUE` line per secret, so a value carrying a literal newline would
+  /// otherwise read back as a second, malformed line the next time this file is opened, silently
+  /// truncating everything past it. Escaping the backslash first keeps `\n` in the escaped text
+  /// unambiguous: [_unescape] undoes both in the order that reverses this one.
+  static String _escape(String value) => value.replaceAll('\\', '\\\\').replaceAll('\n', '\\n');
+
+  /// The inverse of [_escape].
+  static String _unescape(String value) => value.replaceAllMapped(
+    RegExp(r'\\[\\n]'),
+    (Match match) => match[0] == r'\n' ? '\n' : '\\',
+  );
 }
 
 /// One `NAME=VALUE` pair, as `secrets --set` is given it.

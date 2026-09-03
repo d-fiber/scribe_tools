@@ -148,6 +148,39 @@ void main() {
     });
   });
 
+  test('a value holding a newline survives the round trip', () async {
+    await withHome(() async {
+      final SecretsStore store = storeIn('/work/notes');
+      const String value = 'line1\nline2';
+
+      await store.write(<String, String>{'TOKEN': value}, recipient: await store.recipientOf());
+
+      expect((await store.read())['TOKEN'], value);
+    });
+  });
+
+  test('a value holding a backslash survives the round trip, newline or not', () async {
+    await withHome(() async {
+      final SecretsStore store = storeIn('/work/notes');
+      const String value = r'C:\path\to\thing';
+
+      await store.write(<String, String>{'TOKEN': value}, recipient: await store.recipientOf());
+
+      expect((await store.read())['TOKEN'], value);
+    });
+  });
+
+  test('a second secret after one holding a newline is not swallowed by it', () async {
+    await withHome(() async {
+      final SecretsStore store = storeIn('/work/notes');
+      const Map<String, String> secrets = <String, String>{'A': 'line1\nline2', 'B': '2'};
+
+      await store.write(secrets, recipient: await store.recipientOf());
+
+      expect(await store.read(), secrets);
+    });
+  });
+
   group('SecretAssignment', () {
     test('it splits on the first equals sign only', () {
       final SecretAssignment assignment = SecretAssignment.parse('TOKEN=a=b');

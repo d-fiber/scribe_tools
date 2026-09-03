@@ -51,6 +51,7 @@ class SecretsCommand extends ScribeCommand {
         abbr: 's',
         valueHelp: 'NAME=VALUE',
         help: 'Add or replace a secret. Repeat the flag to write several.',
+        splitCommas: false,
       )
       ..addMultiOption(
         'unset',
