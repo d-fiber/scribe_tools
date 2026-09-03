@@ -44,6 +44,7 @@ import 'package:scribe_tools/src/base/platform.dart';
 import 'package:scribe_tools/src/base/process.dart';
 import 'package:scribe_tools/src/commands/downgrade.dart';
 import 'package:scribe_tools/src/commands/upgrade.dart';
+import 'package:scribe_tools/src/package/sdk.dart' show kSdkWorkspaceFile;
 import 'package:scribe_tools/src/runner/scribe_command.dart';
 import 'package:test/test.dart';
 
@@ -83,7 +84,7 @@ class MergingProcessRunner extends RecordingProcessRunner {
   @override
   Future<int> run(List<String> command, {String? workingDirectory, Map<String, String>? environment}) async {
     if (command.contains('merge')) {
-      fs.file('$checkoutDirectory/deno.json').writeAsStringSync('{"version":"$becomes"}\n');
+      fs.file('$checkoutDirectory/$kSdkWorkspaceFile').writeAsStringSync('{"version":"$becomes"}\n');
     }
 
     return super.run(command, workingDirectory: workingDirectory);
@@ -96,7 +97,7 @@ void writeCheckout({String version = '0.1.5', bool cloned = true}) {
     fs.directory('$checkoutDirectory/$directory').createSync(recursive: true);
   }
 
-  fs.file('$checkoutDirectory/deno.json').writeAsStringSync('{"version":"$version"}\n');
+  fs.file('$checkoutDirectory/$kSdkWorkspaceFile').writeAsStringSync('{"version":"$version"}\n');
   if (cloned) fs.directory('$checkoutDirectory/.git').createSync(recursive: true);
 }
 

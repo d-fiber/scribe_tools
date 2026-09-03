@@ -95,7 +95,7 @@ Future<DeclaredSqlSchema> runSchemaBridge({
   final ShellResult output = await runtime.runScript(
     bridge.path,
     scriptArgs: sourceFiles.map((File source) => source.path).toList(),
-    imports: _bridgeImports(resolution),
+    imports: resolution.imports,
   );
 
   if (output.error.isNotEmpty) globals.logger.printWarning(output.error);
@@ -106,17 +106,3 @@ Future<DeclaredSqlSchema> runSchemaBridge({
 
   return DeclaredSqlSchema.fromJson(jsonDecode(output.stdout) as Map<String, dynamic>);
 }
-
-/// [resolution]'s own imports, with `@scribe/runtime/` added.
-///
-/// A package's own resolution never grants that specifier — `layerImports` only reaches a
-/// directory of `engine/` that carries its own `deno.json`, and `engine/runtime/` carries none on
-/// purpose, since a package has no business reading the process it happens to run inside. The
-/// bridge is not a package, though it borrows a package's resolution to reach `@scribe/alchemy`:
-/// it is this tool's own script, and it reads its own arguments through
-/// `@scribe/runtime/scholium/args.ts`, the same way every other runtime-aware corner of the
-/// framework does.
-Map<String, String> _bridgeImports(Resolution resolution) => <String, String>{
-  ...resolution.imports,
-  '@scribe/runtime/': Uri.directory(p.join(resolution.sdk.root, 'engine', 'runtime')).toString(),
-};

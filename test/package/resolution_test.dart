@@ -182,7 +182,7 @@ void main() {
 
     expect(
       importsOf(created.directory)['@scribe/contracts/'],
-      '${p.join(checkout.path, 'engine', 'contracts')}/',
+      Uri.directory(p.join(checkout.path, 'engine', 'contracts')).toString(),
       reason: 'a layer the checkout carries was held against what the package happened to import',
     );
   });
@@ -655,7 +655,7 @@ void main() {
       final String at = packageDeclaring('dependencies:\n');
       importing(at, 'notifications', 'left-pad');
 
-      expect(() => resolve(at, sdkOfCheckout()), refuses(allOf(contains('left-pad'), contains(kSdkImportMapFile))));
+      expect(() => resolve(at, sdkOfCheckout()), refuses(allOf(contains('left-pad'), contains(kSdkWorkspaceFile))));
       expect(Directory(p.join(at, kResolutionDirectory)).existsSync(), isFalse);
     });
 

@@ -44,6 +44,7 @@ import 'package:scribe_tools/src/base/platform.dart';
 import 'package:scribe_tools/src/base/process.dart';
 import 'package:scribe_tools/src/commands/doctor.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
+import 'package:scribe_tools/src/package/sdk.dart' show kSdkWorkspaceFile;
 import 'package:scribe_tools/src/runner/scribe_command.dart';
 import 'package:test/test.dart';
 
@@ -128,7 +129,7 @@ void writeCheckout({String version = '0.1.5'}) {
     fs.directory('$checkoutDirectory/$directory').createSync(recursive: true);
   }
 
-  fs.file('$checkoutDirectory/deno.json').writeAsStringSync('{"version":"$version"}\n');
+  fs.file('$checkoutDirectory/$kSdkWorkspaceFile').writeAsStringSync('{"version":"$version"}\n');
   fs.currentDirectory = checkoutDirectory;
 }
 

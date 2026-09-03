@@ -387,7 +387,7 @@ Map<String, String> externalImports(Set<String> asked, Sdk sdk, Map<String, Stri
     problems.add(
       Unresolved(
         specifier,
-        'nothing in ${p.join(sdk.root, kSdkImportMapFile)} answers it, so the checkout does not carry it. '
+        'nothing in ${p.join(sdk.root, kSdkWorkspaceFile)} answers it, so the checkout does not carry it. '
         'Add it there first, where its version is pinned for everybody.',
       ),
     );
@@ -629,7 +629,7 @@ Map<String, String> frameworkImports(Sdk sdk) {
 
   if (!imports.keys.any((String key) => key == kLanguage || key.startsWith('$kLanguage/'))) {
     throwToolExit(
-      'The map at ${p.join(sdk.root, kSdkImportMapFile)} names no "$kLanguage", so the language cannot be resolved.\n'
+      'The map at ${p.join(sdk.root, kSdkWorkspaceFile)} names no "$kLanguage", so the language cannot be resolved.\n'
       'A checkout publishes the language through its own import map, one entry per surface a package may import.',
     );
   }

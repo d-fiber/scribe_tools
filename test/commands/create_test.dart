@@ -102,7 +102,7 @@ void writeFramework({
 }) {
   fs.directory('/framework/engine').createSync(recursive: true);
   fs.directory('/framework/protocol').createSync(recursive: true);
-  fs.file('/framework/deno.json')
+  fs.file('/framework/scribe.workspace.json')
     ..createSync(recursive: true)
     ..writeAsStringSync(
       '{"version":"$version","imports":{"@scribe/alchemy":"./engine/alchemy/mod.ts",'

@@ -60,7 +60,7 @@ import 'package:scribe_tools/src/runtime/js_runtime.dart';
 /// resolved twice.
 Future<void> generateScribeConfig({Packages? packages}) async {
   final Map<String, dynamic> frameworkConfig =
-      jsonDecode(await globals.project.sdk.denoJson.readAsString()) as Map<String, dynamic>;
+      jsonDecode(await globals.project.sdk.workspaceConfig.readAsString()) as Map<String, dynamic>;
   final Map<String, String> inherited = inheritedImports(frameworkConfig);
 
   final Map<String, String> doors = mountedDoors(

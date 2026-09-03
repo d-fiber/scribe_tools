@@ -74,7 +74,7 @@ class _Machine {
       fs.directory('$kProjectDirectory/scribe/$directory').createSync(recursive: true);
     }
     fs
-        .file('$kProjectDirectory/scribe/deno.json')
+        .file('$kProjectDirectory/scribe/scribe.workspace.json')
         .writeAsStringSync(
           '{"version":"1.4.0","imports":{'
           '"@scribe/foundation":"./packages/foundation/lib/foundation.ts",'

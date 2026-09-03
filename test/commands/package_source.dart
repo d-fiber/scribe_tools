@@ -102,15 +102,16 @@ class PackageHarness {
 
   /// Writes a checkout at [kCheckoutDirectory] publishing [version].
   ///
-  /// It carries the three directories a checkout is recognised by, the `VERSION`
-  /// the version is read from, and the import map that says what it carries: the
-  /// language, the framework's own directories, and every version outside it.
+  /// It carries the three directories a checkout is recognised by, the tracked
+  /// `scribe.workspace.json` the version is read from, and the import map that says what it
+  /// carries: the language, the framework's own directories, and every version outside it. No
+  /// `deno.json` is written, the same as a bare clone.
   void writeCheckout({String version = '3.0.1'}) {
     for (final String directory in <String>['sdk', 'engine', 'protocol']) {
       fs.directory('$kCheckoutDirectory/$directory').createSync(recursive: true);
     }
 
-    fs.file('$kCheckoutDirectory/$kSdkImportMapFile')
+    fs.file('$kCheckoutDirectory/$kSdkWorkspaceFile')
       ..createSync(recursive: true)
       ..writeAsStringSync(
         '{"version":"$version","imports":{"@scribe/alchemy":"./engine/alchemy/mod.ts",'

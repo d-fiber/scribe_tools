@@ -42,20 +42,14 @@ import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/sdk_target.dart';
 
-/// The file the checkout carries its version in.
+/// The file the checkout carries its version and its own imports in.
 ///
-/// It is the workspace root's own configuration: scribe is one Deno project, and a
-/// Deno project says its version there. There is no `VERSION` file any more, and
-/// nothing else in the checkout names the version.
-const String kSdkVersionFile = 'deno.json';
-
-/// The file the checkout declares what every specifier answers to in.
-///
-/// It is the runtime's own configuration, and the one place a version of anything
-/// outside the framework is pinned. A package resolves through it rather than
-/// pinning its own, so that two packages cannot disagree on which redis client
-/// they got.
-const String kSdkImportMapFile = 'deno.json';
+/// It is the workspace root's own configuration, tracked by git: scribe's `deno.json`
+/// is generated from this file by `dev_tools/gen/workspace.sh` and is itself gitignored, so a
+/// bare checkout carries no `deno.json` at all. Reading this file instead means a checkout answers
+/// the same way whether or not that generator has ever run inside it. There is no `VERSION` file
+/// any more, and nothing else in the checkout names the version.
+const String kSdkWorkspaceFile = 'scribe.workspace.json';
 
 /// The directory, inside a checkout, holding the language a package is written against.
 const String kAlchemyDirectory = 'engine/alchemy';
@@ -63,7 +57,7 @@ const String kAlchemyDirectory = 'engine/alchemy';
 /// The variable that names the checkout when nothing else can find it.
 const String kSdkRootVariable = 'SCRIBE_ROOT';
 
-/// The version a checkout carrying no readable `VERSION` is treated as publishing.
+/// The version a checkout carrying no readable [kSdkWorkspaceFile] is treated as publishing.
 ///
 /// Nothing accepts it: every constraint a package writes names three numbers, so
 /// a checkout that answers this is refused by the first package resolved against
@@ -84,7 +78,7 @@ class Sdk {
   /// The path of the checkout.
   final String root;
 
-  /// The version the checkout publishes, read from its `VERSION` file.
+  /// The version the checkout publishes, read from its [kSdkWorkspaceFile].
   final String version;
 
   /// The path of the language a package is written against.
@@ -137,13 +131,12 @@ Sdk? _sdkAt(Directory root) {
 
 /// The version the checkout at [root] publishes, or [kUnknownVersion].
 ///
-/// It is read from the workspace root's own `deno.json`, which is where a Deno
-/// project carries its version. A checkout whose file is missing, unreadable or
-/// silent about the version answers [kUnknownVersion], which every constraint a
-/// package writes refuses, so the refusal names the version instead of the
-/// hundred type errors that would otherwise follow.
+/// It is read from the workspace root's own `scribe.workspace.json`, the tracked file a checkout
+/// carries its version in. A checkout whose file is missing, unreadable or silent about the
+/// version answers [kUnknownVersion], which every constraint a package writes refuses, so the
+/// refusal names the version instead of the hundred type errors that would otherwise follow.
 String _versionOf(Directory root) {
-  final File map = root.childFile(kSdkVersionFile);
+  final File map = root.childFile(kSdkWorkspaceFile);
   if (!map.existsSync()) return kUnknownVersion;
 
   try {
@@ -172,9 +165,9 @@ String _programDirectory() {
 /// Throws a [ToolExit] when the checkout carries no map, or one that cannot be
 /// read.
 Map<String, String> sdkImports(Sdk sdk) {
-  final File map = globals.fs.file(p.join(sdk.root, p.joinAll(p.posix.split(kSdkImportMapFile))));
+  final File map = globals.fs.file(p.join(sdk.root, kSdkWorkspaceFile));
   if (!map.existsSync()) {
-    throwToolExit('The checkout at ${sdk.root} carries no $kSdkImportMapFile, so nothing can be resolved through it.');
+    throwToolExit('The checkout at ${sdk.root} carries no $kSdkWorkspaceFile, so nothing can be resolved through it.');
   }
 
   final Object? document = _decode(map);
@@ -203,23 +196,40 @@ Map<String, String> sdkImports(Sdk sdk) {
 /// The directory, inside a checkout, holding the framework's own layers.
 const String kLayersDirectory = 'engine';
 
-/// Every layer the checkout publishes, from its specifier to its directory.
+/// The file a layer carries its own specifiers in.
+///
+/// It is what makes a directory a layer, and what `dev_tools/gen/workspace.sh` reads to build the
+/// framework's own `deno.json`: a flat specifier-to-path map, every path relative to the layer's
+/// own directory rather than to the checkout root.
+const String kLayerCollectionFile = '_collection.json';
+
+/// Every specifier a layer under [kLayersDirectory] declares, from the specifier to an absolute
+/// path.
 ///
 /// The root map does not name them, and that is deliberate: a workspace member
 /// inherits what the root declares, so a layer written there would be reachable
 /// from every other one and the order between them would stop being enforced.
-/// Each layer declares itself in its own `deno.json` instead.
+/// Each layer declares itself in its own [kLayerCollectionFile] instead.
+///
+/// A layer's own file can name more than its own directory: `engine/runtime/_collection.json`
+/// answers for `@scribe/contracts/` as well as `@scribe/runtime/`, since a layer resolves its own
+/// dependencies the same way a package resolves its own. Every entry of every layer's file is
+/// resolved against that layer's directory and merged into one map here, the same merge
+/// `gen/workspace.sh` performs in `jq`.
 ///
 /// A package resolved outside a checkout still has to reach them, so they are
-/// read back from the tree here. A directory counts as a layer when it carries a
-/// `deno.json`, which is what makes it a member.
+/// read back from the tree here.
 ///
 /// This is also what tells a package's own resolution which specifiers are the
 /// framework's own and need no `dependencies:` entry at all: `resolution.dart`
 /// reads the keys of what this answers to grant every one of them, the way it
 /// already grants `@scribe/alchemy`. A layer added under [kLayersDirectory] is
-/// therefore reachable the moment it carries a `deno.json`, without anything
+/// therefore reachable the moment it carries a [kLayerCollectionFile], without anything
 /// elsewhere naming it.
+///
+/// Throws a [ToolExit] when two layers declare the same specifier against two different targets:
+/// `gen/workspace.sh` refuses the same conflict rather than picking one at random, and so does
+/// this.
 Map<String, String> layerImports(Sdk sdk) {
   final Directory layers = globals.fs.directory(p.join(sdk.root, kLayersDirectory));
   if (!layers.existsSync()) return const <String, String>{};
@@ -227,12 +237,57 @@ Map<String, String> layerImports(Sdk sdk) {
   final Map<String, String> found = <String, String>{};
   for (final FileSystemEntity entry in layers.listSync()) {
     if (entry is! Directory) continue;
-    if (!globals.fs.file(p.join(entry.path, 'deno.json')).existsSync()) continue;
 
-    found['@scribe/${p.basename(entry.path)}/'] = '${p.absolute(entry.path)}/';
+    final File collection = globals.fs.file(p.join(entry.path, kLayerCollectionFile));
+    if (!collection.existsSync()) continue;
+
+    final Object? document = _decode(collection);
+    if (document is! Map<String, Object?>) {
+      throwToolExit('${collection.path} is not a mapping, so nothing in it can be resolved.');
+    }
+
+    document.forEach((String specifier, Object? target) {
+      if (target is! String) return;
+
+      final String resolved = _withinLayer(target, entry.path);
+      final String? already = found[specifier];
+      if (already != null && already != resolved) {
+        throwToolExit(
+          '"$specifier" resolves two different ways across the layers under $kLayersDirectory: '
+          '$already and $resolved.',
+        );
+      }
+      found[specifier] = resolved;
+    });
   }
 
   return found;
+}
+
+/// [target], a path from a layer's own [kLayerCollectionFile] relative to [layerDirectory],
+/// resolved to a `file://` URI, the same shape [_absolute] answers for the root's own imports and
+/// `resolution.dart`'s `_doorsOf` answers for a package's.
+///
+/// [target] outside `./` and `../` is returned untouched: a layer only ever names its own tree or
+/// a neighbour's, never a registry specifier. The walk pops one segment on `..`, drops `.` and an
+/// empty segment, and pushes everything else, the same segment-by-segment resolution
+/// `gen/workspace.sh`'s own `resolve_path` performs in `jq`. A trailing separator on [target] is
+/// what marks it a directory prefix rather than a single file, the same signal [_absolute] reads.
+String _withinLayer(String target, String layerDirectory) {
+  if (!target.startsWith('./') && !target.startsWith('../')) return target;
+
+  final List<String> segments = p.split(layerDirectory);
+  for (final String step in target.split('/')) {
+    if (step.isEmpty || step == '.') continue;
+    if (step == '..') {
+      if (segments.isNotEmpty) segments.removeLast();
+      continue;
+    }
+    segments.add(step);
+  }
+
+  final String joined = p.joinAll(segments);
+  return target.endsWith('/') ? Uri.directory(joined).toString() : Uri.file(joined).toString();
 }
 
 Object? _decode(File map) {

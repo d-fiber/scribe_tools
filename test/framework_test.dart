@@ -40,6 +40,7 @@ import 'package:scribe_tools/src/base/context.dart';
 import 'package:scribe_tools/src/base/logger.dart';
 import 'package:scribe_tools/src/base/process.dart';
 import 'package:scribe_tools/src/framework.dart';
+import 'package:scribe_tools/src/package/sdk.dart' show kSdkWorkspaceFile;
 import 'package:scribe_tools/src/self/updates.dart';
 import 'package:scribe_tools/src/self/version.dart';
 import 'package:test/test.dart';
@@ -70,7 +71,7 @@ void writeCheckout({String version = '0.1.5', bool cloned = true}) {
     fs.directory('$checkoutDirectory/$directory').createSync(recursive: true);
   }
 
-  fs.file('$checkoutDirectory/deno.json').writeAsStringSync('{"version":"$version"}\n');
+  fs.file('$checkoutDirectory/$kSdkWorkspaceFile').writeAsStringSync('{"version":"$version"}\n');
   if (cloned) fs.directory('$checkoutDirectory/.git').createSync(recursive: true);
 }
 
@@ -98,9 +99,9 @@ void main() {
       });
     });
 
-    test('a directory with no deno.json is not a checkout', () async {
+    test('a directory with no scribe.workspace.json is not a checkout', () async {
       writeCheckout();
-      fs.file('$checkoutDirectory/deno.json').deleteSync();
+      fs.file('$checkoutDirectory/$kSdkWorkspaceFile').deleteSync();
       fs.currentDirectory = checkoutDirectory;
 
       await withProcesses(RecordingProcessRunner(), () async {

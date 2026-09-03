@@ -37,6 +37,7 @@
 import 'package:file/file.dart';
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
+import 'package:scribe_tools/src/package/sdk.dart' show kSdkWorkspaceFile;
 import 'package:scribe_tools/src/scribe_manifest.dart';
 import 'package:scribe_tools/src/sdk_target.dart';
 
@@ -407,14 +408,14 @@ class ScribeSdk {
   /// The process that serves the API.
   Directory get engine => directory.childDirectory('engine');
 
-  /// The checkout's own Deno configuration, which its import map is merged into.
+  /// The checkout's own tracked workspace configuration, which its import map is merged into.
   ///
-  /// It sits at the root and not under `engine/`, because scribe is one Deno
-  /// project: the root is the workspace, and it is the only place that names a
-  /// version and pins what is outside the framework. Each layer under `engine/`
-  /// carries a configuration of its own, but those name only the layers they may
-  /// reach and are of no use to a project.
-  File get denoJson => directory.childFile('deno.json');
+  /// It sits at the root and not under `engine/`, because scribe is one workspace: the root is
+  /// the only place that names a version and pins what is outside the framework. Each layer
+  /// under `engine/` carries a `_collection.json` of its own, but those name only the layers they
+  /// may reach and are of no use to a project. This is `scribe.workspace.json`, tracked by git,
+  /// rather than the `deno.json` generated from it: a bare clone never carries that one.
+  File get workspaceConfig => directory.childFile(kSdkWorkspaceFile);
 
   /// The endpoints the framework serves on its own.
   Directory get engineApi => engine.childDirectory('api');

@@ -39,6 +39,7 @@ import 'dart:convert';
 import 'package:file/file.dart';
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
+import 'package:scribe_tools/src/package/sdk.dart' show kSdkWorkspaceFile;
 import 'package:scribe_tools/src/sdk_target.dart';
 import 'package:scribe_tools/src/self/version.dart';
 
@@ -122,7 +123,7 @@ class Framework {
   ///
   /// The search is the one `create` already uses to find the SDKs, so a project
   /// that vendors the framework under `scribe/` is found too. A checkout
-  /// without `VERSION` is not one: that file is the version.
+  /// without [kSdkWorkspaceFile] is not one: that file is the version.
   static Framework? locate({Directory? from}) {
     final Directory? found = SdkCatalog.findFrameworkRoot(from ?? globals.fs.currentDirectory);
     if (found == null) return null;
@@ -134,8 +135,10 @@ class Framework {
   /// The root of the checkout.
   final Directory root;
 
-  /// The file the version is written in, which is the project's own configuration.
-  File get versionFile => root.childFile('deno.json');
+  /// The file the version is written in, tracked by git unlike the `deno.json` it is generated
+  /// into: a bare clone carries this file and nothing else, so this is what a checkout is
+  /// recognised by rather than a file a generator may never have written here.
+  File get versionFile => root.childFile(kSdkWorkspaceFile);
 
   /// The version this checkout is on, null when the configuration says something else.
   Version? get version => _versionIn(versionFile.readAsStringSync());
@@ -148,7 +151,7 @@ class Framework {
   /// Nothing is fetched here: it reads what the last fetch left behind, which
   /// is why it costs no network. `scheduleFetch` is what keeps it current.
   Future<Version?> versionOnOrigin() async {
-    final String raw = await _capture(<String>['show', '$kOrigin/$kReleaseBranch:deno.json']);
+    final String raw = await _capture(<String>['show', '$kOrigin/$kReleaseBranch:$kSdkWorkspaceFile']);
     return raw.isEmpty ? null : _versionIn(raw);
   }
 

@@ -72,7 +72,7 @@ class _ProjectMachine {
     for (final String directory in <String>['sdk', 'engine', 'protocol']) {
       fs.directory('$kProjectDirectory/scribe/$directory').createSync(recursive: true);
     }
-    fs.file('$kProjectDirectory/scribe/deno.json').writeAsStringSync('{"version":"1.4.0","imports":{}}\n');
+    fs.file('$kProjectDirectory/scribe/scribe.workspace.json').writeAsStringSync('{"version":"1.4.0","imports":{}}\n');
 
     fs.currentDirectory = fs.directory(kProjectDirectory);
   }

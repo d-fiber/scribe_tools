@@ -41,7 +41,6 @@ import 'package:file/file.dart';
 import 'package:path/path.dart' as p;
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
-import 'package:scribe_tools/src/package/sdk.dart';
 import 'package:scribe_tools/src/packages.dart';
 
 /// The aliases of the framework's own configuration that a project must not inherit.
@@ -138,7 +137,7 @@ Map<String, String> mountedDoors(Directory checkout, Map<String, dynamic> framew
       }
     }
 
-    final File map = package.directory.childFile(kSdkImportMapFile);
+    final File map = package.directory.childFile(packageFile);
     if (!map.existsSync()) continue;
 
     final Object? document = jsonDecode(map.readAsStringSync());

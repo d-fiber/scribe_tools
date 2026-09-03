@@ -53,10 +53,11 @@ const Map<String, String> kCheckoutImports = <String, String>{
 
 /// Writes a checkout at [root] publishing [version], enough for a package to resolve against.
 ///
-/// It carries the three directories a checkout is recognised by, the `VERSION`
-/// file the version is read from, and the import map [imports] is written into.
-/// That map is the whole of what a checkout says it carries: the language, the
-/// framework's own directories, and every version outside the framework.
+/// It carries the three directories a checkout is recognised by, the tracked
+/// `scribe.workspace.json` the version and the import map [imports] are written into, and no
+/// `deno.json`, the same as a bare clone. That map is the whole of what a checkout says it
+/// carries: the language, the framework's own directories, and every version outside the
+/// framework.
 ///
 /// Every entry answering a path inside the checkout gets a file written for it,
 /// so that a test reading back what a package reaches finds something behind it.
@@ -73,19 +74,20 @@ void writeCheckout(Directory root, {String version = '3.0.1', Map<String, String
       ..writeAsStringSync('export {};\n');
   }
 
-  // A directory under `engine/` is a layer once it carries its own `deno.json`, and a package's
-  // resolution grants every layer without being asked. `@scribe/contracts/` is the one this
-  // checkout answers for, so it needs the marker `layerImports` looks for.
+  // A directory under `engine/` is a layer once it carries its own `_collection.json`, and a
+  // package's resolution grants every layer without being asked. `@scribe/contracts/` is the one
+  // this checkout answers for, so it carries the file `layerImports` reads, naming the same entry
+  // the root map already carries.
   if (imports.containsKey('@scribe/contracts/')) {
-    File(p.join(root.path, 'engine', 'contracts', 'deno.json'))
+    File(p.join(root.path, 'engine', 'contracts', kLayerCollectionFile))
       ..createSync(recursive: true)
-      ..writeAsStringSync('{}\n');
+      ..writeAsStringSync('{"@scribe/contracts/":"./"}\n');
   }
 
   final String written = imports.entries
       .map((MapEntry<String, String> entry) => '"${entry.key}":"${entry.value}"')
       .join(',');
-  File(p.join(root.path, p.joinAll(p.posix.split(kSdkImportMapFile))))
+  File(p.join(root.path, kSdkWorkspaceFile))
     ..parent.createSync(recursive: true)
     ..writeAsStringSync('{"version":"$version","imports":{$written}}\n');
 }
