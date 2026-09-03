@@ -62,7 +62,12 @@ enum AuditVerdict {
 /// One file, and what the forge did or refused to do about it.
 class AuditEntry {
   /// Holds one file's outcome.
-  const AuditEntry({required this.name, required this.verdict, this.problems = const <String>[]});
+  const AuditEntry({
+    required this.name,
+    required this.verdict,
+    this.problems = const <String>[],
+    this.notices = const <String>[],
+  });
 
   /// The file's name under `configuration/`, without its extension.
   final String name;
@@ -77,6 +82,13 @@ class AuditEntry {
   /// the other half of "the project is always right", and it is the half a tool
   /// may do.
   final List<String> problems;
+
+  /// What is worth telling about it without refusing anything, one line each.
+  ///
+  /// A setting a newer version of the module added and this file does not carry yet lives here,
+  /// never in [problems]: `run`, `deploy` and `forge --machine` all refuse a project whose report
+  /// [AuditReport.hasProblems], and nothing here is something the developer did wrong.
+  final List<String> notices;
 }
 
 /// What a whole forge came out as.
@@ -99,8 +111,26 @@ class AuditReport {
       for (final String problem in entry.problems) '$configurationDirectoryName/${entry.name}.yaml: $problem',
   ];
 
+  /// Every notice found, prefixed by the file it sits in.
+  List<String> get notices => <String>[
+    for (final AuditEntry entry in entries)
+      for (final String notice in entry.notices) '$configurationDirectoryName/${entry.name}.yaml: $notice',
+  ];
+
   /// Whether anything is wrong, which is what makes a command refuse.
   bool get hasProblems => entries.any((AuditEntry entry) => entry.problems.isNotEmpty);
+}
+
+/// What [ConfigurationAudit._audit] found inside one file, split by whether it blocks a forge.
+class _Audit {
+  /// Holds [problems] and [notices] found in one file.
+  const _Audit({required this.problems, required this.notices});
+
+  /// What is wrong, and makes [AuditReport.hasProblems] true.
+  final List<String> problems;
+
+  /// What is worth telling without being wrong.
+  final List<String> notices;
 }
 
 /// Brings a project back in line with what it declares.
@@ -263,11 +293,8 @@ class ConfigurationAudit {
       return AuditEntry(name: package.name, verdict: AuditVerdict.written);
     }
 
-    return AuditEntry(
-      name: package.name,
-      verdict: AuditVerdict.kept,
-      problems: _audit(file, declared, resources.toSet()),
-    );
+    final _Audit audit = _audit(file, declared, resources.toSet());
+    return AuditEntry(name: package.name, verdict: AuditVerdict.kept, problems: audit.problems, notices: audit.notices);
   }
 
   /// The version [package] declares, empty when its manifest does not say.
@@ -284,15 +311,15 @@ class ConfigurationAudit {
   }
 
   /// Everything wrong inside [file], measured against what [declared] and
-  /// [resources] say.
+  /// [resources] say, plus what is worth telling without being wrong.
   ///
-  /// Five things are looked for, and the last of them is not an error: a key
-  /// the module does not declare, a value of the wrong shape, a target nothing
-  /// declares, a resource name nothing declares, and a setting a newer version
-  /// of the module added.
-  List<String> _audit(File file, Settings declared, Set<String> resources) {
+  /// Five things are looked for, and the last of them is a notice rather than a problem: a key
+  /// the module does not declare, a value of the wrong shape, a target nothing declares, a
+  /// resource name nothing declares, all four problems, and a setting a newer version of the
+  /// module added, a notice.
+  _Audit _audit(File file, Settings declared, Set<String> resources) {
     final Object? document = loadYaml(file.readAsStringSync());
-    if (document is! YamlMap) return <String>['the file must be a mapping.'];
+    if (document is! YamlMap) return const _Audit(problems: <String>['the file must be a mapping.'], notices: <String>[]);
 
     final Map<String, Setting> known = <String, Setting>{
       for (final Setting setting in declared.settings) setting.name: setting,
@@ -301,6 +328,7 @@ class ConfigurationAudit {
       for (final Target target in ProjectConfiguration.load(project: project).targets) target.name,
     };
     final List<String> problems = <String>[];
+    final List<String> notices = <String>[];
 
     for (final MapEntry<Object?, Object?> entry in document.entries) {
       final String key = '${entry.key}';
@@ -322,14 +350,14 @@ class ConfigurationAudit {
 
     for (final Setting setting in declared.settings) {
       if (!document.containsKey(setting.name)) {
-        problems.add(
+        notices.add(
           '"${setting.name}" was added by a newer version of this module, and defaults to '
           '${setting.defaultValue}. It is not written in for you.',
         );
       }
     }
 
-    return problems;
+    return _Audit(problems: problems, notices: notices);
   }
 
   List<String> _deployProblems(Object? deploy, Set<String> targets, Set<String> resources) {

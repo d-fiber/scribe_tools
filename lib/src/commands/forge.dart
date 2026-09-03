@@ -170,6 +170,10 @@ class ForgeCommand extends ScribeCommand {
       globals.logger.printError(problem);
     }
 
+    for (final String notice in report.notices) {
+      globals.logger.printStatus(notice);
+    }
+
     if (result.lockFile != null) {
       globals.logger.printStatus('');
       globals.logger.printStatus(
@@ -248,11 +252,13 @@ class ForgeCommand extends ScribeCommand {
     final int written = report.written.length;
     final int orphaned = report.orphaned.length;
     final int problems = report.problems.length;
+    final int notices = report.notices.length;
 
     return <String>[
       '$written file(s) ${dryRun ? 'missing' : 'written'}',
       if (orphaned > 0) '$orphaned orphan(s)',
       if (problems > 0) '$problems problem(s)',
+      if (notices > 0) '$notices notice(s)',
     ].join(', ');
   }
 }
@@ -353,6 +359,7 @@ Map<String, Object?> forgeProjectMachineReport(
     for (final AuditEntry entry in report.entries) <String, Object?>{'name': entry.name, 'verdict': entry.verdict.name},
   ],
   'problems': report.problems,
+  'notices': report.notices,
   'lockFile': lockFile,
   'scribeVersion': scribeVersion,
 };

@@ -216,13 +216,15 @@ void main() {
       );
     });
 
-    test('names a setting a newer version of the module added, without writing it in', () async {
+    test('a setting a newer version of the module added is a notice, not a problem', () async {
       await inProject(() {
         final List<Package> mounted = <Package>[package('storage', _declarationWithBucket)];
         forgeOf(mounted).run();
         configured('storage').writeAsStringSync('deploy: {}\n');
 
-        expect(forgeOf(mounted).run().problems.single, contains('file_size_limit_mb'));
+        final AuditReport report = forgeOf(mounted).run();
+        expect(report.notices.single, contains('file_size_limit_mb'));
+        expect(report.problems, isEmpty, reason: 'this alone must not make scribe run or deploy refuse forever');
         expect(configured('storage').readAsStringSync(), 'deploy: {}\n');
       });
     });
