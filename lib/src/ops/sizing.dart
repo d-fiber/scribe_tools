@@ -637,8 +637,15 @@ class ComposeRender {
   /// left as a `{{...}}` token: this string becomes the *value* of another placeholder, and
   /// [renderTemplate] scans a template's source for `{{...}}` exactly once, so a token nested
   /// inside a value it substitutes is never seen and would reach the compose file unresolved.
+  ///
+  /// The two file names come from [GeneratedSdk.containerImportMap] and
+  /// [GeneratedSdk.containerTsconfig] themselves, never retyped: a name that changed in one place
+  /// and not the other would still build, and fail only once a container tried the flag that
+  /// names the stale one.
   String _runtimeCommand({required String maxOldSpaceMb, required String entryPoint}) {
     final String alchemyDir = p.basename(project.generated.path);
+    final String importMap = p.basename(project.generated.sdk.containerImportMap.path);
+    final String tsconfig = p.basename(project.generated.sdk.containerTsconfig.path);
 
     return switch (project.manifest.apiStack) {
       JsRuntime.deno =>
@@ -651,11 +658,11 @@ class ComposeRender {
             '      - "--allow-run=ffmpeg"\n'
             '      - "--allow-write=/tmp"\n'
             '      - "--config"\n'
-            '      - "/app/$alchemyDir/sdk/js/scribe.container.json"\n'
+            '      - "/app/$alchemyDir/sdk/js/$importMap"\n'
             '      - "$entryPoint"',
       JsRuntime.bun =>
         '      - "run"\n'
-            '      - "--tsconfig-override=/app/$alchemyDir/sdk/js/scribe.container.tsconfig.json"\n'
+            '      - "--tsconfig-override=/app/$alchemyDir/sdk/js/$tsconfig"\n'
             '      - "$entryPoint"',
     };
   }
