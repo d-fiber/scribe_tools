@@ -37,6 +37,7 @@
 import 'dart:convert';
 
 import 'package:fiber_shell/fiber_shell.dart';
+import 'package:scribe_tools/src/runtime/editor_projection.dart';
 
 /// The permissions a package's own suite runs under, and nothing more.
 ///
@@ -80,3 +81,23 @@ List<String> testCommand({required String testsDirectory, required Map<String, S
 /// survive on disk for this one invocation, and nothing has to be cleaned up after it either.
 String _importMap(Map<String, String> imports) =>
     'data:application/json;base64,${base64Encode(utf8.encode(jsonEncode(<String, Object>{'imports': imports})))}';
+
+/// `JsRuntime.editorProjection`'s Deno implementation: an import map, and the settings the
+/// `denoland.vscode-deno` extension needs to enable itself and read it.
+///
+/// `deno.enablePaths` is set to [directories] rather than left out, so that a workspace holding
+/// packages of more than one runtime does not have Deno's language server take over directories a
+/// `bun` package lives in.
+EditorProjection editorProjection(Map<String, String> imports, {required List<String> directories}) =>
+    EditorProjection(
+      languageServer: LanguageServerProjection(
+        runtime: 'deno',
+        extensionId: 'denoland.vscode-deno',
+        enableSettingKey: 'deno.enable',
+        configSettingKey: 'deno.config',
+        additionalSettings: <String, Object>{'deno.enablePaths': directories},
+        configFileName: 'deno.json',
+        configContents: '${jsonEncode(<String, Object>{'imports': imports})}\n',
+        restartCommands: const <String>['deno.client.restart', 'deno.restart'],
+      ),
+    );

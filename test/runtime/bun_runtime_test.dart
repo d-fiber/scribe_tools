@@ -34,10 +34,14 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
+import 'dart:convert';
+
 import 'package:file/file.dart';
 import 'package:file/memory.dart';
 import 'package:scribe_tools/src/base/context.dart';
+import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/runtime/bun_runtime.dart' as bun_runtime;
+import 'package:scribe_tools/src/runtime/editor_projection.dart';
 import 'package:test/test.dart';
 
 Future<T> _run<T>(T Function() body) =>
@@ -69,6 +73,33 @@ void main() {
       expect(flag, isNonNegative);
       expect(command[flag + 1], 'reads a file');
       expect(command.last, 'tests');
+    });
+  });
+
+  group('editorProjection', () {
+    test('writes a tsconfig.json under each directory, and configures no language server', () {
+      _run(() {
+        globals.fs.directory('/pkg/one').createSync(recursive: true);
+        globals.fs.directory('/pkg/two').createSync(recursive: true);
+
+        final EditorProjection projection = bun_runtime.editorProjection(
+          const <String, String>{'@scribe/alchemy': 'file:///alchemy/mod.ts', '@scribe/foo/': 'file:///foo/lib/'},
+          directories: <String>['/pkg/one', '/pkg/two'],
+        );
+
+        expect(projection.languageServer, isNull);
+        expect(projection.filesWritten, <String>['/pkg/one/tsconfig.json', '/pkg/two/tsconfig.json']);
+
+        for (final String written in projection.filesWritten) {
+          final Map<String, Object?> decoded =
+              jsonDecode(globals.fs.file(written).readAsStringSync()) as Map<String, Object?>;
+          final Map<String, Object?> options = decoded['compilerOptions']! as Map<String, Object?>;
+          expect(options['baseUrl'], '.');
+          final Map<String, Object?> paths = options['paths']! as Map<String, Object?>;
+          expect(paths['@scribe/alchemy'], <String>['/alchemy/mod.ts']);
+          expect(paths['@scribe/foo/*'], <String>['/foo/lib/*']);
+        }
+      });
     });
   });
 }

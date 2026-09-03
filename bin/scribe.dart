@@ -45,6 +45,7 @@ import 'package:scribe_tools/src/commands/deploy.dart';
 import 'package:scribe_tools/src/commands/destroy.dart';
 import 'package:scribe_tools/src/commands/doctor.dart';
 import 'package:scribe_tools/src/commands/downgrade.dart';
+import 'package:scribe_tools/src/commands/editor.dart';
 import 'package:scribe_tools/src/commands/forge.dart';
 import 'package:scribe_tools/src/commands/gen.dart';
 import 'package:scribe_tools/src/commands/run.dart';
@@ -69,6 +70,7 @@ Future<void> main(List<String> args) async {
       DestroyCommand(),
       DoctorCommand(),
       DowngradeCommand(),
+      EditorCommand(),
       ForgeCommand(),
       GenCommand(),
       RunCommand(),

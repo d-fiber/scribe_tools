@@ -41,11 +41,13 @@ import 'package:file/file.dart';
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/commands/doctor/checkup.dart';
 import 'package:scribe_tools/src/commands/doctor/report.dart';
+import 'package:scribe_tools/src/commands/editor.dart';
 import 'package:scribe_tools/src/commands/forge.dart';
 import 'package:scribe_tools/src/commands/status.dart';
 import 'package:scribe_tools/src/forge/sql/generate_package_sql.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/ops/configuration.dart';
+import 'package:scribe_tools/src/package/editor_report.dart';
 import 'package:scribe_tools/src/package/layout.dart';
 import 'package:scribe_tools/src/package/resolution.dart';
 import 'package:scribe_tools/src/package/sdk.dart';
@@ -74,6 +76,7 @@ import 'package:scribe_tools/src/runner/scribe_command.dart';
 /// | `doctor` | none | [doctorMachineReport] |
 /// | `forge` | none | [forgeProjectMachineReport] or [forgePackageMachineReport] |
 /// | `status` | `target` | [statusMachineReport] |
+/// | `editor` | `directories` | [editorMachineReport] |
 /// | `watch.start` | none | `{"ok": true}`, then a `forge.changed` or `forge.failed` event per change |
 /// | `watch.stop` | none | `{"ok": true}` |
 /// | `shutdown` | none | `{"ok": true}`, then the process ends |
@@ -170,6 +173,13 @@ class DaemonCommand extends ScribeCommand {
         final Object? targetName = params['target'];
         if (targetName is! String) throw const _DaemonError('status needs params.target as a string.');
         return _status(targetName);
+
+      case 'editor':
+        final Object? directories = params['directories'];
+        if (directories is! List || directories.any((Object? entry) => entry is! String)) {
+          throw const _DaemonError('editor needs params.directories as a list of strings.');
+        }
+        return editorMachineReport(buildEditorReport(directories.cast<String>()));
 
       case 'watch.start':
         _startWatch();

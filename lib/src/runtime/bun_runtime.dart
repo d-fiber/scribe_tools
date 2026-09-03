@@ -38,8 +38,10 @@ import 'dart:convert';
 
 import 'package:fiber_shell/fiber_shell.dart';
 import 'package:file/file.dart';
+import 'package:path/path.dart' as p;
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/runtime/bun_cmd.dart';
+import 'package:scribe_tools/src/runtime/editor_projection.dart';
 
 /// `JsRuntime.runScript`'s Bun implementation: a generated `tsconfig.json`, read with
 /// `--tsconfig-override`.
@@ -86,8 +88,36 @@ List<String> testCommand({required String testsDirectory, required Map<String, S
   return <String>[command.executable, ...command.tokens];
 }
 
+/// `JsRuntime.editorProjection`'s Bun implementation: a real `tsconfig.json`, one under each of
+/// [directories], read by a stock TypeScript language server on its own.
+///
+/// Bun has no editor extension of its own to point at anything; a stock TypeScript language
+/// server already resolves `@scribe/...` the moment it finds a `tsconfig.json` walking up from an
+/// open file, which is why this writes a persistent file at the root of every package instead of
+/// the temporary one [runScript] and [testCommand] write and clean up around a single invocation
+/// — `.scribe/` sits beside `lib/`, not above it, so a config written there would never be found
+/// that way. Nothing is returned for [EditorProjection.languageServer]: there is nothing for an
+/// editor to configure, the file already written is enough.
+EditorProjection editorProjection(Map<String, String> imports, {required List<String> directories}) {
+  final String contents = _tsconfigContents(imports);
+  final List<String> written = <String>[
+    for (final String directory in directories)
+      (globals.fs.file(p.join(directory, 'tsconfig.json'))..writeAsStringSync(contents)).path,
+  ];
+
+  return EditorProjection(filesWritten: written);
+}
+
 /// A `tsconfig.json`, in a temporary directory of its own, whose `paths` resolve [imports] the way
 /// Bun's module loader reads them.
+File _writeTsconfig(Map<String, String> imports) {
+  final Directory scratch = globals.fs.systemTempDirectory.createTempSync('scribe-bun-');
+  return scratch.childFile('tsconfig.json')..writeAsStringSync(_tsconfigContents(imports));
+}
+
+/// The `tsconfig.json` contents whose `paths` resolve [imports] the way Bun's module loader reads
+/// them, shared by the temporary file [_writeTsconfig] writes and the persistent one
+/// [editorProjection] writes.
 ///
 /// An `npm:` or a `jsr:` address is left out, the same as `generate.sh` leaves them out: Bun
 /// resolves those through its own `node_modules`-style lookup, and a `paths` entry for one would
@@ -95,7 +125,7 @@ List<String> testCommand({required String testsDirectory, required Map<String, S
 /// a bare one becomes `"key": ["address"]`. Every address arrives as a `file://` URL — the same
 /// shape `deno`'s own import map carries — and is turned back into a plain filesystem path, since
 /// a `tsconfig.json` `paths` entry does not read a URL.
-File _writeTsconfig(Map<String, String> imports) {
+String _tsconfigContents(Map<String, String> imports) {
   final Map<String, List<String>> paths = <String, List<String>>{};
 
   for (final MapEntry<String, String> entry in imports.entries) {
@@ -109,15 +139,9 @@ File _writeTsconfig(Map<String, String> imports) {
     }
   }
 
-  final Directory scratch = globals.fs.systemTempDirectory.createTempSync('scribe-bun-');
-  final File tsconfig = scratch.childFile('tsconfig.json')
-    ..writeAsStringSync(
-      jsonEncode(<String, Object>{
-        'compilerOptions': <String, Object>{'baseUrl': '.', 'paths': paths},
-      }),
-    );
-
-  return tsconfig;
+  return jsonEncode(<String, Object>{
+    'compilerOptions': <String, Object>{'baseUrl': '.', 'paths': paths},
+  });
 }
 
 /// [address] as a filesystem path, unwrapped from the `file://` URL it carries.

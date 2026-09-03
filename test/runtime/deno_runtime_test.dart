@@ -34,7 +34,10 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
+import 'dart:convert';
+
 import 'package:scribe_tools/src/runtime/deno_runtime.dart' as deno_runtime;
+import 'package:scribe_tools/src/runtime/editor_projection.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -62,5 +65,32 @@ void main() {
     expect(flag, isNonNegative);
     expect(command[flag + 1], 'reads a file');
     expect(command.last, 'tests');
+  });
+
+  group('editorProjection', () {
+    test('carries an import map and the two deno.* settings a language server needs', () {
+      final EditorProjection projection = deno_runtime.editorProjection(
+        const <String, String>{'@scribe/alchemy': 'file:///alchemy/mod.ts'},
+        directories: <String>['/pkg/one', '/pkg/two'],
+      );
+
+      final LanguageServerProjection? server = projection.languageServer;
+      expect(server, isNotNull);
+      expect(server!.runtime, 'deno');
+      expect(server.extensionId, 'denoland.vscode-deno');
+      expect(server.enableSettingKey, 'deno.enable');
+      expect(server.configSettingKey, 'deno.config');
+      expect(server.additionalSettings, <String, Object>{
+        'deno.enablePaths': <String>['/pkg/one', '/pkg/two'],
+      });
+      expect(server.configFileName, 'deno.json');
+      expect(server.restartCommands, <String>['deno.client.restart', 'deno.restart']);
+      expect(projection.filesWritten, isEmpty, reason: 'the caller writes deno.json, not this runtime');
+
+      final Map<String, Object?> decoded = jsonDecode(server.configContents) as Map<String, Object?>;
+      expect(decoded, <String, Object?>{
+        'imports': <String, Object?>{'@scribe/alchemy': 'file:///alchemy/mod.ts'},
+      });
+    });
   });
 }

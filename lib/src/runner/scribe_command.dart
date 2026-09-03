@@ -247,8 +247,8 @@ abstract class ScribeCommand extends Command<void> {
 
   /// The flag a command declares for one line of JSON instead of a report a person reads.
   ///
-  /// Only `status`, `doctor` and `forge` declare it: an editor already has to
-  /// parse `.scribe/resolution.json`, and reading the same shape off these three
+  /// Only `status`, `doctor`, `forge` and `editor` declare it: an editor already has to
+  /// parse `.scribe/resolution.json`, and reading the same shape off these four
   /// commands is what lets it show what a project is doing without shelling out
   /// to grep text meant for a terminal.
   static const String machineOption = 'machine';

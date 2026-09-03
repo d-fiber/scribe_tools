@@ -38,15 +38,17 @@ import 'package:fiber_shell/fiber_shell.dart';
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/runtime/bun_runtime.dart' as bun_runtime;
 import 'package:scribe_tools/src/runtime/deno_runtime.dart' as deno_runtime;
+import 'package:scribe_tools/src/runtime/editor_projection.dart';
 import 'package:scribe_tools/src/tools.dart';
 
 /// One JS runtime a package's own tooling can run its TypeScript on.
 ///
 /// This is the one place a new runtime is added: a case here, [tool] naming what `scribe doctor`
-/// checks for, and the two switches in [runScript] and [testCommand] naming the module that knows
-/// how this runtime is actually invoked. Nothing outside `runtime/` names `deno` or `bun` as a
-/// literal string — [named] is how a manifest's `environment.runtime:` becomes one of these, and
-/// every caller reaches a runtime through it or through this enum's values, never by writing the
+/// checks for, and the three switches in [runScript], [testCommand] and [editorProjection] naming
+/// the module that knows how this runtime is actually invoked, tested, and read by an editor.
+/// Nothing outside `runtime/` names `deno` or `bun` as a literal string — [named] is how a
+/// manifest's `environment.runtime:` becomes one of these, and every caller, `scribe editor`
+/// included, reaches a runtime through it or through this enum's values, never by writing the
 /// word itself.
 enum JsRuntime {
   /// The framework's own runtime, and the default when a manifest names none.
@@ -93,4 +95,15 @@ enum JsRuntime {
         JsRuntime.deno => deno_runtime.testCommand(testsDirectory: testsDirectory, imports: imports, filter: filter),
         JsRuntime.bun => bun_runtime.testCommand(testsDirectory: testsDirectory, imports: imports, filter: filter),
       };
+
+  /// What an editor needs to do so `@scribe/...` resolves for every package that answers to
+  /// [imports], every one of them under one of [directories].
+  ///
+  /// [directories] is never read for its contents here; it is handed to the runtime's own
+  /// implementation, which is free to use it or not: `deno`'s scopes its language server to
+  /// exactly these directories, `bun`'s writes a file under each of them.
+  EditorProjection editorProjection(Map<String, String> imports, {required List<String> directories}) => switch (this) {
+    JsRuntime.deno => deno_runtime.editorProjection(imports, directories: directories),
+    JsRuntime.bun => bun_runtime.editorProjection(imports, directories: directories),
+  };
 }

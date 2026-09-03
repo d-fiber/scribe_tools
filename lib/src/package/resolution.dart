@@ -468,6 +468,32 @@ bool isResolved(String package, Sdk sdk) {
   }
 }
 
+/// The `reaches` map `<directory>/.scribe/resolution.json` holds, or null when there is nothing
+/// there to read.
+///
+/// A file that is missing, unreadable, or not shaped like a resolution all answer null: to a
+/// caller they are the same thing, a package that has to be resolved again before an editor can
+/// do anything with it. Mirrors `workspace/resolution.ts`'s `parseResolution` on the editor side of
+/// the same file, one reader per process that reads it rather than one carried across a process
+/// boundary neither language can call into.
+Map<String, String>? readResolvedImports(String directory) {
+  final File written = globals.fs.file(p.join(directory, kResolutionDirectory, kResolutionFile));
+  if (!written.existsSync()) return null;
+
+  try {
+    final Object? document = jsonDecode(written.readAsStringSync());
+    if (document is! Map<String, Object?>) return null;
+
+    final Object? reaches = document['reaches'];
+    if (reaches is! Map<String, Object?>) return null;
+    if (!reaches.values.every((Object? value) => value is String)) return null;
+
+    return reaches.map((String key, Object? value) => MapEntry<String, String>(key, value! as String));
+  } on FormatException {
+    return null;
+  }
+}
+
 /// Stops the run when anything the package asked for could not be answered.
 ///
 /// They are reported together rather than one at a time, because a package that
