@@ -37,6 +37,7 @@
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
+import 'package:fiber_shell/fiber_shell.dart';
 import 'package:file/file.dart';
 import 'package:path/path.dart' as p;
 import 'package:scribe_tools/src/base/common.dart';
@@ -161,10 +162,10 @@ Directory gitCacheRoot() => scribeCacheRoot().childDirectory('git');
 
   if (!mirror.existsSync()) {
     mirror.parent.createSync(recursive: true);
-    _run(<String>['git', 'clone', '--mirror', source.url, mirror.path], where: where, doing: 'clone ${source.url}');
+    _run(Git.clone().arg('--mirror').arg(source.url).arg(mirror.path), where: where, doing: 'clone ${source.url}');
   } else {
     _run(
-      <String>['git', 'fetch', '--prune', 'origin'],
+      Git.fetch().pruneFlag().remoteName('origin'),
       workingDirectory: mirror.path,
       where: where,
       doing: 'fetch ${source.url}',
@@ -173,7 +174,7 @@ Directory gitCacheRoot() => scribeCacheRoot().childDirectory('git');
 
   final String ref = source.ref ?? _defaultBranchOf(mirror, where: where);
   final String commit = _run(
-    <String>['git', 'rev-parse', '$ref^{commit}'],
+    Git.revParse().arg('$ref^{commit}'),
     workingDirectory: mirror.path,
     where: where,
     doing: 'resolve "$ref" of ${source.url}',
@@ -181,13 +182,9 @@ Directory gitCacheRoot() => scribeCacheRoot().childDirectory('git');
 
   final Directory workingCopy = gitCacheRoot().childDirectory('$name-$commit');
   if (!workingCopy.existsSync()) {
+    _run(Git.clone().arg(mirror.path).arg(workingCopy.path), where: where, doing: 'check out ${source.url} at $commit');
     _run(
-      <String>['git', 'clone', mirror.path, workingCopy.path],
-      where: where,
-      doing: 'check out ${source.url} at $commit',
-    );
-    _run(
-      <String>['git', 'checkout', commit],
+      Git.checkout().arg(commit),
       workingDirectory: workingCopy.path,
       where: where,
       doing: 'check out ${source.url} at $commit',
@@ -205,7 +202,7 @@ Directory gitCacheRoot() => scribeCacheRoot().childDirectory('git');
 /// rather than asking the remote a second time.
 String _defaultBranchOf(Directory mirror, {required String where}) {
   final String branch = _run(
-    <String>['git', 'symbolic-ref', '--short', 'HEAD'],
+    Git.symbolicRef().short().arg('HEAD'),
     workingDirectory: mirror.path,
     where: where,
     doing: 'read the default branch of its repository',
@@ -222,8 +219,11 @@ String _defaultBranchOf(Directory mirror, {required String where}) {
 ///
 /// Throws a [ToolExit] naming [where] and [doing] when it fails, with whatever
 /// `git` itself wrote on standard error.
-String _run(List<String> command, {String? workingDirectory, required String where, required String doing}) {
-  final ProcessOutcome outcome = globals.processRunner.observeSync(command, workingDirectory: workingDirectory);
+String _run(GitCmd command, {String? workingDirectory, required String where, required String doing}) {
+  final ProcessOutcome outcome = globals.processRunner.observeSync(
+    commandArgv(command),
+    workingDirectory: workingDirectory,
+  );
   if (!outcome.succeeded) {
     throwToolExit('$where: git could not $doing.\n${outcome.stderr.trim()}');
   }

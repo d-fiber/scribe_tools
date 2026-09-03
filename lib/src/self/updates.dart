@@ -34,6 +34,7 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
+import 'package:fiber_shell/fiber_shell.dart';
 import 'package:file/file.dart';
 import 'package:scribe_tools/src/framework.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
@@ -127,5 +128,7 @@ void scheduleFetch(Framework framework) {
   if (marker.existsSync() && DateTime.now().difference(marker.lastModifiedSync()) < kFetchInterval) return;
 
   marker.writeAsStringSync('');
-  globals.processRunner.detach(<String>['git', '-C', framework.root.path, 'fetch', '--quiet', kOrigin, kReleaseBranch]);
+  globals.processRunner.detach(
+    commandArgv(Git.repo(framework.root.path).fetch().quiet().remoteName(kOrigin).branchName(kReleaseBranch)),
+  );
 }

@@ -36,6 +36,7 @@
 
 import 'dart:convert';
 
+import 'package:fiber_shell/fiber_shell.dart';
 import 'package:file/file.dart';
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
@@ -151,15 +152,15 @@ class Framework {
   /// Nothing is fetched here: it reads what the last fetch left behind, which
   /// is why it costs no network. `scheduleFetch` is what keeps it current.
   Future<Version?> versionOnOrigin() async {
-    final String raw = await _capture(<String>['show', '$kOrigin/$kReleaseBranch:$kSdkWorkspaceFile']);
+    final String raw = await _capture(Git.show().arg('$kOrigin/$kReleaseBranch:$kSdkWorkspaceFile'));
     return raw.isEmpty ? null : _versionIn(raw);
   }
 
   /// Whether nothing is modified, added or removed in the checkout.
-  Future<bool> isClean() async => (await _capture(<String>['status', '--porcelain'])).trim().isEmpty;
+  Future<bool> isClean() async => (await _capture(Git.status().porcelain())).trim().isEmpty;
 
   /// The branch `HEAD` is on, empty when it is detached.
-  Future<String> currentBranch() async => (await _capture(<String>['branch', '--show-current'])).trim();
+  Future<String> currentBranch() async => (await _capture(Git.branch().arg('--show-current'))).trim();
 
   /// Every version this checkout's history knows, newest first.
   ///
@@ -172,7 +173,7 @@ class Framework {
   /// the names without the commits, and a checkout that can only offer some of its
   /// history is more useful than one that offers none.
   Future<List<Release>> history() async {
-    final String named = await _capture(<String>['tag', '--list', 'v*', '--sort=-v:refname']);
+    final String named = await _capture(Git.tag().listFlag().arg('v*').arg('--sort=-v:refname'));
 
     final List<Release> releases = <Release>[];
     for (final String line in named.split('\n')) {
@@ -182,7 +183,7 @@ class Framework {
       final Version? version = Version.tryParse(tag.substring(1));
       if (version == null) continue;
 
-      final String held = (await _capture(<String>['log', '-1', '--format=%H %aI', tag])).trim();
+      final String held = (await _capture(Git.log().arg('-1').format('%H %aI').arg(tag))).trim();
       if (held.isEmpty) continue;
 
       final List<String> parts = held.split(' ');
@@ -208,7 +209,7 @@ class Framework {
   }
 
   /// Brings the remote's state in, and returns whether it worked.
-  Future<bool> fetch() async => await _run(<String>['fetch', kOrigin, kReleaseBranch]) == 0;
+  Future<bool> fetch() async => await _run(Git.fetch().remoteName(kOrigin).branchName(kReleaseBranch)) == 0;
 
   /// Moves `HEAD` onto the newest commit of the release branch.
   ///
@@ -217,10 +218,10 @@ class Framework {
   /// checkout someone has been working in.
   Future<bool> fastForward() async {
     if (await currentBranch() != kReleaseBranch) {
-      if (await _run(<String>['checkout', kReleaseBranch]) != 0) return false;
+      if (await _run(Git.checkout().branchName(kReleaseBranch)) != 0) return false;
     }
 
-    return await _run(<String>['merge', '--ff-only', '$kOrigin/$kReleaseBranch']) == 0;
+    return await _run(Git.merge().ffOnly().arg('$kOrigin/$kReleaseBranch')) == 0;
   }
 
   /// Puts the checkout on [release], off any branch.
@@ -233,11 +234,10 @@ class Framework {
   /// fifteen lines about branches, printed above the two that say where the
   /// checkout now is and how to come back.
   Future<bool> checkout(Release release) async =>
-      await _run(<String>['-c', 'advice.detachedHead=false', 'checkout', release.commit]) == 0;
+      await _run(Git.configOverride('advice.detachedHead', 'false').checkout().arg(release.commit)) == 0;
 
-  Future<int> _run(List<String> arguments) =>
-      globals.processRunner.run(<String>['git', ...arguments], workingDirectory: root.path);
+  Future<int> _run(GitCmd command) => globals.processRunner.run(commandArgv(command), workingDirectory: root.path);
 
-  Future<String> _capture(List<String> arguments) =>
-      globals.processRunner.capture(<String>['git', ...arguments], workingDirectory: root.path);
+  Future<String> _capture(GitCmd command) =>
+      globals.processRunner.capture(commandArgv(command), workingDirectory: root.path);
 }
