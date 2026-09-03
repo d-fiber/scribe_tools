@@ -95,12 +95,17 @@ void _renderOperation(Indented out, GeneratedPathEntry entry) {
   renderResponses(out, 3, entry.responses);
 }
 
-/// Declares every `:name` of [path] as a required string parameter.
+/// Declares every distinct `:name` of [path] as a required string parameter.
 ///
 /// They are always required and always strings: a path parameter that could be
 /// absent would be a different route, and the router hands them over as text.
+///
+/// A name is declared once even when the route repeats it, `:id/friends/:id`
+/// among the shapes that would otherwise emit it twice: OpenAPI takes one
+/// `parameters` entry per name, and a second one for the same name is not a
+/// second parameter, only an invalid document.
 void _renderPathParameters(Indented out, String path) {
-  final List<String> names = pathParameters(path);
+  final List<String> names = pathParameters(path).toSet().toList();
   if (names.isEmpty) return;
 
   out.add(3, 'parameters:');
