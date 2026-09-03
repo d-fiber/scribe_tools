@@ -42,7 +42,7 @@ import 'package:scribe_tools/src/commands/create/create_report.dart';
 import 'package:scribe_tools/src/commands/create/project_scaffold.dart';
 import 'package:scribe_tools/src/commands/create/project_templates.dart';
 import 'package:scribe_tools/src/commands/create/sdk_choice.dart';
-import 'package:scribe_tools/src/deploy/forge.dart';
+import 'package:scribe_tools/src/deploy/configuration_audit.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/package/resolution.dart';
 import 'package:scribe_tools/src/package/scaffold.dart';
@@ -300,10 +300,10 @@ class CreateCommand extends ScribeCommand {
       name: 'forge the new project',
       overrides: <Type, Generator>{Project: () => made},
       body: () {
-        final ForgeReport report = Forge(project: made, packages: Packages.load().active).run(write: true);
+        final AuditReport report = ConfigurationAudit(project: made, packages: Packages.load().active).run(write: true);
 
-        for (final ForgeEntry entry in report.entries) {
-          if (entry.verdict == ForgeVerdict.written) globals.logger.printTrace('[create] forged ${entry.name}');
+        for (final AuditEntry entry in report.entries) {
+          if (entry.verdict == AuditVerdict.written) globals.logger.printTrace('[create] forged ${entry.name}');
         }
       },
     );

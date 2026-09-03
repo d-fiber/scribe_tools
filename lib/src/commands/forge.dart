@@ -39,14 +39,14 @@ import 'package:path/path.dart' as p;
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/base/context.dart';
 import 'package:scribe_tools/src/base/logger.dart';
-import 'package:scribe_tools/src/ops/configuration.dart';
-import 'package:scribe_tools/src/deploy/forge.dart';
+import 'package:scribe_tools/src/deploy/configuration_audit.dart';
 import 'package:scribe_tools/src/forge/declarations.dart';
 import 'package:scribe_tools/src/forge/di_wiring.dart';
 import 'package:scribe_tools/src/forge/registrations.dart';
 import 'package:scribe_tools/src/forge/scribe_config.dart';
 import 'package:scribe_tools/src/forge/sql/generate_package_sql.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
+import 'package:scribe_tools/src/ops/configuration.dart';
 import 'package:scribe_tools/src/package/layout.dart';
 import 'package:scribe_tools/src/package/resolution.dart';
 import 'package:scribe_tools/src/package/sdk.dart';
@@ -98,7 +98,7 @@ class ForgeCommand extends ScribeCommand {
       ..addFlag(
         ScribeCommand.watchOption,
         negatable: false,
-        help: 'Forge again every time lib/ or the manifest changes, instead of once.',
+        help: 'ConfigurationAudit again every time lib/ or the manifest changes, instead of once.',
       );
   }
 
@@ -147,7 +147,7 @@ class ForgeCommand extends ScribeCommand {
     final bool dryRun = boolArg('dry-run');
     final bool machine = boolArg(ScribeCommand.machineOption);
     final ProjectForgeResult result = await forgeProject(project, write: !dryRun, quiet: machine);
-    final ForgeReport report = result.report;
+    final AuditReport report = result.report;
 
     if (machine) {
       printMachine(
@@ -162,7 +162,7 @@ class ForgeCommand extends ScribeCommand {
       return report.hasProblems ? const ScribeCommandResult.fail() : const ScribeCommandResult.success();
     }
 
-    for (final ForgeEntry entry in report.entries) {
+    for (final AuditEntry entry in report.entries) {
       globals.logger.printStatus(_lineOf(entry, dryRun: dryRun));
     }
 
@@ -234,17 +234,17 @@ class ForgeCommand extends ScribeCommand {
     return const ScribeCommandResult.success();
   }
 
-  String _lineOf(ForgeEntry entry, {required bool dryRun}) {
+  String _lineOf(AuditEntry entry, {required bool dryRun}) {
     final String path = '$configurationDirectoryName/${entry.name}.yaml';
 
     return switch (entry.verdict) {
-      ForgeVerdict.written => '  + $path${dryRun ? '   missing' : '   written, module defaults'}',
-      ForgeVerdict.kept => '  ~ $path   already there, left as it is',
-      ForgeVerdict.orphaned => '  ! $path   nothing depends on ${entry.name} any more',
+      AuditVerdict.written => '  + $path${dryRun ? '   missing' : '   written, module defaults'}',
+      AuditVerdict.kept => '  ~ $path   already there, left as it is',
+      AuditVerdict.orphaned => '  ! $path   nothing depends on ${entry.name} any more',
     };
   }
 
-  String _summaryOf(ForgeReport report, {required bool dryRun}) {
+  String _summaryOf(AuditReport report, {required bool dryRun}) {
     final int written = report.written.length;
     final int orphaned = report.orphaned.length;
     final int problems = report.problems.length;
@@ -259,11 +259,11 @@ class ForgeCommand extends ScribeCommand {
 
 /// What forging a project produced.
 class ProjectForgeResult {
-  /// Records what [Forge] found, and what writing it left behind.
+  /// Records what [ConfigurationAudit] found, and what writing it left behind.
   const ProjectForgeResult({required this.report, required this.lockFile, required this.scribeVersion});
 
   /// What each file of `configuration/` came out as.
-  final ForgeReport report;
+  final AuditReport report;
 
   /// The path `scribe.lock` was written to, null when nothing was written.
   final String? lockFile;
@@ -300,7 +300,7 @@ Future<ProjectForgeResult> forgeProject(Project project, {bool write = true, boo
 
   final Packages packages = Packages.load();
   final List<Package> mounted = packages.active;
-  final ForgeReport report = Forge(project: project, packages: mounted).run(write: write);
+  final AuditReport report = ConfigurationAudit(project: project, packages: mounted).run(write: write);
 
   String? lockPath;
   String? scribeVersion;
@@ -336,11 +336,11 @@ Future<ProjectForgeResult> forgeProject(Project project, {bool write = true, boo
 /// [report], in the shape `--machine` prints for a project.
 ///
 /// A top-level function and not a method: `scribe daemon` builds the same
-/// document from the same [ForgeReport] a request handler already has, and
+/// document from the same [AuditReport] a request handler already has, and
 /// reaches for this instead of a second `ForgeCommand` run through a captured
 /// logger.
 Map<String, Object?> forgeProjectMachineReport(
-  ForgeReport report, {
+  AuditReport report, {
   required bool dryRun,
   required String? lockFile,
   required String? scribeVersion,
@@ -350,7 +350,7 @@ Map<String, Object?> forgeProjectMachineReport(
   'ok': !report.hasProblems,
   'dryRun': dryRun,
   'entries': <Object?>[
-    for (final ForgeEntry entry in report.entries) <String, Object?>{'name': entry.name, 'verdict': entry.verdict.name},
+    for (final AuditEntry entry in report.entries) <String, Object?>{'name': entry.name, 'verdict': entry.verdict.name},
   ],
   'problems': report.problems,
   'lockFile': lockFile,
