@@ -84,11 +84,12 @@ class CompletionCommand extends ScribeCommand {
         if (!option.hide) '--${option.name}',
     ]..sort();
     final List<_Path> paths = _paths(tree, globalFlags);
+    final Set<String> valueFlags = _valueFlags(runner!.commands, runner!.argParser);
 
     final String script = switch (kind) {
       ShellKind.fish => _fishScript(paths),
-      ShellKind.zsh => _zshScript(paths),
-      _ => _bashScript(paths),
+      ShellKind.zsh => _zshScript(paths, valueFlags),
+      _ => _bashScript(paths, valueFlags),
     };
 
     globals.logger.printStatus(script, newline: false);
@@ -174,25 +175,72 @@ void _walk(Map<String, _CommandNode> tree, List<String> globalFlags, List<String
   }
 }
 
-String _bashScript(List<_Path> paths) => '#!/usr/bin/env bash\n${_bashFunction(paths)}';
+String _bashScript(List<_Path> paths, Set<String> valueFlags) =>
+    '#!/usr/bin/env bash\n${_bashFunction(paths, valueFlags)}';
 
-String _zshScript(List<_Path> paths) =>
-    '#!/usr/bin/env zsh\nautoload -U +X bashcompinit && bashcompinit\n${_bashFunction(paths)}';
+String _zshScript(List<_Path> paths, Set<String> valueFlags) =>
+    '#!/usr/bin/env zsh\nautoload -U +X bashcompinit && bashcompinit\n${_bashFunction(paths, valueFlags)}';
+
+/// Every spelling, long and short, of a flag that takes a value, across every command.
+///
+/// The bash function below rebuilds which command path was typed by dropping every word that
+/// looks like a flag, before it knows which command it is even in, so it has no per-level
+/// context to consult: the set has to be the union of every command's value-taking options, not
+/// just the ones the current node declares. A boolean flag is left out on purpose, since typing
+/// one never consumes the following word.
+Set<String> _valueFlags(Map<String, Command<void>> commands, ArgParser globalParser) {
+  final Set<String> found = <String>{};
+
+  void collect(ArgParser parser) {
+    for (final Option option in parser.options.values) {
+      if (option.hide || option.isFlag) continue;
+      found.add('--${option.name}');
+      if (option.abbr != null) found.add('-${option.abbr}');
+    }
+  }
+
+  void walk(Map<String, Command<void>> tree) {
+    for (final Command<void> command in tree.values) {
+      if (command.hidden) continue;
+      collect(command.argParser);
+      walk(command.subcommands);
+    }
+  }
+
+  collect(globalParser);
+  walk(commands);
+  return found;
+}
 
 /// The completion function bash and zsh share, zsh reaching it through `bashcompinit`.
 ///
 /// One generator instead of two: a native zsh completion answers the same
 /// question, command word by command word, and a second implementation would
 /// only be a second place for the two to drift apart.
-String _bashFunction(List<_Path> paths) {
+///
+/// [valueFlags] is why the word after `--target` in `run --target prod --w<TAB>` is not mistaken
+/// for a subcommand: without skipping it, `path` became `"run prod"`, which matched no case
+/// branch, so completion answered nothing at all past a value-taking flag.
+String _bashFunction(List<_Path> paths, Set<String> valueFlags) {
   final StringBuffer buffer = StringBuffer()
     ..writeln('_scribe_complete() {')
-    ..writeln(r'  local cur words path i')
+    ..writeln(r'  local cur words path i skip')
     ..writeln(r'  cur="${COMP_WORDS[COMP_CWORD]}"')
     ..writeln(r'  words=("${COMP_WORDS[@]:1:COMP_CWORD-1}")')
     ..writeln('  path=""')
+    ..writeln('  skip=0')
     ..writeln(r'  for i in "${words[@]}"; do')
-    ..writeln(r'    case "$i" in')
+    ..writeln(r'    if [ "$skip" = 1 ]; then')
+    ..writeln('      skip=0')
+    ..writeln('      continue')
+    ..writeln('    fi')
+    ..writeln(r'    case "$i" in');
+
+  if (valueFlags.isNotEmpty) {
+    buffer.writeln('      ${(valueFlags.toList()..sort()).join('|')}) skip=1 ;;');
+  }
+
+  buffer
     ..writeln('      -*) ;;')
     ..writeln(r'      *) path="${path:+$path }$i" ;;')
     ..writeln('    esac')

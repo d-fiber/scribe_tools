@@ -45,6 +45,7 @@ import 'package:scribe_tools/src/base/process.dart';
 import 'package:scribe_tools/src/commands/completion.dart';
 import 'package:scribe_tools/src/commands/doctor.dart';
 import 'package:scribe_tools/src/commands/gen.dart';
+import 'package:scribe_tools/src/commands/status.dart';
 import 'package:scribe_tools/src/runner/scribe_command.dart';
 import 'package:test/test.dart';
 
@@ -59,7 +60,7 @@ class _Machine {
 
   Future<int> run(List<String> args, {String shell = '/bin/bash'}) => runner.run(
     args,
-    () => <ScribeCommand>[CompletionCommand(), DoctorCommand(), GenCommand()],
+    () => <ScribeCommand>[CompletionCommand(), DoctorCommand(), GenCommand(), StatusCommand()],
     toolVersion: 'test',
     overrides: <Type, Generator>{
       FileSystem: () => fs,
@@ -90,11 +91,23 @@ void main() {
       expect(script, contains('complete -F _scribe_complete scribe'));
       expect(
         script,
-        contains('"") COMPREPLY=( \$(compgen -W "completion doctor gen --color'),
+        contains('"") COMPREPLY=( \$(compgen -W "completion doctor gen status --color'),
         reason: 'the auto-registered help command is hidden, and does not sit among the words offered here',
       );
       expect(script, contains('"gen") COMPREPLY=( \$(compgen -W "code docs hosting routes --color'));
       expect(script, contains('"gen code")'));
+    });
+
+    test('a value-taking flag is skipped so its value is not mistaken for a subcommand', () async {
+      expect(await machine.run(<String>['completion', 'bash']), 0);
+
+      final String script = machine.logger.statusText;
+      expect(
+        script,
+        contains('--target|-t) skip=1 ;;'),
+        reason: '"status --target prod" must not rebuild "path" as "status prod"',
+      );
+      expect(script, contains(r'if [ "$skip" = 1 ]; then'));
     });
   });
 
@@ -114,7 +127,7 @@ void main() {
       expect(await machine.run(<String>['completion', 'fish']), 0);
 
       final String script = machine.logger.statusText;
-      expect(script, contains("complete -c scribe -n '__fish_use_subcommand' -a 'completion doctor gen'"));
+      expect(script, contains("complete -c scribe -n '__fish_use_subcommand' -a 'completion doctor gen status'"));
       expect(script, contains("complete -c scribe -n '__fish_seen_subcommand_from gen' -a 'code docs hosting routes'"));
       expect(
         script,
