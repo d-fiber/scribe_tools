@@ -36,6 +36,7 @@
 
 import 'dart:io' as io;
 
+import 'package:fiber_shell/fiber_shell.dart';
 import 'package:file/file.dart';
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
@@ -169,20 +170,20 @@ class Hardware {
   }
 
   static Future<int> _threads() async {
-    final int? linux = await _intFrom(<String>['nproc', '--all']);
+    final int? linux = await _intFrom(_nproc.all());
     if (linux != null) return linux;
 
-    final int? darwin = await _intFrom(<String>['sysctl', '-n', 'hw.logicalcpu']);
+    final int? darwin = await _intFrom(_darwinSysctl.value('hw.logicalcpu'));
     if (darwin != null) return darwin;
 
     return io.Platform.numberOfProcessors;
   }
 
   static Future<int> _cores(int threads) async {
-    final int? darwin = await _intFrom(<String>['sysctl', '-n', 'hw.physicalcpu']);
+    final int? darwin = await _intFrom(_darwinSysctl.value('hw.physicalcpu'));
     if (darwin != null) return darwin;
 
-    final String? lscpu = await _capture(<String>['lscpu', '-p=Core,Socket']);
+    final String? lscpu = await _capture(_lscpu.parseable('Core,Socket'));
     if (lscpu != null) {
       final Set<String> unique = <String>{
         for (final String raw in lscpu.split('\n'))
@@ -201,13 +202,13 @@ class Hardware {
       if (match != null) return (int.parse(match.group(1)!) / (1024 * 1024)).round();
     }
 
-    final int? darwin = await _intFrom(<String>['sysctl', '-n', 'hw.memsize']);
+    final int? darwin = await _intFrom(_darwinSysctl.value('hw.memsize'));
     if (darwin != null) return (darwin / (1024 * 1024 * 1024)).round();
 
     return 0;
   }
 
-  static Future<int?> _intFrom(List<String> command) async {
+  static Future<int?> _intFrom(ShellCommand command) async {
     final String? output = await _capture(command);
 
     return output == null ? null : int.tryParse(output.trim());
@@ -218,11 +219,46 @@ class Hardware {
   /// Every probe here is expected to be missing on some platform, `nproc` on
   /// macOS and `sysctl` on Linux, so a failure is a normal answer rather than an
   /// error worth reporting.
-  static Future<String?> _capture(List<String> command) async {
+  static Future<String?> _capture(ShellCommand command) async {
     try {
-      return await globals.processRunner.capture(command);
+      return await globals.processRunner.capture(commandArgv(command));
     } on Object {
       return null;
     }
   }
 }
+
+/// `nproc`, the Linux core count, in the one flag this file reaches for.
+class _NprocCmd extends CommandBuilder<_NprocCmd> {
+  @override
+  final String executable = 'nproc';
+
+  /// Counts every processor, online or not (`--all`).
+  _NprocCmd all() => token('--all');
+}
+
+_NprocCmd get _nproc => _NprocCmd();
+
+/// The BSD `sysctl` macOS ships, a different program from the Linux one `fiber_shell` already
+/// wraps as `Sysctl`: this one takes `-n key` rather than `--values key`, so it needs its own
+/// wrapper instead of reusing that one.
+class _DarwinSysctlCmd extends CommandBuilder<_DarwinSysctlCmd> {
+  @override
+  final String executable = 'sysctl';
+
+  /// Prints the bare value of [key], with no name in front of it (`-n`).
+  _DarwinSysctlCmd value(String key) => pair('-n', key);
+}
+
+_DarwinSysctlCmd get _darwinSysctl => _DarwinSysctlCmd();
+
+/// `lscpu`, the Linux topology tool, in the one flag this file reaches for.
+class _LscpuCmd extends CommandBuilder<_LscpuCmd> {
+  @override
+  final String executable = 'lscpu';
+
+  /// Prints the given [columns] in a script-friendly, parseable form (`-p=<columns>`).
+  _LscpuCmd parseable(String columns) => joined('-p', columns);
+}
+
+_LscpuCmd get _lscpu => _LscpuCmd();

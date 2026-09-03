@@ -34,6 +34,7 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
+import 'package:fiber_shell/fiber_shell.dart';
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/base/logger.dart';
 import 'package:scribe_tools/src/base/terminal.dart';
@@ -80,11 +81,11 @@ class ExternalTool {
 
 /// A system package manager this tool knows how to call.
 class PackageManager {
-  /// Declares a manager found as [executable], installing with [install].
+  /// Declares a manager found as [executable], installing with [installCommand].
   const PackageManager({
     required this.name,
     required this.executable,
-    required this.install,
+    required this.installCommand,
     this.needsPrivilege = false,
   });
 
@@ -93,27 +94,13 @@ class PackageManager {
   /// A machine can carry several, so this order is what picks the one used:
   /// the first present wins, and nothing looks further.
   static const List<PackageManager> known = <PackageManager>[
-    PackageManager(name: 'homebrew', executable: 'brew', install: <String>['brew', 'install']),
-    PackageManager(
-      name: 'winget',
-      executable: 'winget',
-      install: <String>['winget', 'install', '--silent', '-e', '--id'],
-    ),
-    PackageManager(name: 'scoop', executable: 'scoop', install: <String>['scoop', 'install']),
-    PackageManager(
-      name: 'apt',
-      executable: 'apt-get',
-      install: <String>['apt-get', 'install', '-y'],
-      needsPrivilege: true,
-    ),
-    PackageManager(name: 'dnf', executable: 'dnf', install: <String>['dnf', 'install', '-y'], needsPrivilege: true),
-    PackageManager(
-      name: 'pacman',
-      executable: 'pacman',
-      install: <String>['pacman', '-S', '--noconfirm'],
-      needsPrivilege: true,
-    ),
-    PackageManager(name: 'apk', executable: 'apk', install: <String>['apk', 'add'], needsPrivilege: true),
+    PackageManager(name: 'homebrew', executable: 'brew', installCommand: _brewInstall),
+    PackageManager(name: 'winget', executable: 'winget', installCommand: _wingetInstall),
+    PackageManager(name: 'scoop', executable: 'scoop', installCommand: _scoopInstall),
+    PackageManager(name: 'apt', executable: 'apt-get', installCommand: _aptInstall, needsPrivilege: true),
+    PackageManager(name: 'dnf', executable: 'dnf', installCommand: _dnfInstall, needsPrivilege: true),
+    PackageManager(name: 'pacman', executable: 'pacman', installCommand: _pacmanInstall, needsPrivilege: true),
+    PackageManager(name: 'apk', executable: 'apk', installCommand: _apkInstall, needsPrivilege: true),
   ];
 
   /// The first of [known] that this machine carries, null when it carries none.
@@ -130,21 +117,110 @@ class PackageManager {
   /// The file looked for on `PATH` to know this manager is here.
   final String executable;
 
-  /// The words that install a package, up to but not including its name.
-  final List<String> install;
+  /// The command that installs a package, given its name.
+  final ShellCommand Function(String package) installCommand;
 
   /// Whether installing through this manager has to go through `sudo`.
   final bool needsPrivilege;
 
   /// The full command line that installs [tool] through this manager.
-  List<String> commandFor(ExternalTool tool) => <String>[
-    if (needsPrivilege) 'sudo',
-    ...install,
-    tool.packageFor(this)!,
-  ];
+  List<String> commandFor(ExternalTool tool) =>
+      commandArgv(installCommand(tool.packageFor(this)!), asPrivileged: needsPrivilege);
 
   @override
   String toString() => name;
+}
+
+ShellCommand _brewInstall(String package) => _BrewCmd().install().arg(package);
+ShellCommand _wingetInstall(String package) => _WingetCmd().install().silent().exact().id(package);
+ShellCommand _scoopInstall(String package) => _ScoopCmd().install().arg(package);
+ShellCommand _aptInstall(String package) => AptGet.install().assumeYes().arg(package);
+ShellCommand _dnfInstall(String package) => _DnfCmd().install().assumeYes().arg(package);
+ShellCommand _pacmanInstall(String package) => _PacmanCmd().sync().noConfirm().arg(package);
+ShellCommand _apkInstall(String package) => _ApkCmd().add().arg(package);
+
+/// Homebrew, in the one flag this file reaches for.
+class _BrewCmd extends CommandBuilder<_BrewCmd> {
+  @override
+  final String executable = 'brew';
+
+  /// Installs a formula or cask (`install`).
+  _BrewCmd install() => token('install');
+
+  /// The name of what is installed.
+  _BrewCmd arg(String value) => token(value);
+}
+
+/// `winget`, Windows' package manager, in the flags this file reaches for.
+class _WingetCmd extends CommandBuilder<_WingetCmd> {
+  @override
+  final String executable = 'winget';
+
+  /// Installs a package (`install`).
+  _WingetCmd install() => token('install');
+
+  /// Answers every prompt without asking (`--silent`).
+  _WingetCmd silent() => token('--silent');
+
+  /// Refuses anything short of an exact identifier match (`-e`).
+  _WingetCmd exact() => token('-e');
+
+  /// The package identifier (`--id`).
+  _WingetCmd id(String value) => pair('--id', value);
+}
+
+/// Scoop, in the one flag this file reaches for.
+class _ScoopCmd extends CommandBuilder<_ScoopCmd> {
+  @override
+  final String executable = 'scoop';
+
+  /// Installs an app (`install`).
+  _ScoopCmd install() => token('install');
+
+  /// The name of what is installed.
+  _ScoopCmd arg(String value) => token(value);
+}
+
+/// `dnf`, the Fedora package tool, in the flags this file reaches for.
+class _DnfCmd extends CommandBuilder<_DnfCmd> {
+  @override
+  final String executable = 'dnf';
+
+  /// Installs a package (`install`).
+  _DnfCmd install() => token('install');
+
+  /// Answers yes to every prompt (`-y`).
+  _DnfCmd assumeYes() => token('-y');
+
+  /// The name of what is installed.
+  _DnfCmd arg(String value) => token(value);
+}
+
+/// `pacman`, the Arch package tool, in the flags this file reaches for.
+class _PacmanCmd extends CommandBuilder<_PacmanCmd> {
+  @override
+  final String executable = 'pacman';
+
+  /// Synchronises the package database and installs (`-S`).
+  _PacmanCmd sync() => token('-S');
+
+  /// Answers yes to every prompt (`--noconfirm`).
+  _PacmanCmd noConfirm() => token('--noconfirm');
+
+  /// The name of what is installed.
+  _PacmanCmd arg(String value) => token(value);
+}
+
+/// `apk`, the Alpine package tool, in the one flag this file reaches for.
+class _ApkCmd extends CommandBuilder<_ApkCmd> {
+  @override
+  final String executable = 'apk';
+
+  /// Installs a package (`add`).
+  _ApkCmd add() => token('add');
+
+  /// The name of what is installed.
+  _ApkCmd arg(String value) => token(value);
 }
 
 /// The programs the CLI knows how to look for and offer to install.
