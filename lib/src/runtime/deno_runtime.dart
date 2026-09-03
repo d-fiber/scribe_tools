@@ -88,16 +88,15 @@ String _importMap(Map<String, String> imports) =>
 /// `deno.enablePaths` is set to [directories] rather than left out, so that a workspace holding
 /// packages of more than one runtime does not have Deno's language server take over directories a
 /// `bun` package lives in.
-EditorProjection editorProjection(Map<String, String> imports, {required List<String> directories}) =>
-    EditorProjection(
-      languageServer: LanguageServerProjection(
-        runtime: 'deno',
-        extensionId: 'denoland.vscode-deno',
-        enableSettingKey: 'deno.enable',
-        configSettingKey: 'deno.config',
-        additionalSettings: <String, Object>{'deno.enablePaths': directories},
-        configFileName: 'deno.json',
-        configContents: '${jsonEncode(<String, Object>{'imports': imports})}\n',
-        restartCommands: const <String>['deno.client.restart', 'deno.restart'],
-      ),
-    );
+EditorProjection editorProjection(Map<String, String> imports, {required List<String> directories}) => EditorProjection(
+  languageServer: LanguageServerProjection(
+    runtime: 'deno',
+    extensionId: 'denoland.vscode-deno',
+    enableSettingKey: 'deno.enable',
+    configSettingKey: 'deno.config',
+    additionalSettings: <String, Object>{'deno.enablePaths': directories},
+    configFileName: 'deno.json',
+    configContents: '${jsonEncode(<String, Object>{'imports': imports})}\n',
+    restartCommands: const <String>['deno.client.restart', 'deno.restart'],
+  ),
+);

@@ -60,7 +60,10 @@ void main() {
   void useRuntime(String at, String runtime) {
     final File manifest = machine.fs.file('$at/package.yaml');
     manifest.writeAsStringSync(
-      manifest.readAsStringSync().replaceFirst('environment:\n  scribe:', 'environment:\n  runtime: $runtime\n  scribe:'),
+      manifest.readAsStringSync().replaceFirst(
+        'environment:\n  scribe:',
+        'environment:\n  runtime: $runtime\n  scribe:',
+      ),
     );
   }
 
@@ -92,7 +95,8 @@ void main() {
         'deno.enablePaths': <String>[at],
       });
 
-      final Map<String, Object?> contents = jsonDecode(servers.single['configContents']! as String) as Map<String, Object?>;
+      final Map<String, Object?> contents =
+          jsonDecode(servers.single['configContents']! as String) as Map<String, Object?>;
       expect((contents['imports']! as Map<String, Object?>)['@scribe/alchemy'], isNotNull);
     });
   });
@@ -131,10 +135,13 @@ void main() {
 
       final Map<String, Object?> document = jsonDecode(machine.logger.statusText.trim()) as Map<String, Object?>;
       expect(document['ok'], isTrue);
-      expect((document['packages']! as List<Object?>).cast<Map<String, Object?>>(), unorderedEquals(<Object?>[
-        <String, Object?>{'directory': denoAt, 'runtime': 'deno', 'resolved': true},
-        <String, Object?>{'directory': bunAt, 'runtime': 'bun', 'resolved': true},
-      ]));
+      expect(
+        (document['packages']! as List<Object?>).cast<Map<String, Object?>>(),
+        unorderedEquals(<Object?>[
+          <String, Object?>{'directory': denoAt, 'runtime': 'deno', 'resolved': true},
+          <String, Object?>{'directory': bunAt, 'runtime': 'bun', 'resolved': true},
+        ]),
+      );
 
       final List<Map<String, Object?>> servers = (document['languageServers']! as List<Object?>)
           .cast<Map<String, Object?>>();
@@ -149,7 +156,8 @@ void main() {
 
       final Map<String, Object?> tsconfig =
           jsonDecode(machine.fs.file('$bunAt/tsconfig.json').readAsStringSync()) as Map<String, Object?>;
-      final Map<String, Object?> paths = (tsconfig['compilerOptions']! as Map<String, Object?>)['paths']! as Map<String, Object?>;
+      final Map<String, Object?> paths =
+          (tsconfig['compilerOptions']! as Map<String, Object?>)['paths']! as Map<String, Object?>;
       expect(paths['@scribe/alchemy'], isNotNull);
     });
   });

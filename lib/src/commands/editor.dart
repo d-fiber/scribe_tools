@@ -56,7 +56,8 @@ class EditorCommand extends ScribeCommand {
     argParser.addFlag(
       ScribeCommand.machineOption,
       negatable: false,
-      help: 'Print one line of JSON instead of a report: what packages resolved, and what each '
+      help:
+          'Print one line of JSON instead of a report: what packages resolved, and what each '
           'runtime present needs an editor to do.',
     );
   }
