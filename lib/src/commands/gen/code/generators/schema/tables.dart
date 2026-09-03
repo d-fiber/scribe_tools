@@ -34,6 +34,7 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
+import 'package:file/file.dart';
 import 'package:scribe_tools/src/commands/gen/code/generators/schema/emit/rest_client.dart';
 import 'package:scribe_tools/src/commands/gen/code/generators/schema/emit/rest_owners.dart';
 import 'package:scribe_tools/src/commands/gen/code/generators/schema/emit/rest_rows.dart';
@@ -54,6 +55,10 @@ import 'package:scribe_tools/src/project.dart';
 /// Nothing is written for the framework's own tables. They are read to know
 /// what the project inherits and to avoid redeclaring a table of the base, but
 /// their generated surface ships with the framework.
+///
+/// A project that once had a table, an extension or a composite type of its own and no longer
+/// does gets `rest/` deleted rather than left behind: a directory this generator does not touch
+/// any more is one nothing warns is stale.
 Future<void> generateTables(Set<String> projectEnums) async {
   await loadComposites();
   globals.logger.printStatus('${composites.length} composite types loaded');
@@ -64,7 +69,11 @@ Future<void> generateTables(Set<String> projectEnums) async {
   final SqlSchema schema = await scanSqlSchema();
   globals.logger.printStatus('${schema.frameworkTables.length} kernel tables read from the SDK');
 
-  if (schema.hasNothingOfItsOwn) return;
+  if (schema.hasNothingOfItsOwn) {
+    final Directory rest = globals.project.generated.sdk.rest.directory;
+    if (rest.existsSync()) rest.deleteSync(recursive: true);
+    return;
+  }
 
   await _writeRest(schema, projectEnums);
   _reportWhatWasWritten(schema);

@@ -49,12 +49,19 @@ import 'package:scribe_tools/src/globals.dart' as globals;
 ///
 /// The framework's own enums are only read. Their TypeScript ships with the
 /// framework, so nothing is written for them here.
+///
+/// A project that once declared an enum and no longer does gets `enums.ts` deleted rather than
+/// left behind: a file this generator does not touch any more is one nothing warns is stale.
 Future<Set<String>> generateEnums() async {
   final List<ParsedEnum> fromFramework = await scanEnums(kernelSqlRoots());
   globals.logger.printStatus('${fromFramework.length} kernel enums read from the SDK');
 
   final List<ParsedEnum> fromProject = await scanEnums(<Directory>[globals.project.init]);
-  if (fromProject.isEmpty) return <String>{};
+  if (fromProject.isEmpty) {
+    final File enums = globals.project.generated.sdk.enums;
+    if (enums.existsSync()) enums.deleteSync();
+    return <String>{};
+  }
 
   await globals.project.generated.sdk.create();
   await globals.project.generated.sdk.enums.writeAsString(renderProjectEnums(fromProject).join('\n'));
