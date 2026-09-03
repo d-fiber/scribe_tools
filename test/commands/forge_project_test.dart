@@ -46,7 +46,7 @@ import 'package:scribe_tools/src/base/platform.dart';
 import 'package:scribe_tools/src/base/process.dart';
 import 'package:scribe_tools/src/base/watch.dart';
 import 'package:scribe_tools/src/commands/forge.dart';
-import 'package:scribe_tools/src/deploy/configuration.dart';
+import 'package:scribe_tools/src/ops/configuration.dart';
 import 'package:scribe_tools/src/package/lock.dart';
 import 'package:scribe_tools/src/runner/scribe_command.dart';
 import 'package:test/test.dart';

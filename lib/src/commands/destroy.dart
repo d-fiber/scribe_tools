@@ -36,11 +36,11 @@
 
 import 'package:file/file.dart';
 import 'package:scribe_tools/src/base/common.dart';
-import 'package:scribe_tools/src/deploy/configuration.dart';
 import 'package:scribe_tools/src/deploy/drivers/ssh.dart';
-import 'package:scribe_tools/src/deploy/resources.dart';
 import 'package:scribe_tools/src/deploy/tofu.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
+import 'package:scribe_tools/src/ops/configuration.dart';
+import 'package:scribe_tools/src/ops/resources.dart';
 import 'package:scribe_tools/src/runner/scribe_command.dart';
 import 'package:scribe_tools/src/stack/stack_location.dart';
 import 'package:scribe_tools/src/tools.dart';

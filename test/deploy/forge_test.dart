@@ -37,9 +37,9 @@
 import 'package:file/file.dart';
 import 'package:file/memory.dart';
 import 'package:scribe_tools/src/base/context.dart';
-import 'package:scribe_tools/src/deploy/configuration.dart';
+import 'package:scribe_tools/src/ops/configuration.dart';
 import 'package:scribe_tools/src/deploy/forge.dart';
-import 'package:scribe_tools/src/deploy/resources.dart';
+import 'package:scribe_tools/src/ops/resources.dart';
 import 'package:scribe_tools/src/packages.dart';
 import 'package:scribe_tools/src/project.dart';
 import 'package:test/test.dart';

@@ -39,7 +39,7 @@ import 'package:path/path.dart' as p;
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/base/context.dart';
 import 'package:scribe_tools/src/base/logger.dart';
-import 'package:scribe_tools/src/deploy/configuration.dart';
+import 'package:scribe_tools/src/ops/configuration.dart';
 import 'package:scribe_tools/src/deploy/forge.dart';
 import 'package:scribe_tools/src/forge/declarations.dart';
 import 'package:scribe_tools/src/forge/di_wiring.dart';

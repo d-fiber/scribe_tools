@@ -34,8 +34,8 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
-import 'package:scribe_tools/src/deploy/configuration.dart';
-import 'package:scribe_tools/src/deploy/resources.dart';
+import 'package:scribe_tools/src/ops/configuration.dart';
+import 'package:scribe_tools/src/ops/resources.dart';
 import 'package:scribe_tools/src/scribe_manifest.dart';
 
 /// What a deployment of one target comes to, before anything is done about it.

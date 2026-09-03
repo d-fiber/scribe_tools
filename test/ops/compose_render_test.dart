@@ -35,14 +35,15 @@
 // LICENSE file, the LICENSE file governs.
 
 import 'dart:io' as io;
+
 import 'package:file/file.dart';
 import 'package:file/memory.dart';
 import 'package:path/path.dart' as p;
 import 'package:scribe_tools/src/base/context.dart';
 import 'package:scribe_tools/src/base/logger.dart';
 import 'package:scribe_tools/src/base/platform.dart';
-import 'package:scribe_tools/src/deploy/resources.dart';
 import 'package:scribe_tools/src/ops/hardware.dart';
+import 'package:scribe_tools/src/ops/resources.dart';
 import 'package:scribe_tools/src/ops/sizing.dart';
 import 'package:scribe_tools/src/stack/stack_location.dart';
 import 'package:scribe_tools/src/templates.dart';

@@ -36,9 +36,9 @@
 
 import 'package:file/file.dart';
 import 'package:path/path.dart' as p;
-import 'package:scribe_tools/src/deploy/configuration.dart';
-import 'package:scribe_tools/src/deploy/resources.dart';
-import 'package:scribe_tools/src/deploy/settings.dart';
+import 'package:scribe_tools/src/ops/configuration.dart';
+import 'package:scribe_tools/src/ops/resources.dart';
+import 'package:scribe_tools/src/ops/settings.dart';
 import 'package:scribe_tools/src/ops/hardware.dart';
 import 'package:scribe_tools/src/ops/socle.dart';
 import 'package:scribe_tools/src/packages.dart';
