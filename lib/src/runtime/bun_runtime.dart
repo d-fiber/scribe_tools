@@ -73,17 +73,17 @@ Future<ShellResult> runScript(
 /// [runScript] cleans up its own: whoever runs the returned command line owns the process, and
 /// deleting the file out from under a `bun test` still reading it would be worse than leaving one
 /// small file behind in a temporary directory the host already reclaims on its own.
+///
+/// Built through [BunCmd], the same builder [runScript] chains above, rather than a hand-assembled
+/// list: the two would otherwise be free to drift on the flags Bun actually takes.
 List<String> testCommand({required String testsDirectory, required Map<String, String> imports, String? filter}) {
   final File tsconfig = _writeTsconfig(imports);
 
-  return <String>[
-    'bun',
-    'test',
-    '--tsconfig-override',
-    tsconfig.path,
-    if (filter != null) ...<String>['-t', filter],
-    testsDirectory,
-  ];
+  BunCmd command = Bun.test().tsconfigOverride(tsconfig.path);
+  if (filter != null) command = command.testNamePattern(filter);
+  command = command.file(testsDirectory);
+
+  return <String>[command.executable, ...command.tokens];
 }
 
 /// A `tsconfig.json`, in a temporary directory of its own, whose `paths` resolve [imports] the way
