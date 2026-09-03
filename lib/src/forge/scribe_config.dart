@@ -36,12 +36,14 @@
 
 import 'dart:convert';
 
+import 'package:file/file.dart';
+import 'package:path/path.dart' as p;
 import 'package:scribe_tools/src/forge/import_map.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/packages.dart';
 import 'package:scribe_tools/src/runtime/js_runtime.dart';
 
-/// Writes the project's two import maps.
+/// Writes the project's import maps: two always, two more under `api.stack: bun`.
 ///
 /// This is the dependency inversion that lets the framework be moved. The
 /// framework's own configuration used to point at `../../lib/`, so it had to be
@@ -53,7 +55,11 @@ import 'package:scribe_tools/src/runtime/js_runtime.dart';
 /// `scribe.container.json` is mounted and passed as `--config` by the compose.
 ///
 /// Neither name says which runtime is underneath: nothing on the project's side
-/// should give away what the framework is implemented with.
+/// should give away what the framework is implemented with. `scribe.container.tsconfig.json`
+/// and `scribe.container.package.json` are the exception, written only when `api.stack:` answers
+/// `bun`, since Deno never reads either: `renderContainerTsconfig` and `renderContainerPackageJson`,
+/// both in `import_map.dart`, give Bun's own container what the two files above already give
+/// Deno's.
 ///
 /// [packages] is read again from disk when left out; a caller that already
 /// holds one, `forge` does, passes it instead so the same closure is not
@@ -104,6 +110,11 @@ Future<void> generateScribeConfig({Packages? packages}) async {
     ),
   );
 
+  final List<File> written = <File>[
+    globals.project.generated.sdk.importMap,
+    globals.project.generated.sdk.containerImportMap,
+  ];
+
   if (globals.project.manifest.apiStack == JsRuntime.bun) {
     await globals.project.generated.sdk.containerTsconfig.writeAsString(
       renderContainerTsconfig(
@@ -116,10 +127,14 @@ Future<void> generateScribeConfig({Packages? packages}) async {
       ),
     );
     await globals.project.generated.sdk.containerPackageJson.writeAsString(renderContainerPackageJson(inherited));
+    written.addAll(<File>[
+      globals.project.generated.sdk.containerTsconfig,
+      globals.project.generated.sdk.containerPackageJson,
+    ]);
   }
 
   globals.logger.printStatus(
     '${inherited.length} deps inherited, written to '
-    '${globals.project.generatedDirectoryName}/sdk/js/scribe{,.container}.json',
+    '${globals.project.generatedDirectoryName}/sdk/js/{${written.map((File file) => p.basename(file.path)).join(', ')}}',
   );
 }
