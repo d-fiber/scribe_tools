@@ -113,16 +113,29 @@ const List<String> kMandatoryServiceFragments = <String>['capacity.yaml', 'docke
 /// same file for the contract it enforces at deploy time.
 const String kRecipeContract = 'contract.yaml';
 
+/// The file a package writes `deploy/deploy.ts` under, the sole source `scribe forge` reads when
+/// it renders the rest of `deploy/` from a package's `@Deploy` declaration.
+///
+/// Its presence is what tells [deployProblems] the generated entries of [kDeployEntries] —
+/// `services/`, `recipes/`, `overlay.yaml`, `configuration.yaml`, `packages.env` — are owned by
+/// `scribe forge` rather than by hand: a package that carries it is checked for drift the same way
+/// `scribe_packages`' own CI already checks `package.lock`, by running `scribe forge` again and
+/// diffing what it wrote, not by a second rule here. A package without it keeps writing every one
+/// of those entries by hand, exactly as before.
+const String kDeployDeclarationFile = 'deploy.ts';
+
 /// What may sit directly under `deploy/`, and nothing else may.
 ///
 /// `db` is the only one a package cannot omit. `services/` holds one directory per service,
-/// `recipes/` one per resource type, and the three files are read where they sit: `overlay.yaml`
-/// mounts `deploy/db/` into a base service, `configuration.yaml` names what a project tunes and
-/// requires, `packages.env` is the package's own slice of the environment.
+/// `recipes/` one per resource type, and the four files are read where they sit: `deploy.ts` is
+/// the source a package's `@Deploy` declares against, `overlay.yaml` mounts `deploy/db/` into a
+/// base service, `configuration.yaml` names what a project tunes and requires, `packages.env` is
+/// the package's own slice of the environment.
 const List<String> kDeployEntries = <String>[
   kDatabaseDirectory,
   kServicesDirectory,
   kRecipesDirectory,
+  kDeployDeclarationFile,
   'overlay.yaml',
   'configuration.yaml',
   'packages.env',
@@ -161,7 +174,11 @@ List<String> _deployTreeProblems(String directory) {
     return <String>[problem];
   }
 
-  final List<String> problems = <String>[..._strayEntries(deploy, kDeployEntries, kDeployDirectory)];
+  final bool hasDeployTs = deploy.childFile(kDeployDeclarationFile).existsSync();
+  final List<String> problems = <String>[
+    ..._strayEntries(deploy, kDeployEntries, kDeployDirectory),
+    ..._generatedEntriesProblems(deploy, hasDeployTs: hasDeployTs),
+  ];
 
   final Directory database = deploy.childDirectory(kDatabaseDirectory);
   if (!database.existsSync()) {
@@ -186,10 +203,11 @@ List<String> _deployTreeProblems(String directory) {
   if (services.existsSync()) {
     for (final Directory service in services.listSync(followLinks: false).whereType<Directory>()) {
       final String name = p.basename(service.path);
-      for (final String fragment in kMandatoryServiceFragments) {
-        if (service.childFile(fragment).existsSync()) continue;
-        problems.add('its $kDeployDirectory/$kServicesDirectory/$name/ has no $fragment, which every service carries.');
-      }
+      problems.addAll(
+        hasDeployTs
+            ? _generatedServiceFragmentProblems(service, name)
+            : _missingMandatoryFragmentProblems(service, name),
+      );
     }
   }
 
@@ -207,6 +225,66 @@ List<String> _deployTreeProblems(String directory) {
 
   return problems;
 }
+
+/// The entries of `deploy/` a `deploy/deploy.ts` renders at deploy time and never writes to disk,
+/// which may never sit directly under `deploy/` at all once one exists: found there, they can
+/// only be a leftover from before a package adopted `deploy.ts`, or from a `deploy.ts` line
+/// removed since.
+///
+/// `deploy/services/` is not one of them, even though `deploy.ts` renders what it carries too: a
+/// service directory may still hold a `Dockerfile` a `Build` source names, which is nobody's but
+/// its author's and belongs nowhere else — see [_generatedServiceFragmentProblems], the narrower
+/// check that applies to it instead.
+const List<String> kGeneratedOnlyDeployEntries = <String>[
+  kRecipesDirectory,
+  'overlay.yaml',
+  'configuration.yaml',
+  'packages.env',
+];
+
+/// Problems naming an entry of [kGeneratedOnlyDeployEntries] that sits in [deploy] alongside a
+/// `deploy.ts`, when [hasDeployTs].
+///
+/// `scribe run`/`scribe deploy` render every one of these into a throwaway copy under the
+/// project's own generated directory, never into the package itself — see `ops/deploy_render.dart`
+/// — so nothing legitimately writes them here once `deploy.ts` exists, and one found on disk is
+/// dead weight from before the package carried it, or from a `deploy.ts` line since removed.
+List<String> _generatedEntriesProblems(Directory deploy, {required bool hasDeployTs}) {
+  if (!hasDeployTs) return const <String>[];
+
+  return <String>[
+    for (final String name in kGeneratedOnlyDeployEntries)
+      if (deploy.childDirectory(name).existsSync() || deploy.childFile(name).existsSync()) _generatedEntryProblem(name),
+  ];
+}
+
+String _generatedEntryProblem(String name) =>
+    'it carries $kDeployDirectory/$name alongside $kDeployDirectory/$kDeployDeclarationFile, which renders it at '
+    'deploy time and never writes it to disk. Remove it: nothing here reads it any more.';
+
+/// Problems naming a [kServiceFragments] entry found in [service], a `deploy/services/<name>/`
+/// beside a `deploy.ts`.
+///
+/// Unlike [kGeneratedOnlyDeployEntries], the directory itself is not refused: it may still carry a
+/// `Dockerfile` a `Build` source names, or a script a fragment's own path reaches. Only the seven
+/// fragment names the framework owns are, since `deploy.ts` is what renders every one of them now.
+List<String> _generatedServiceFragmentProblems(Directory service, String name) => <String>[
+  for (final String fragment in kServiceFragments)
+    if (service.childFile(fragment).existsSync()) _generatedServiceFragmentProblem(name, fragment),
+];
+
+String _generatedServiceFragmentProblem(String name, String fragment) =>
+    'its $kDeployDirectory/$kServicesDirectory/$name/$fragment sits alongside $kDeployDirectory/'
+    '$kDeployDeclarationFile, which renders it at deploy time and never writes it to disk. Remove it: nothing '
+    'here reads it any more.';
+
+/// Problems naming a [kMandatoryServiceFragments] entry missing from [service], a hand-written
+/// `deploy/services/<name>/`.
+List<String> _missingMandatoryFragmentProblems(Directory service, String name) => <String>[
+  for (final String fragment in kMandatoryServiceFragments)
+    if (!service.childFile(fragment).existsSync())
+      'its $kDeployDirectory/$kServicesDirectory/$name/ has no $fragment, which every service carries.',
+];
 
 /// A problem naming [directory] at [label], when it exists but holds nothing.
 ///

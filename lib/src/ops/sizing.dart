@@ -43,6 +43,7 @@ import 'package:scribe_tools/src/base/template.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/ops/capacity.dart';
 import 'package:scribe_tools/src/ops/configuration.dart';
+import 'package:scribe_tools/src/ops/deploy_render.dart';
 import 'package:scribe_tools/src/ops/fragments.dart';
 import 'package:scribe_tools/src/ops/gateway.dart';
 import 'package:scribe_tools/src/ops/hardware.dart';
@@ -229,7 +230,7 @@ class ComposeRender {
     final Directory target = StackLocation(project: project).prepare();
 
     final Packages packages = Packages.load();
-    final List<Package> active = packages.active;
+    final List<Package> active = await resolveDeployPackages(packages.active, project: project);
 
     final List<String> profiles = <String>[...Packages.profilesOf(active), if (withWorker) workerProfile]..sort();
 
@@ -310,7 +311,7 @@ class ComposeRender {
 
     final StackLocation stack = StackLocation(project: project);
     await _carrySecrets(stack.directory);
-    _carryFrameworkSql(stack.directory);
+    _carryFrameworkSql(stack.directory, active);
     _carryDashboard(stack.directory);
     await GatewayRender(project: project).render(stack.services.childDirectory('gateway'), values, active);
     await ProxyRender(project: project).render(stack.services.childDirectory('proxy'), values);
@@ -714,14 +715,16 @@ class ComposeRender {
   ///
   /// Only the SQL: the code is inside the images by the time a stack ships, and
   /// what is left mounted is what a package lays into a database.
-  void _carryFrameworkSql(Directory into) {
+  ///
+  /// [active] is read rather than the checkout's own `packages/`, and it is what makes this work
+  /// for a package rendered from `deploy/deploy.ts`: its `db/` never sits in the checkout at all,
+  /// only in the throwaway copy [resolveDeployPackages] already substituted [active] with, and
+  /// walking the checkout directly would carry nothing for it.
+  void _carryFrameworkSql(Directory into, List<Package> active) {
     if (stackRoot == null) return;
 
-    final Directory packages = project.sdk.directory.childDirectory('packages');
-    if (!packages.existsSync()) return;
-
-    for (final Directory package in packages.listSync().whereType<Directory>()) {
-      final Directory db = package.childDirectory('deploy').childDirectory('db');
+    for (final Package package in active) {
+      final Directory db = package.directory.childDirectory('deploy').childDirectory('db');
       if (!db.existsSync()) continue;
 
       _copyInto(
@@ -729,7 +732,7 @@ class ComposeRender {
         into
             .childDirectory('sdk')
             .childDirectory('packages')
-            .childDirectory(p.basename(package.path))
+            .childDirectory(package.name)
             .childDirectory('deploy')
             .childDirectory('db'),
       );
@@ -837,9 +840,13 @@ class ComposeRender {
   }
 
   void _reportSelection(Packages packages, List<Package> active, List<String> profiles) {
+    // Named rather than compared by identity: a package `deploy.ts` renders is
+    // substituted for a `Package` of the same name but a different directory
+    // before this is called, so an identity check would report it dropped.
+    final Set<String> activeNames = active.map((Package package) => package.name).toSet();
     final List<String> dropped = <String>[
       for (final Package package in packages.all)
-        if (!active.contains(package)) package.name,
+        if (!activeNames.contains(package.name)) package.name,
     ];
 
     globals.logger.printStatus(

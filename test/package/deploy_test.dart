@@ -124,13 +124,61 @@ void main() {
     expect(deployProblems(root.path).single, contains('carries "seed", which means nothing there'));
   });
 
-  test('the three files deploy reads where they sit are not stray', () {
+  test('the three hand-written files deploy reads where they sit are not stray', () {
     scaffoldDeploy();
     File(p.join(root.path, 'deploy', 'overlay.yaml')).writeAsStringSync('');
     File(p.join(root.path, 'deploy', 'configuration.yaml')).writeAsStringSync('');
     File(p.join(root.path, 'deploy', 'packages.env')).writeAsStringSync('');
 
     expect(deployProblems(root.path), isEmpty);
+  });
+
+  test('deploy.ts alone is not stray', () {
+    scaffoldDeploy();
+    File(p.join(root.path, 'deploy', 'deploy.ts')).writeAsStringSync('');
+
+    expect(deployProblems(root.path), isEmpty);
+  });
+
+  test('overlay.yaml, configuration.yaml and packages.env beside deploy.ts are each reported', () {
+    scaffoldDeploy();
+    File(p.join(root.path, 'deploy', 'deploy.ts')).writeAsStringSync('');
+    File(p.join(root.path, 'deploy', 'overlay.yaml')).writeAsStringSync('');
+    File(p.join(root.path, 'deploy', 'configuration.yaml')).writeAsStringSync('');
+    File(p.join(root.path, 'deploy', 'packages.env')).writeAsStringSync('');
+
+    final List<String> problems = deployProblems(root.path)..sort();
+    expect(problems, hasLength(3));
+    expect(problems[0], contains('carries deploy/configuration.yaml alongside deploy/deploy.ts'));
+    expect(problems[1], contains('carries deploy/overlay.yaml alongside deploy/deploy.ts'));
+    expect(problems[2], contains('carries deploy/packages.env alongside deploy/deploy.ts'));
+  });
+
+  test('a recipes/ directory beside deploy.ts is reported', () {
+    scaffoldDeploy();
+    File(p.join(root.path, 'deploy', 'deploy.ts')).writeAsStringSync('');
+    keep('deploy/recipes/bucket');
+
+    expect(deployProblems(root.path), contains(contains('carries deploy/recipes alongside deploy/deploy.ts')));
+  });
+
+  test('a service directory holding only a Dockerfile beside deploy.ts is not reported', () {
+    scaffoldDeploy();
+    File(p.join(root.path, 'deploy', 'deploy.ts')).writeAsStringSync('');
+    File(p.join(root.path, 'deploy', 'services', 'storage', 'Dockerfile')).createSync(recursive: true);
+
+    expect(deployProblems(root.path), isEmpty);
+  });
+
+  test('a known service fragment beside deploy.ts is reported', () {
+    scaffoldDeploy();
+    File(p.join(root.path, 'deploy', 'deploy.ts')).writeAsStringSync('');
+    File(p.join(root.path, 'deploy', 'services', 'storage', 'capacity.yaml')).createSync(recursive: true);
+
+    expect(
+      deployProblems(root.path),
+      contains(contains('deploy/services/storage/capacity.yaml sits alongside deploy/deploy.ts')),
+    );
   });
 
   test('a service directory with neither mandatory fragment is reported', () {

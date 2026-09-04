@@ -52,12 +52,56 @@ class Indented {
   String render() => lines.join('\n');
 }
 
+/// A scalar written to a YAML document exactly as [text], never quoted.
+///
+/// For the one case [yamlScalar] cannot serve: a `{{placeholder}}` a deployment substitutes before
+/// Compose ever reads the document, where the field it sits in expects a bare number rather than a
+/// string once the substitution has run. Quoting it would still be valid YAML, and wrong once
+/// substituted: `cpu_shares: "4096"` is a string where Compose's own schema wants a number.
+class RawYaml {
+  /// Carries [text] to write as-is.
+  const RawYaml(this.text);
+
+  /// The text this scalar renders as, verbatim.
+  final String text;
+}
+
+/// A scalar written on its own line, one level more indented than the key that introduces it,
+/// never inline with it.
+///
+/// [renderTemplate]'s block-placeholder handling needs this shape: a `{{placeholder}}` alone on its
+/// own line, preceded only by whitespace, is what tells it to indent every line of the substituted
+/// value by that same whitespace. The same placeholder written inline after `key: ` is substituted
+/// as plain text instead, with no indenting at all, which corrupts a multi-line substitution such as
+/// a gateway plugin's block of allowed origins.
+class RawYamlBlock {
+  /// Carries [text] to write on its own line, verbatim.
+  const RawYamlBlock(this.text);
+
+  /// The text this scalar renders as, verbatim.
+  final String text;
+}
+
+/// The words YAML's core schema reads as a boolean or a null on their own, case folded.
+///
+/// A string exactly equal to one of these, unquoted, is not read back as the string it was: it is
+/// why `environment: { FORCE_PATH_STYLE: "true" }` has to stay quoted through this function even
+/// though `true` alone matches the plain pattern [yamlScalar] otherwise allows unquoted.
+const Set<String> _yamlReservedWords = <String>{'true', 'false', 'yes', 'no', 'on', 'off', 'null', '~'};
+
+/// Whether a string reads as a plain YAML number on its own, so quoting it is what keeps it text.
+final RegExp _yamlNumberLike = RegExp(r'^[-+]?(\.[0-9]+|[0-9]+(\.[0-9]*)?)$');
+
 /// [value] quoted and escaped, unless it is plain enough to stand as it is.
 ///
-/// Plain means letters, digits, underscore, dot, slash and dash: everything
-/// else is double-quoted, since YAML would otherwise read it as structure.
+/// Plain means letters, digits, underscore, dot, slash and dash, and neither a YAML reserved word
+/// nor a number spelled out in full: everything else is double-quoted, since YAML would otherwise
+/// read it as structure, or as a value of another type than the string it is.
 String yamlScalar(String value) {
-  if (RegExp(r'^[\w./-]+$').hasMatch(value)) return value;
+  final bool plain = RegExp(r'^[\w./-]+$').hasMatch(value);
+  final bool reserved = _yamlReservedWords.contains(value.toLowerCase()) || _yamlNumberLike.hasMatch(value);
+  if (plain && !reserved) return value;
+
   final String escaped = value.replaceAll('\\', r'\\').replaceAll('"', r'\"');
   return '"$escaped"';
 }
@@ -81,6 +125,12 @@ void _renderNode(Indented out, dynamic node, int depth) {
     final String key = entry.key.toString();
     final dynamic value = entry.value;
 
+    if (value is RawYamlBlock) {
+      out.add(depth, '$key:');
+      out.add(depth + 1, value.text);
+      continue;
+    }
+
     if (value is Map) {
       if (value.isEmpty) {
         out.add(depth, '$key: {}');
@@ -98,8 +148,14 @@ void _renderNode(Indented out, dynamic node, int depth) {
       }
       out.add(depth, '$key:');
       for (final dynamic item in value) {
-        out.add(depth + 1, '- ${_renderScalar(item)}');
+        _renderListItem(out, item, depth + 1);
       }
+      continue;
+    }
+
+    if (value is String && value.contains('\n')) {
+      out.add(depth, '$key: |');
+      _writeBlockLiteral(out, value, depth + 1);
       continue;
     }
 
@@ -107,8 +163,60 @@ void _renderNode(Indented out, dynamic node, int depth) {
   }
 }
 
+/// Writes [item], one entry of a block sequence, with its `- ` marker at [depth].
+///
+/// A map or a list item is rendered as its own node one level deeper than its marker, its first
+/// line then pulled up onto the `- `: that is what keeps `- name: storage` and the keys under it
+/// aligned, the ordinary shape of a block sequence of mappings. The marker itself sits one level
+/// deeper than the key that introduces the sequence, never flush with it, because that is the
+/// convention every hand-written fragment in this repository already uses and [mergeYamlDocuments]
+/// appends a fragment's body under the matching key of a base document that was written the same
+/// way.
+void _renderListItem(Indented out, dynamic item, int depth) {
+  if (item is Map || item is List) {
+    final Indented nested = Indented.empty();
+    if (item is Map) {
+      _renderNode(nested, item, depth + 1);
+    } else {
+      for (final dynamic entry in item as List<dynamic>) {
+        _renderListItem(nested, entry, depth + 1);
+      }
+    }
+    if (nested.lines.isEmpty) {
+      out.add(depth, '- {}');
+      return;
+    }
+    final String first = nested.lines.first;
+    out.lines.add('${'  ' * depth}- ${first.trimLeft()}');
+    out.lines.addAll(nested.lines.skip(1));
+    return;
+  }
+
+  if (item is String && item.contains('\n')) {
+    out.add(depth, '- |');
+    _writeBlockLiteral(out, item, depth + 1);
+    return;
+  }
+
+  out.add(depth, '- ${_renderScalar(item)}');
+}
+
+/// Writes [text] as the body of a YAML block literal opened by `|`, one line of [out] per line of
+/// [text], each indented [depth] levels. A blank line inside [text] is written empty, never padded
+/// with trailing spaces a formatter would otherwise strip.
+void _writeBlockLiteral(Indented out, String text, int depth) {
+  for (final String line in text.split('\n')) {
+    if (line.isEmpty) {
+      out.lines.add('');
+      continue;
+    }
+    out.add(depth, line);
+  }
+}
+
 String _renderScalar(dynamic value) {
-  if (value == null) return '""';
+  if (value == null) return 'null';
+  if (value is RawYaml) return value.text;
   if (value is bool || value is num) return '$value';
   return yamlScalar(value.toString());
 }
