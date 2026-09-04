@@ -317,14 +317,9 @@ class DeployCommand extends ScribeCommand {
 
     for (final String service in <String>['api', 'functions', 'db', 'rest']) {
       final String reference = '${target.registry}/$name-$service:${target.tag}';
-      final ProcessOutcome outcome = await globals.processRunner.observe(<String>[
-        'docker',
-        'image',
-        'inspect',
-        reference,
-        '--format',
-        '{{index .RepoDigests 0}}',
-      ]);
+      final ProcessOutcome outcome = await globals.processRunner.observe(
+        commandArgv(Docker.image().inspect().arg(reference).format('{{index .RepoDigests 0}}')),
+      );
       if (!outcome.succeeded) continue;
 
       final String digest = outcome.stdout.trim();

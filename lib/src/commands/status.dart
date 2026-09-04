@@ -34,6 +34,7 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
+import 'package:fiber_shell/fiber_shell.dart';
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/base/process.dart';
 import 'package:scribe_tools/src/deploy/drivers/ssh.dart';
@@ -161,16 +162,12 @@ Map<String, Object?> statusMachineReport(
 
 /// What Compose says is up for [project] on [target], on this machine or on the host.
 Future<String?> servicesOf(Project project, Target target) async {
-  const List<String> arguments = <String>['ps', '--format', '{{.Service}}\t{{.State}}\t{{.Health}}'];
+  const String format = '{{.Service}}\t{{.State}}\t{{.Health}}';
 
   if (target.host.isEmpty) {
-    final ProcessOutcome outcome = await globals.processRunner.observe(<String>[
-      'docker',
-      'compose',
-      '-p',
-      project.manifest.name,
-      ...arguments,
-    ]);
+    final ProcessOutcome outcome = await globals.processRunner.observe(
+      commandArgv(DockerCompose.arg('-p').arg(project.manifest.name).ps().format(format)),
+    );
 
     return outcome.succeeded ? outcome.stdout : _refuse(outcome);
   }
@@ -179,19 +176,13 @@ Future<String?> servicesOf(Project project, Target target) async {
   final String? home = await host.home();
   if (home == null) return null;
 
-  final ProcessOutcome outcome = await globals.processRunner.observe(<String>[
-    'ssh',
-    target.host,
-    <String>[
-      'docker',
-      'compose',
-      '--project-directory',
-      '$home/.scribe_cache/stacks/${StackLocation(project: project).fingerprint}',
-      '-p',
-      project.manifest.name,
-      ...arguments,
-    ].join(' '),
-  ]);
+  final String root = '$home/.scribe_cache/stacks/${StackLocation(project: project).fingerprint}';
+  final String remote = commandArgv(
+    DockerCompose.arg('--project-directory').arg(root).arg('-p').arg(project.manifest.name).ps().format(format),
+  ).join(' ');
+  final ProcessOutcome outcome = await globals.processRunner.observe(
+    commandArgv(Ssh.destination(target.host).remoteCommand(remote)),
+  );
 
   return outcome.succeeded ? outcome.stdout : _refuse(outcome);
 }
