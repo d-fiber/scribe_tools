@@ -34,7 +34,7 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
-import 'package:fiber_shell/fiber_shell.dart';
+import 'package:fiber_shell/fiber_shell.dart' hide Tofu;
 import 'package:file/file.dart';
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/deploy/drivers/ssh.dart';

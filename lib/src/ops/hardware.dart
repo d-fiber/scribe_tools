@@ -170,20 +170,20 @@ class Hardware {
   }
 
   static Future<int> _threads() async {
-    final int? linux = await _intFrom(_nproc.all());
+    final int? linux = await _intFrom(Nproc.all());
     if (linux != null) return linux;
 
-    final int? darwin = await _intFrom(_darwinSysctl.value('hw.logicalcpu'));
+    final int? darwin = await _intFrom(DarwinSysctl.valuesOnly().arg('hw.logicalcpu'));
     if (darwin != null) return darwin;
 
     return io.Platform.numberOfProcessors;
   }
 
   static Future<int> _cores(int threads) async {
-    final int? darwin = await _intFrom(_darwinSysctl.value('hw.physicalcpu'));
+    final int? darwin = await _intFrom(DarwinSysctl.valuesOnly().arg('hw.physicalcpu'));
     if (darwin != null) return darwin;
 
-    final String? lscpu = await _capture(_lscpu.parseable('Core,Socket'));
+    final String? lscpu = await _capture(Lscpu.parse(columns: <String>['Core', 'Socket']));
     if (lscpu != null) {
       final Set<String> unique = <String>{
         for (final String raw in lscpu.split('\n'))
@@ -202,7 +202,7 @@ class Hardware {
       if (match != null) return (int.parse(match.group(1)!) / (1024 * 1024)).round();
     }
 
-    final int? darwin = await _intFrom(_darwinSysctl.value('hw.memsize'));
+    final int? darwin = await _intFrom(DarwinSysctl.valuesOnly().arg('hw.memsize'));
     if (darwin != null) return (darwin / (1024 * 1024 * 1024)).round();
 
     return 0;
@@ -227,38 +227,3 @@ class Hardware {
     }
   }
 }
-
-/// `nproc`, the Linux core count, in the one flag this file reaches for.
-class _NprocCmd extends CommandBuilder<_NprocCmd> {
-  @override
-  final String executable = 'nproc';
-
-  /// Counts every processor, online or not (`--all`).
-  _NprocCmd all() => token('--all');
-}
-
-_NprocCmd get _nproc => _NprocCmd();
-
-/// The BSD `sysctl` macOS ships, a different program from the Linux one `fiber_shell` already
-/// wraps as `Sysctl`: this one takes `-n key` rather than `--values key`, so it needs its own
-/// wrapper instead of reusing that one.
-class _DarwinSysctlCmd extends CommandBuilder<_DarwinSysctlCmd> {
-  @override
-  final String executable = 'sysctl';
-
-  /// Prints the bare value of [key], with no name in front of it (`-n`).
-  _DarwinSysctlCmd value(String key) => pair('-n', key);
-}
-
-_DarwinSysctlCmd get _darwinSysctl => _DarwinSysctlCmd();
-
-/// `lscpu`, the Linux topology tool, in the one flag this file reaches for.
-class _LscpuCmd extends CommandBuilder<_LscpuCmd> {
-  @override
-  final String executable = 'lscpu';
-
-  /// Prints the given [columns] in a script-friendly, parseable form (`-p=<columns>`).
-  _LscpuCmd parseable(String columns) => joined('-p', columns);
-}
-
-_LscpuCmd get _lscpu => _LscpuCmd();

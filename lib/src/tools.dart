@@ -131,97 +131,13 @@ class PackageManager {
   String toString() => name;
 }
 
-ShellCommand _brewInstall(String package) => _BrewCmd().install().arg(package);
-ShellCommand _wingetInstall(String package) => _WingetCmd().install().silent().exact().id(package);
-ShellCommand _scoopInstall(String package) => _ScoopCmd().install().arg(package);
+ShellCommand _brewInstall(String package) => Brew.install().arg(package);
+ShellCommand _wingetInstall(String package) => Winget.install().silent().exact().id(package);
+ShellCommand _scoopInstall(String package) => Scoop.install().arg(package);
 ShellCommand _aptInstall(String package) => AptGet.install().assumeYes().arg(package);
-ShellCommand _dnfInstall(String package) => _DnfCmd().install().assumeYes().arg(package);
-ShellCommand _pacmanInstall(String package) => _PacmanCmd().sync().noConfirm().arg(package);
-ShellCommand _apkInstall(String package) => _ApkCmd().add().arg(package);
-
-/// Homebrew, in the one flag this file reaches for.
-class _BrewCmd extends CommandBuilder<_BrewCmd> {
-  @override
-  final String executable = 'brew';
-
-  /// Installs a formula or cask (`install`).
-  _BrewCmd install() => token('install');
-
-  /// The name of what is installed.
-  _BrewCmd arg(String value) => token(value);
-}
-
-/// `winget`, Windows' package manager, in the flags this file reaches for.
-class _WingetCmd extends CommandBuilder<_WingetCmd> {
-  @override
-  final String executable = 'winget';
-
-  /// Installs a package (`install`).
-  _WingetCmd install() => token('install');
-
-  /// Answers every prompt without asking (`--silent`).
-  _WingetCmd silent() => token('--silent');
-
-  /// Refuses anything short of an exact identifier match (`-e`).
-  _WingetCmd exact() => token('-e');
-
-  /// The package identifier (`--id`).
-  _WingetCmd id(String value) => pair('--id', value);
-}
-
-/// Scoop, in the one flag this file reaches for.
-class _ScoopCmd extends CommandBuilder<_ScoopCmd> {
-  @override
-  final String executable = 'scoop';
-
-  /// Installs an app (`install`).
-  _ScoopCmd install() => token('install');
-
-  /// The name of what is installed.
-  _ScoopCmd arg(String value) => token(value);
-}
-
-/// `dnf`, the Fedora package tool, in the flags this file reaches for.
-class _DnfCmd extends CommandBuilder<_DnfCmd> {
-  @override
-  final String executable = 'dnf';
-
-  /// Installs a package (`install`).
-  _DnfCmd install() => token('install');
-
-  /// Answers yes to every prompt (`-y`).
-  _DnfCmd assumeYes() => token('-y');
-
-  /// The name of what is installed.
-  _DnfCmd arg(String value) => token(value);
-}
-
-/// `pacman`, the Arch package tool, in the flags this file reaches for.
-class _PacmanCmd extends CommandBuilder<_PacmanCmd> {
-  @override
-  final String executable = 'pacman';
-
-  /// Synchronises the package database and installs (`-S`).
-  _PacmanCmd sync() => token('-S');
-
-  /// Answers yes to every prompt (`--noconfirm`).
-  _PacmanCmd noConfirm() => token('--noconfirm');
-
-  /// The name of what is installed.
-  _PacmanCmd arg(String value) => token(value);
-}
-
-/// `apk`, the Alpine package tool, in the one flag this file reaches for.
-class _ApkCmd extends CommandBuilder<_ApkCmd> {
-  @override
-  final String executable = 'apk';
-
-  /// Installs a package (`add`).
-  _ApkCmd add() => token('add');
-
-  /// The name of what is installed.
-  _ApkCmd arg(String value) => token(value);
-}
+ShellCommand _dnfInstall(String package) => Dnf.install().assumeYes().arg(package);
+ShellCommand _pacmanInstall(String package) => Pacman.sync().noconfirm().arg(package);
+ShellCommand _apkInstall(String package) => Apk.add().arg(package);
 
 /// The programs the CLI knows how to look for and offer to install.
 class ToolCatalog {

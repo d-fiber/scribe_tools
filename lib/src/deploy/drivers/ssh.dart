@@ -37,7 +37,6 @@
 import 'package:fiber_shell/fiber_shell.dart';
 import 'package:file/file.dart';
 import 'package:scribe_tools/src/base/process.dart';
-import 'package:scribe_tools/src/deploy/drivers/rsync_cmd.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 
 /// A host reached over SSH, and the three things a deployment asks of it.

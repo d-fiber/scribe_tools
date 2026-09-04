@@ -37,7 +37,7 @@
 import 'dart:convert';
 
 import 'package:change_case/change_case.dart';
-import 'package:fiber_shell/fiber_shell.dart';
+import 'package:fiber_shell/fiber_shell.dart' hide Tofu;
 import 'package:file/file.dart';
 import 'package:path/path.dart' as pathlib;
 import 'package:scribe_tools/src/base/common.dart';

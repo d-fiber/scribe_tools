@@ -61,7 +61,7 @@ void main() {
     });
   });
 
-  test('a filter is passed as -t, before the tests directory', () {
+  test('a filter is passed as --test-name-pattern, before the tests directory', () {
     _run(() {
       final List<String> command = bun_runtime.testCommand(
         testsDirectory: 'tests',
@@ -69,9 +69,7 @@ void main() {
         filter: 'reads a file',
       );
 
-      final int flag = command.indexOf('-t');
-      expect(flag, isNonNegative);
-      expect(command[flag + 1], 'reads a file');
+      expect(command, contains('--test-name-pattern=reads a file'));
       expect(command.last, 'tests');
     });
   });

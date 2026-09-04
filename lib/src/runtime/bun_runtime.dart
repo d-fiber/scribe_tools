@@ -40,7 +40,6 @@ import 'package:fiber_shell/fiber_shell.dart';
 import 'package:file/file.dart';
 import 'package:path/path.dart' as p;
 import 'package:scribe_tools/src/globals.dart' as globals;
-import 'package:scribe_tools/src/runtime/bun_cmd.dart';
 import 'package:scribe_tools/src/runtime/editor_projection.dart';
 
 /// `JsRuntime.runScript`'s Bun implementation: a generated `tsconfig.json`, read with
@@ -58,9 +57,9 @@ Future<ShellResult> runScript(
 }) async {
   final File tsconfig = _writeTsconfig(imports);
   try {
-    BunCmd command = Bun.run().tsconfigOverride(tsconfig.path).file(scriptPath);
+    BunCmd command = Bun.run().tsconfigOverride(tsconfig.path).arg(scriptPath);
     for (final String arg in scriptArgs) {
-      command = command.scriptArg(arg);
+      command = command.arg(arg);
     }
 
     return await command.output(cwd: cwd);
@@ -83,9 +82,9 @@ List<String> testCommand({required String testsDirectory, required Map<String, S
 
   BunCmd command = Bun.test().tsconfigOverride(tsconfig.path);
   if (filter != null) command = command.testNamePattern(filter);
-  command = command.file(testsDirectory);
+  command = command.arg(testsDirectory);
 
-  return <String>[command.executable, ...command.tokens];
+  return commandArgv(command);
 }
 
 /// `JsRuntime.editorProjection`'s Bun implementation: a real `tsconfig.json`, one under each of

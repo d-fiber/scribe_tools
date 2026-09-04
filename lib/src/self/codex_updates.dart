@@ -41,7 +41,6 @@ import 'package:file/file.dart';
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/framework.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
-import 'package:scribe_tools/src/self/gh_cmd.dart';
 import 'package:scribe_tools/src/self/release_feed.dart';
 import 'package:scribe_tools/src/self/version.dart';
 

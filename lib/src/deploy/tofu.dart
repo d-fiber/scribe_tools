@@ -79,6 +79,10 @@ class Tofu {
   final Directory workspace;
 
   /// The program to call, which a test points at whatever it has.
+  ///
+  /// `TofuCmd.executable` is fixed to `tofu`, so [_run] overwrites the first
+  /// element of the argv it builds with this instead of asking the command
+  /// itself to name a different program.
   final String binary;
 
   /// Writes [configuration] as the whole of this workspace's configuration.
@@ -94,14 +98,14 @@ class Tofu {
   }
 
   /// Downloads the providers the configuration names.
-  Future<bool> init() => _succeeds(_command().init().inputFalse().noColor());
+  Future<bool> init() => _succeeds(_command().init().noInput().noColor());
 
   /// Says what applying would do, without doing it.
   ///
   /// It is what `deploy --plan` prints for a provisioned resource, and it is
   /// also the only way to know whether an apply would create anything at all.
   Future<String?> plan() async {
-    final ProcessOutcome outcome = await _run(_command().plan().inputFalse().noColor());
+    final ProcessOutcome outcome = await _run(_command().plan().noInput().noColor());
     if (outcome.succeeded) return outcome.stdout;
 
     globals.logger.printError(outcome.stderr.trim().isEmpty ? outcome.stdout.trim() : outcome.stderr.trim());
@@ -110,10 +114,10 @@ class Tofu {
   }
 
   /// Creates what the configuration describes.
-  Future<bool> apply() => _succeeds(_command().apply().inputFalse().autoApprove().noColor());
+  Future<bool> apply() => _succeeds(_command().apply().noInput().autoApprove().noColor());
 
   /// Destroys what this workspace created.
-  Future<bool> destroy() => _succeeds(_command().destroy().inputFalse().autoApprove().noColor());
+  Future<bool> destroy() => _succeeds(_command().destroy().noInput().autoApprove().noColor());
 
   /// What the configuration declares under `output`, flattened to strings.
   ///
@@ -137,9 +141,9 @@ class Tofu {
     };
   }
 
-  _TofuCmd _command() => _TofuCmd(binary);
+  TofuCmd _command() => TofuCmd();
 
-  Future<ProcessOutcome> _run(_TofuCmd command) {
+  Future<ProcessOutcome> _run(TofuCmd command) {
     final String? key = globals.platform.environment[kTofuStateKeyVariable];
     if (key == null || key.isEmpty) {
       return Future<ProcessOutcome>.value(
@@ -155,7 +159,7 @@ class Tofu {
       );
     }
 
-    final List<String> argv = commandArgv(command);
+    final List<String> argv = commandArgv(command)..[0] = binary;
     globals.logger.printTrace('[tofu] ${argv.join(' ')}');
 
     return globals.processRunner.observe(
@@ -196,7 +200,7 @@ class Tofu {
     return cache;
   }
 
-  Future<bool> _succeeds(_TofuCmd command) async {
+  Future<bool> _succeeds(TofuCmd command) async {
     final ProcessOutcome outcome = await _run(command);
     if (outcome.succeeded) return true;
 
@@ -204,44 +208,4 @@ class Tofu {
 
     return false;
   }
-}
-
-/// OpenTofu (or Terraform, which reads the same configuration), in the flags this file reaches
-/// for.
-///
-/// [executable] is not fixed the way `fiber_shell`'s own wrappers are: a test points [Tofu] at
-/// whatever binary the machine actually has, `tofu` or `terraform`, so this one takes it in its
-/// constructor instead.
-class _TofuCmd extends CommandBuilder<_TofuCmd> {
-  _TofuCmd(this.executable);
-
-  @override
-  final String executable;
-
-  /// Downloads the providers the configuration names (`init`).
-  _TofuCmd init() => token('init');
-
-  /// Says what applying would do, without doing it (`plan`).
-  _TofuCmd plan() => token('plan');
-
-  /// Creates what the configuration describes (`apply`).
-  _TofuCmd apply() => token('apply');
-
-  /// Destroys what this workspace created (`destroy`).
-  _TofuCmd destroy() => token('destroy');
-
-  /// Prints what the configuration declares under `output` (`output`).
-  _TofuCmd showOutput() => token('output');
-
-  /// Refuses to prompt, failing instead of waiting for an answer (`-input=false`).
-  _TofuCmd inputFalse() => token('-input=false');
-
-  /// Applies or destroys without asking for confirmation (`-auto-approve`).
-  _TofuCmd autoApprove() => token('-auto-approve');
-
-  /// Prints `output` as JSON (`-json`).
-  _TofuCmd json() => token('-json');
-
-  /// Strips the colour codes a terminal would otherwise add (`-no-color`).
-  _TofuCmd noColor() => token('-no-color');
 }

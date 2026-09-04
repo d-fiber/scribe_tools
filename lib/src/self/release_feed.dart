@@ -39,7 +39,6 @@ import 'dart:convert';
 import 'package:fiber_shell/fiber_shell.dart';
 import 'package:file/file.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
-import 'package:scribe_tools/src/self/gh_cmd.dart';
 import 'package:scribe_tools/src/self/version.dart';
 
 /// How long a cached "latest release" answer is trusted before refreshing it.
@@ -69,7 +68,7 @@ Future<String?> fetchLatestTag(String repository) async {
 
     if (globals.os.has('gh')) {
       return (await globals.processRunner.capture(
-        commandArgv(Gh.api().arg('repos/$repository/releases/latest').query('.tag_name')),
+        commandArgv(Gh.api().arg('repos/$repository/releases/latest').jq('.tag_name')),
       )).trim();
     }
   } catch (error) {

@@ -57,7 +57,7 @@ void main() {
         'winget',
         'install',
         '--silent',
-        '-e',
+        '--exact',
         '--id',
         'Docker.DockerDesktop',
       ]);
@@ -81,7 +81,7 @@ void main() {
     test('dnf installs a package, answering yes to every prompt, and needs privilege', () {
       final PackageManager dnf = _manager('dnf');
 
-      expect(commandArgv(dnf.installCommand('docker')), <String>['dnf', 'install', '-y', 'docker']);
+      expect(commandArgv(dnf.installCommand('docker')), <String>['dnf', 'install', '--assumeyes', 'docker']);
       expect(dnf.needsPrivilege, isTrue);
     });
 
