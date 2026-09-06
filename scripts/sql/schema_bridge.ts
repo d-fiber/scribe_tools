@@ -34,13 +34,17 @@
 // This header is a summary written for convenience. Where it differs from the
 // LICENSE file, the LICENSE file governs.
 
+import type { DbMoment } from "@scribe/alchemy";
 import {
-  declaredCompositeTypes,
+  declaredDrops,
   declaredEnums,
-  declaredSqlCronJobs,
-  declaredSqlFunctions,
-  declaredSqlTriggers,
+  declaredExtensions,
+  declaredGrants,
+  declaredIndexes,
+  declaredPolicies,
+  declaredSequences,
   declaredTables,
+  declaredTypes,
 } from "@scribe/alchemy";
 import { processArgs } from "@scribe/runtime/scholium/args.ts";
 
@@ -48,13 +52,24 @@ for (const path of processArgs()) {
   await import(path);
 }
 
+function moment(value: DbMoment) {
+  return {
+    tables: declaredTables(value),
+    indexes: declaredIndexes(value),
+    policies: declaredPolicies(value),
+    grants: declaredGrants(value),
+    sequences: declaredSequences(value),
+    enums: declaredEnums(value),
+    compositeTypes: declaredTypes(value),
+    extensions: declaredExtensions(value),
+    drops: declaredDrops(value),
+  };
+}
+
 console.log(
   JSON.stringify({
-    enums: declaredEnums(),
-    compositeTypes: declaredCompositeTypes(),
-    tables: declaredTables(),
-    functions: declaredSqlFunctions(),
-    triggers: declaredSqlTriggers(),
-    cronJobs: declaredSqlCronJobs(),
+    init: moment("init"),
+    migrations: moment("migrations"),
+    provisioning: moment("provisioning"),
   }),
 );

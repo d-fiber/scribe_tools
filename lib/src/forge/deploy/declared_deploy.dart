@@ -40,15 +40,15 @@ export 'package:scribe_tools/src/forge/sql/declared_sql_schema.dart'
     show
         DeclaredSqlColumn,
         DeclaredSqlCompositeType,
-        DeclaredSqlCronJob,
+        DeclaredSqlDrop,
         DeclaredSqlEnum,
-        DeclaredSqlFunction,
+        DeclaredSqlExtension,
+        DeclaredSqlGrant,
+        DeclaredSqlIndex,
+        DeclaredSqlPolicy,
+        DeclaredSqlSequence,
         DeclaredSqlTable,
-        DeclaredSqlTrigger,
-        SqlColumnType,
-        SqlCronJobOptions,
-        SqlFunctionOptions,
-        SqlTriggerOptions;
+        SqlColumnType;
 
 /// A package's whole `deploy/`, exactly as its `deploy/deploy.ts` declared it under `@Deploy`.
 class DeclaredDeploy {
@@ -193,10 +193,13 @@ class DeclaredDeploySchema {
     required this.tables,
     required this.enums,
     required this.compositeTypes,
-    required this.functions,
-    required this.triggers,
-    required this.cronJobs,
+    required this.indexes,
+    required this.policies,
+    required this.grants,
+    required this.sequences,
     required this.roles,
+    required this.extensions,
+    required this.drops,
     required this.raw,
   });
 
@@ -205,10 +208,13 @@ class DeclaredDeploySchema {
       tables.isEmpty &&
       enums.isEmpty &&
       compositeTypes.isEmpty &&
-      functions.isEmpty &&
-      triggers.isEmpty &&
-      cronJobs.isEmpty &&
+      indexes.isEmpty &&
+      policies.isEmpty &&
+      grants.isEmpty &&
+      sequences.isEmpty &&
       roles.isEmpty &&
+      extensions.isEmpty &&
+      drops.isEmpty &&
       raw.isEmpty;
 
   /// The tables this moment creates.
@@ -220,17 +226,26 @@ class DeclaredDeploySchema {
   /// The composite types this moment creates.
   final List<DeclaredSqlCompositeType> compositeTypes;
 
-  /// The functions this moment creates.
-  final List<DeclaredSqlFunction> functions;
+  /// The indexes this moment creates.
+  final List<DeclaredSqlIndex> indexes;
 
-  /// The triggers this moment creates.
-  final List<DeclaredSqlTrigger> triggers;
+  /// The row-level security policies this moment creates.
+  final List<DeclaredSqlPolicy> policies;
 
-  /// The scheduled jobs this moment creates.
-  final List<DeclaredSqlCronJob> cronJobs;
+  /// The privilege grants this moment creates.
+  final List<DeclaredSqlGrant> grants;
+
+  /// The standalone sequences this moment creates.
+  final List<DeclaredSqlSequence> sequences;
 
   /// The roles this moment creates.
   final List<DeclaredRole> roles;
+
+  /// The extensions this moment installs.
+  final List<DeclaredSqlExtension> extensions;
+
+  /// The retirements this moment carries out.
+  final List<DeclaredSqlDrop> drops;
 
   /// The raw statements this moment runs.
   final List<String> raw;
@@ -248,10 +263,13 @@ class DeclaredDeploySchema {
       tables: listOf('tables', DeclaredSqlTable.fromJson),
       enums: listOf('enums', DeclaredSqlEnum.fromJson),
       compositeTypes: listOf('compositeTypes', DeclaredSqlCompositeType.fromJson),
-      functions: listOf('functions', DeclaredSqlFunction.fromJson),
-      triggers: listOf('triggers', DeclaredSqlTrigger.fromJson),
-      cronJobs: listOf('cronJobs', DeclaredSqlCronJob.fromJson),
+      indexes: listOf('indexes', DeclaredSqlIndex.fromJson),
+      policies: listOf('policies', DeclaredSqlPolicy.fromJson),
+      grants: listOf('grants', DeclaredSqlGrant.fromJson),
+      sequences: listOf('sequences', DeclaredSqlSequence.fromJson),
       roles: listOf('roles', DeclaredRole.fromJson),
+      extensions: listOf('extensions', DeclaredSqlExtension.fromJson),
+      drops: listOf('drops', DeclaredSqlDrop.fromJson),
       raw: ((held['raw'] as List<dynamic>?) ?? const <dynamic>[])
           .map((dynamic e) => (e as Map<String, dynamic>)['sql'] as String)
           .toList(),

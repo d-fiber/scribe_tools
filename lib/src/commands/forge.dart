@@ -228,11 +228,18 @@ class ForgeCommand extends ScribeCommand {
 
     if (sql != null) {
       globals.logger.printStatus('');
-      globals.logger.printStatus(
-        '${sql.file} written from schema/: ${sql.enumCount} enum(s), ${sql.compositeTypeCount} composite '
-        'type(s), ${sql.tableCount} table(s), ${sql.functionCount} function(s), ${sql.triggerCount} '
-        'trigger(s), ${sql.cronJobCount} cron job(s).',
-      );
+      for (final GeneratedSqlMomentReport moment in sql.moments) {
+        globals.logger.printStatus(
+          '${moment.file} written from schema/, "${moment.moment}": '
+          '${moment.enumCount} enum(s), ${moment.compositeTypeCount} composite type(s), '
+          '${moment.tableCount} table(s), ${moment.sequenceCount} sequence(s), ${moment.indexCount} index(es), '
+          '${moment.policyCount} polic${moment.policyCount == 1 ? 'y' : 'ies'}, ${moment.grantCount} grant(s), '
+          '${moment.extensionCount} extension(s), ${moment.dropCount} drop(s).',
+        );
+      }
+      if (sql.contractsFile case final String contractsFile) {
+        globals.logger.printStatus('$contractsFile written from schema/, the TypeScript side of the same tables.');
+      }
     }
 
     return const ScribeCommandResult.success();
@@ -379,12 +386,25 @@ Map<String, Object?> forgePackageMachineReport(Sdk sdk, Resolution resolution, G
       'lockFile': resolution.lockFile,
       if (sql != null)
         'sql': <String, Object?>{
-          'file': sql.file,
           'enums': sql.enumCount,
           'compositeTypes': sql.compositeTypeCount,
-          'tables': sql.tableCount,
-          'functions': sql.functionCount,
-          'triggers': sql.triggerCount,
-          'cronJobs': sql.cronJobCount,
+          'moments': sql.moments
+              .map(
+                (GeneratedSqlMomentReport moment) => <String, Object?>{
+                  'moment': moment.moment,
+                  'file': moment.file,
+                  'tables': moment.tableCount,
+                  'sequences': moment.sequenceCount,
+                  'indexes': moment.indexCount,
+                  'policies': moment.policyCount,
+                  'grants': moment.grantCount,
+                  'enums': moment.enumCount,
+                  'compositeTypes': moment.compositeTypeCount,
+                  'extensions': moment.extensionCount,
+                  'drops': moment.dropCount,
+                },
+              )
+              .toList(),
+          'contractsFile': sql.contractsFile,
         },
     };

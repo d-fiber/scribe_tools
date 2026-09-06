@@ -404,44 +404,87 @@ String? _overlayYaml(String packageName, DeclaredDeploy deploy, {required bool h
   });
 }
 
+/// The empty moment every `_schemaSql` call that has nothing of its own to put under `migrations`
+/// or `provisioning` passes for those, since `emitSql` always wants all three.
+const DeclaredSqlMoment _kNoDeclarations = DeclaredSqlMoment(
+  tables: <DeclaredSqlTable>[],
+  indexes: <DeclaredSqlIndex>[],
+  policies: <DeclaredSqlPolicy>[],
+  grants: <DeclaredSqlGrant>[],
+  sequences: <DeclaredSqlSequence>[],
+  enums: <DeclaredSqlEnum>[],
+  compositeTypes: <DeclaredSqlCompositeType>[],
+  extensions: <DeclaredSqlExtension>[],
+  drops: <DeclaredSqlDrop>[],
+);
+
 /// The SQL `schema/` already knows how to render, reused for whatever `db.init` or `db.migrations`
-/// carries. Null when the moment declares no table, enum, composite type, function, trigger or
-/// scheduled job — the ordinary case for `migrations`.
+/// carries, followed by [DeclaredDeploySchema.drops]' own retirements and then its raw statements.
+/// Null when the moment declares nothing at all — the ordinary case for `migrations`.
+///
+/// Read back from `emitSql`'s own `init` field regardless of which real moment [schema] is: this
+/// call only ever wants one plain SQL body, with none of `emitSql`'s own moment-specific behavior
+/// — the `dbmate` markers it wraps `migrations` in — which is a `schema/`-only concern this older,
+/// hand-collected path predates. Drops are rendered here directly, with [emitDrop], rather than
+/// through `emitSql`, which only ever renders them into its own `migrations` slot.
 String? _schemaSql(String packageName, DeclaredDeploySchema schema) {
   final bool empty =
       schema.tables.isEmpty &&
       schema.enums.isEmpty &&
       schema.compositeTypes.isEmpty &&
-      schema.functions.isEmpty &&
-      schema.triggers.isEmpty &&
-      schema.cronJobs.isEmpty;
-  if (empty && schema.raw.isEmpty) return null;
+      schema.indexes.isEmpty &&
+      schema.policies.isEmpty &&
+      schema.grants.isEmpty &&
+      schema.sequences.isEmpty;
+  if (empty && schema.drops.isEmpty && schema.raw.isEmpty) return null;
 
   final String generated = empty
       ? ''
       : emitSql(
-          packageName: packageName,
-          schema: DeclaredSqlSchema(
-            enums: schema.enums,
-            compositeTypes: schema.compositeTypes,
-            tables: schema.tables,
-            functions: schema.functions,
-            triggers: schema.triggers,
-            cronJobs: schema.cronJobs,
-          ),
-        );
+              packageName: packageName,
+              schema: DeclaredSqlSchema(
+                init: DeclaredSqlMoment(
+                  tables: schema.tables,
+                  indexes: schema.indexes,
+                  policies: schema.policies,
+                  grants: schema.grants,
+                  sequences: schema.sequences,
+                  enums: schema.enums,
+                  compositeTypes: schema.compositeTypes,
+                  extensions: const <DeclaredSqlExtension>[],
+                  drops: const <DeclaredSqlDrop>[],
+                ),
+                migrations: _kNoDeclarations,
+                provisioning: _kNoDeclarations,
+              ),
+            ).init ??
+            '';
 
-  return '$generated${schema.raw.map((String statement) => '$statement\n').join()}';
+  final StringBuffer sql = StringBuffer(generated);
+  for (final DeclaredSqlDrop drop in schema.drops) {
+    sql.writeln(emitDrop(packageName, drop));
+  }
+  for (final String statement in schema.raw) {
+    sql.writeln(statement);
+  }
+  return sql.toString();
 }
 
-/// The SQL `db.provisioning` carries: a role's own creation block per `Role`, then every raw
-/// statement. Null when it declares neither.
+/// The SQL `db.provisioning` carries: a role's own creation block per `Role`, then every extension
+/// [DeclaredDeploySchema.extensions] installs, then every raw statement. Null when it declares
+/// none of the three.
+///
+/// Extensions are rendered here directly, with [emitExtension], rather than through `emitSql`,
+/// which only ever renders them into its own `provisioning` slot.
 String? _provisioningSql(DeclaredDeploySchema schema) {
-  if (schema.roles.isEmpty && schema.raw.isEmpty) return null;
+  if (schema.roles.isEmpty && schema.extensions.isEmpty && schema.raw.isEmpty) return null;
 
   final StringBuffer sql = StringBuffer();
   for (final DeclaredRole role in schema.roles) {
     sql.writeln(_roleSql(role));
+  }
+  for (final DeclaredSqlExtension extension in schema.extensions) {
+    sql.writeln(emitExtension(extension));
   }
   for (final String statement in schema.raw) {
     sql.writeln(statement);

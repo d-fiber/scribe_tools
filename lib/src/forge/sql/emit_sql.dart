@@ -40,63 +40,209 @@ import 'package:change_case/change_case.dart';
 import 'package:scribe_tools/src/base/common.dart';
 import 'package:scribe_tools/src/forge/sql/declared_sql_schema.dart';
 
-/// The SQL that provisions [schema] into [packageName]'s own schema.
+/// The SQL body for each of a package's three `db` moments that has anything to say.
 ///
-/// Every table, type and enum is qualified `<packageName>.<name>`, and nothing here creates that
-/// schema: `run-provision.sh` does, once, before playing a package's `deploy/db/init/` — the same
-/// division that keeps a package's SQL ignorant of the roles and the extensions the stack sets up
-/// around it.
+/// A moment [DeclaredSqlMoment.isEmpty] answers null here rather than an empty string, so
+/// `generate_package_sql.dart` can leave the file it would have gone under unwritten.
+class EmittedSql {
+  /// Holds the SQL body for each moment, null for one with nothing to say.
+  const EmittedSql({required this.init, required this.migrations, required this.provisioning});
+
+  /// The `init` moment's SQL.
+  final String? init;
+
+  /// The `migrations` moment's SQL, wrapped in the `-- migrate:up`/`-- migrate:down` sections
+  /// `dbmate` requires — see this file's own remarks on [emitSql] for what that does and does not buy.
+  final String? migrations;
+
+  /// The `provisioning` moment's SQL.
+  final String? provisioning;
+}
+
+/// The SQL that provisions [schema] into [packageName]'s own schema, one body per moment that has
+/// anything to say.
+///
+/// Every table, type, enum, sequence and extension is qualified `<packageName>.<name>` — an
+/// extension excepted, which installs into its own control file's schema, or [DeclaredSqlExtension.schema]
+/// when given — and nothing here creates that schema: `run-provision.sh` does, once, before
+/// playing a package's `deploy/db/init/` — the same division that keeps a package's SQL ignorant
+/// of the roles the stack sets up around it.
 ///
 /// A column's or a field's name is written in snake_case whatever case the object literal that
 /// declared it used, since a TypeScript author reaches for camelCase by reflex and every hand
-/// written column in this framework is snake_case. A table's, an enum's or a composite type's own
-/// name is never touched: it is a string an author already chose on purpose, not an object key.
+/// written column in this framework is snake_case. A table's, an enum's, a composite type's, an
+/// index's, a policy's, a sequence's or an extension's own name is never touched: it is a string
+/// an author already chose on purpose, not an object key.
 ///
-/// Enums come first, then composite types, then tables ordered so a table referenced by a foreign
-/// key is created before the table that carries it, then functions, then triggers, then scheduled
-/// jobs. Throws a [ToolExit] naming the tables when two or more of them reference each other in a
-/// cycle, since no order would satisfy every foreign key.
+/// Every declaration this renders is safe to replay: a table, an index, a sequence or an
+/// extension takes Postgres's own `if not exists`; an enum or a composite type, neither of which
+/// Postgres gives one to, is wrapped in a `do $$ ... end $$;` block that checks `to_regtype`
+/// first; a policy is dropped before it is recreated, the only way to make it safe since Postgres
+/// has no `create policy if not exists` either; switching on row-level security and revoking a
+/// privilege are each already idempotent in Postgres itself, needing neither guard; a retirement —
+/// what `Drop` declared — always carries `if exists` of its own. None of this is a choice a package
+/// makes any more: `schema/` itself carries no `ifExists` to turn off, `schema.md`'s own `## Drop`
+/// section gives the reason.
 ///
-/// A function is created before every trigger, since `create trigger` refuses to name one that
-/// does not exist yet. Nothing here checks that a trigger's table or function was actually
-/// declared: Postgres itself refuses a trigger naming either that does not exist.
-String emitSql({required String packageName, required DeclaredSqlSchema schema}) {
-  final StringBuffer sql = StringBuffer();
+/// Within one moment: enums come first, then composite types, then tables ordered so a table
+/// referenced by a foreign key is created before the table that carries it — each table's own
+/// `alter table ... enable row level security` and its revocations render immediately after that
+/// table's own `create table`, before the next table starts — then sequences, then indexes, then
+/// policies, then grants, then extensions, then retirements last of all. Throws a [ToolExit] naming
+/// the tables when two or more of them reference each other in a cycle, since no order would
+/// satisfy every foreign key — this ordering, and that refusal, only ever look within one moment: a
+/// foreign key spanning two different moments is not checked at all, `schema.md` gives the reason.
+///
+/// None of the four — an enum, a composite type, an extension, a retirement — carries a moment of
+/// its own any more: which of a package's three files each renders into is entirely a fact about
+/// which of `Schema`'s own batches, `dbSchema.init()`, `.migrations()` or `.provisioning()`, listed
+/// it, `schema.md`'s own `## Schema` section gives the reason. Nothing here judges whether a given
+/// placement makes sense — an extension batched under `init` renders there just the same as one
+/// batched under `provisioning`.
+///
+/// [EmittedSql.migrations] is wrapped in `dbmate`'s own `-- migrate:up`/`-- migrate:down` markers,
+/// without which the file is not valid input to it at all — but this buys only that much: `dbmate`
+/// tracks a migration by its file name and runs each name once, ever, while `scribe forge` rewrites
+/// this same file whole on every run. A table added to `migrations` after the first deployment
+/// that already applied this file's old content is never applied to it: `dbmate` sees the same
+/// name already recorded and skips it. Nothing here generates the timestamped, one-shot-per-change
+/// file `dbmate` actually expects for that to work, so a package that changes what it declares for
+/// `migrations` after its first deployment still has to carry the change by hand, the same as
+/// before this existed.
+///
+/// The `down` section of every `migrations` body is left empty on purpose: a declarative dump of
+/// what a moment creates has no reverse to offer without also declaring what to drop, and nothing
+/// here attempts to infer one.
+EmittedSql emitSql({required String packageName, required DeclaredSqlSchema schema}) {
+  final String? init = _emitMoment(packageName, schema.init);
+  final String? migrations = _emitMoment(packageName, schema.migrations);
+  final String? provisioning = _emitMoment(packageName, schema.provisioning);
 
-  for (final DeclaredSqlEnum declaredEnum in schema.enums) {
+  return EmittedSql(
+    init: init,
+    migrations: migrations == null
+        ? null
+        : '-- migrate:up transaction:false\n$migrations\n-- migrate:down transaction:false\n',
+    provisioning: provisioning,
+  );
+}
+
+String? _emitMoment(String packageName, DeclaredSqlMoment moment) {
+  if (moment.isEmpty) return null;
+
+  final StringBuffer sql = StringBuffer();
+  for (final DeclaredSqlEnum declaredEnum in moment.enums) {
     sql.writeln(_emitEnum(packageName, declaredEnum));
   }
-  for (final DeclaredSqlCompositeType compositeType in schema.compositeTypes) {
+  for (final DeclaredSqlCompositeType compositeType in moment.compositeTypes) {
     sql.writeln(_emitCompositeType(packageName, compositeType));
   }
-  for (final DeclaredSqlTable table in _orderedTables(schema.tables)) {
+  for (final DeclaredSqlTable table in _orderedTables(moment.tables)) {
     sql.writeln(_emitTable(packageName, table));
   }
-  for (final DeclaredSqlFunction function in schema.functions) {
-    sql.writeln(_emitFunction(packageName, function));
+  for (final DeclaredSqlSequence sequence in moment.sequences) {
+    sql.writeln(_emitSequence(packageName, sequence));
   }
-  for (final DeclaredSqlTrigger trigger in schema.triggers) {
-    sql.writeln(_emitTrigger(packageName, trigger));
+  for (final DeclaredSqlIndex index in moment.indexes) {
+    sql.writeln(_emitIndex(packageName, index));
   }
-  for (final DeclaredSqlCronJob cronJob in schema.cronJobs) {
-    sql.writeln(_emitCronJob(cronJob));
+  for (final DeclaredSqlPolicy policy in moment.policies) {
+    sql.writeln(_emitPolicy(packageName, policy));
+  }
+  for (final DeclaredSqlGrant grant in moment.grants) {
+    sql.writeln(_emitGrant(packageName, grant));
+  }
+  for (final DeclaredSqlExtension extension in moment.extensions) {
+    sql.writeln(emitExtension(extension));
+  }
+  for (final DeclaredSqlDrop drop in moment.drops) {
+    sql.writeln(emitDrop(packageName, drop));
   }
 
   return sql.toString();
 }
 
+/// Postgres has no `create type ... if not exists`, for an enum or a composite type alike: the
+/// `do $$ ... end $$;` block checks `to_regtype`, which answers null for a name that resolves to
+/// nothing rather than raising, before creating — the same idea as `create table if not exists`,
+/// spelled the only way Postgres lets a type reach for it.
 String _emitEnum(String packageName, DeclaredSqlEnum declaredEnum) {
-  final String values = declaredEnum.values.map((String value) => "  '$value'").join(',\n');
-  return 'create type $packageName.${declaredEnum.name} as enum (\n$values\n);\n';
+  final String values = declaredEnum.values.map((String value) => "      '$value'").join(',\n');
+  return 'do \$\$ begin\n'
+      "  if to_regtype('$packageName.${declaredEnum.name}') is null then\n"
+      '    create type $packageName.${declaredEnum.name} as enum (\n$values\n    );\n'
+      '  end if;\n'
+      'end \$\$;\n';
 }
 
 String _emitCompositeType(String packageName, DeclaredSqlCompositeType compositeType) {
   final String fields = compositeType.fields.entries
       .map(
-        (MapEntry<String, SqlColumnType> field) => '  ${field.key.toSnakeCase()} ${_sqlType(packageName, field.value)}',
+        (MapEntry<String, SqlColumnType> field) =>
+            '      ${field.key.toSnakeCase()} ${_sqlType(packageName, field.value)}',
       )
       .join(',\n');
-  return 'create type $packageName.${compositeType.name} as (\n$fields\n);\n';
+  return 'do \$\$ begin\n'
+      "  if to_regtype('$packageName.${compositeType.name}') is null then\n"
+      '    create type $packageName.${compositeType.name} as (\n$fields\n    );\n'
+      '  end if;\n'
+      'end \$\$;\n';
+}
+
+/// A sequence that outlives a single column — the case a column's own `identity` already covers
+/// with an implicit one — `owned by` tying its lifecycle to a column when [DeclaredSqlSequence.ownedBy]
+/// names one, exactly the way an implicit sequence already is.
+String _emitSequence(String packageName, DeclaredSqlSequence sequence) {
+  final StringBuffer sql = StringBuffer('create sequence if not exists $packageName.${sequence.name}');
+  if (sequence.as != null) sql.write('\n  as ${sequence.as}');
+  if (sequence.incrementBy != null) sql.write('\n  increment by ${sequence.incrementBy}');
+  switch (sequence.minValue) {
+    case 'none':
+      sql.write('\n  no minvalue');
+    case final int value:
+      sql.write('\n  minvalue $value');
+  }
+  switch (sequence.maxValue) {
+    case 'none':
+      sql.write('\n  no maxvalue');
+    case final int value:
+      sql.write('\n  maxvalue $value');
+  }
+  if (sequence.startWith != null) sql.write('\n  start with ${sequence.startWith}');
+  if (sequence.cache != null) sql.write('\n  cache ${sequence.cache}');
+  if (sequence.cycle) sql.write('\n  cycle');
+  if (sequence.ownedBy case final SqlSequenceOwner owner) {
+    sql.write('\n  owned by $packageName.${owner.table}.${owner.column}');
+  }
+  sql.write(';\n');
+  return sql.toString();
+}
+
+/// An extension's name is double-quoted since Postgres refuses several of the ones a package
+/// actually reaches for unquoted — `uuid-ossp`'s hyphen chief among them.
+String emitExtension(DeclaredSqlExtension extension) {
+  final StringBuffer sql = StringBuffer('create extension if not exists "${extension.name}"');
+  if (extension.schema != null) sql.write(' schema ${extension.schema}');
+  if (extension.version != null) sql.write(" version '${extension.version}'");
+  if (extension.cascade) sql.write(' cascade');
+  sql.write(';\n');
+  return sql.toString();
+}
+
+/// What `Drop` declared, rendered as the one statement that retires it. Every kind already carries
+/// its own `if exists`: a retirement that names an object already gone is exactly the ordinary
+/// case `db.migrations` replays into, not a mistake to refuse.
+String emitDrop(String packageName, DeclaredSqlDrop drop) {
+  final String cascade = drop.cascade ? ' cascade' : '';
+
+  return switch (drop) {
+    DeclaredSqlDropTable() => 'drop table if exists $packageName.${drop.name}$cascade;\n',
+    DeclaredSqlDropIndex() => 'drop index if exists $packageName.${drop.name}$cascade;\n',
+    DeclaredSqlDropType() => 'drop type if exists $packageName.${drop.name}$cascade;\n',
+    DeclaredSqlDropExtension() => 'drop extension if exists "${drop.name}"$cascade;\n',
+    final DeclaredSqlDropPolicy policy =>
+      'drop policy if exists ${policy.name} on $packageName.${policy.table}$cascade;\n',
+  };
 }
 
 String _emitTable(String packageName, DeclaredSqlTable table) {
@@ -115,7 +261,24 @@ String _emitTable(String packageName, DeclaredSqlTable table) {
   final String columns = table.columns.entries
       .map((MapEntry<String, DeclaredSqlColumn> column) => '  ${_emitColumn(packageName, column.key, column.value)}')
       .join(',\n');
-  return 'create table if not exists $packageName.${table.name} (\n$columns\n);\n';
+  final StringBuffer sql = StringBuffer('create table if not exists $packageName.${table.name} (\n$columns\n);\n');
+
+  if (table.rowLevelSecurity) {
+    sql.writeln('alter table $packageName.${table.name} enable row level security;');
+  }
+  for (final DeclaredSqlRevoke revoke in table.revokes) {
+    sql.writeln(_emitRevoke(packageName, table.name, revoke));
+  }
+
+  return sql.toString();
+}
+
+/// A `revoke` needs no `if exists`: Postgres already treats revoking a privilege nobody holds as an
+/// idempotent no-op, the mirror of what `grant.ts`'s own remarks give as the reason `_emitGrant`
+/// needs none either.
+String _emitRevoke(String packageName, String tableName, DeclaredSqlRevoke revoke) {
+  final String privileges = revoke.privileges == null ? 'all' : revoke.privileges!.join(', ');
+  return 'revoke $privileges on $packageName.$tableName from ${revoke.from.join(', ')};\n';
 }
 
 String _emitColumn(String packageName, String name, DeclaredSqlColumn column) {
@@ -136,33 +299,56 @@ String _emitColumn(String packageName, String name, DeclaredSqlColumn column) {
   return line.toString();
 }
 
-String _emitFunction(String packageName, DeclaredSqlFunction function) {
-  final SqlFunctionOptions options = function.options;
-  final StringBuffer sql = StringBuffer('create or replace function $packageName.${function.name}()\n')
-    ..write('returns ${options.returns}\n')
-    ..write('language ${options.language}\n');
-  if (options.security == 'definer') sql.write('security definer\n');
-  if (options.searchPath != null) sql.write('set search_path = ${options.searchPath}\n');
-  sql.write('as \$\$\n${options.body}\n\$\$;\n');
+String _emitIndex(String packageName, DeclaredSqlIndex index) {
+  final SqlIndexOptions options = index.options;
+  final StringBuffer sql = StringBuffer(
+    options.unique ? 'create unique index if not exists ' : 'create index if not exists ',
+  )..write('${index.name} on $packageName.${options.table}');
+  if (options.using != null) sql.write(' using ${options.using}');
+  sql.write(' (${options.columns.join(', ')})');
+  if (options.where != null) sql.write(' where ${options.where}');
+  sql.write(';\n');
   return sql.toString();
 }
 
-String _emitTrigger(String packageName, DeclaredSqlTrigger trigger) {
-  final SqlTriggerOptions options = trigger.options;
-  final String events = options.events.join(' or ');
-  final StringBuffer sql = StringBuffer('drop trigger if exists ${trigger.name} on $packageName.${options.table};\n')
-    ..write('create trigger ${trigger.name}\n')
-    ..write('  ${options.timing} $events on $packageName.${options.table}\n')
-    ..write('  for each ${options.forEach}\n')
-    ..write('  execute function $packageName.${options.function}();\n');
+/// Postgres has no `create policy if not exists`: a policy is dropped first, the same idiom
+/// `_emitTrigger` used to reach for before triggers themselves were dropped from `schema/`, and
+/// still the only way to make a declarative policy dump safe to run more than once.
+String _emitPolicy(String packageName, DeclaredSqlPolicy policy) {
+  final SqlPolicyOptions options = policy.options;
+  final StringBuffer sql = StringBuffer('drop policy if exists ${policy.name} on $packageName.${options.table};\n')
+    ..write('create policy ${policy.name} on $packageName.${options.table}');
+  if (options.kind != null) sql.write(' as ${options.kind}');
+  sql.write(' for ${options.command ?? 'all'}');
+  if (options.to case final List<String> to when to.isNotEmpty) sql.write(' to ${to.join(', ')}');
+  if (options.using != null) sql.write(' using (${options.using})');
+  if (options.withCheck != null) sql.write(' with check (${options.withCheck})');
+  sql.write(';\n');
   return sql.toString();
 }
 
-String _emitCronJob(DeclaredSqlCronJob cronJob) {
-  final SqlCronJobOptions options = cronJob.options;
-  final String command = options.command.replaceAll("'", "''");
-  return "select cron.schedule('${cronJob.name}', '${options.schedule}', '$command');\n";
+/// A `grant` needs no `if not exists`: Postgres already treats granting the same privilege twice
+/// as an idempotent no-op, `grant.ts`'s own remarks give the reason.
+String _emitGrant(String packageName, DeclaredSqlGrant grant) {
+  final SqlGrantOptions options = grant.options;
+  final String privileges = options.privileges == null ? 'all privileges' : options.privileges!.join(', ');
+  final StringBuffer sql = StringBuffer('grant $privileges on ${_grantObjectSql(packageName, options.on)} ')
+    ..write('to ${options.to.join(', ')}');
+  if (options.withGrantOption == true) sql.write(' with grant option');
+  sql.write(';\n');
+  return sql.toString();
 }
+
+String _grantObjectSql(String packageName, SqlGrantObject on) => switch (on.kind) {
+  'table' => 'table $packageName.${on.name}',
+  'sequence' => 'sequence $packageName.${on.name}',
+  'schema' => 'schema ${on.name}',
+  'function' => 'function $packageName.${on.name}',
+  'type' => 'type $packageName.${on.name}',
+  'domain' => 'domain $packageName.${on.name}',
+  'database' => 'database ${on.name}',
+  _ => throwToolExit('unknown grant object kind "${on.kind}", the schema bridge and this renderer have drifted apart.'),
+};
 
 String _onDeleteSql(String onDelete) => switch (onDelete) {
   'cascade' => 'cascade',
@@ -178,13 +364,16 @@ String _sqlType(String packageName, SqlColumnType type) => switch (type.kind) {
   'bigint' => 'bigint',
   'integer' => 'integer',
   'boolean' => 'boolean',
-  'timestamptz' => 'timestamptz',
+  'timestamp' => 'timestamptz',
   'jsonb' => 'jsonb',
   'bigserial' => 'bigserial',
   'enum' => '$packageName.${type.name}',
   'composite' => '$packageName.${type.name}',
   'array' => '${_sqlType(packageName, type.of!)}[]',
-  _ => throwToolExit('unknown column type "${type.kind}", the schema bridge and this renderer have drifted apart.'),
+  _ => throwToolExit(
+    'column type "${type.kind}" has no renderer yet: this covers a smaller vocabulary than '
+    '`ColumnType` accepts, and this kind is outside it.',
+  ),
 };
 
 /// [tables], ordered so a table referenced by a foreign key comes before the table that carries it.
