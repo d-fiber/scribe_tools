@@ -255,6 +255,12 @@ class SizingRules {
       'worker' => <String, String>{
         'worker_max_old_space': '${_clamp(memory * _oldSpaceShare - _v8Overhead, _bootableHeap, 8192)}',
       },
+      'init' => <String, String>{
+        'init_max_old_space': '${_clamp(memory * _oldSpaceShare - _v8Overhead, _bootableHeap, 8192)}',
+      },
+      'run' => <String, String>{
+        'run_max_old_space': '${_clamp(memory * _oldSpaceShare - _v8Overhead, _bootableHeap, 8192)}',
+      },
       'kong' => <String, String>{
         'kong_nginx_worker_processes': '${_parallelism(4)}',
         'kong_keepalive_pool': '${_clamp(hardware.cores * 32, 128, 2048)}',

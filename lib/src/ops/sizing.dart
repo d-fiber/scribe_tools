@@ -265,6 +265,14 @@ class ComposeRender {
         maxOldSpaceMb: sizing['worker_max_old_space']!,
         entryPoint: '/app/scribe/engine/shell/platform/worker/main.ts',
       ),
+      'runtime_command_init': _runtimeCommand(
+        maxOldSpaceMb: sizing['init_max_old_space']!,
+        entryPoint: '/app/scribe/engine/shell/platform/lifecycle/init.ts',
+      ),
+      'runtime_command_run': _runtimeCommand(
+        maxOldSpaceMb: sizing['run_max_old_space']!,
+        entryPoint: '/app/scribe/engine/shell/platform/lifecycle/run.ts',
+      ),
     };
 
     globals.logger.printTrace('[sizing] hardware $hardware');
