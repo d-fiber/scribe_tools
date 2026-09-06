@@ -205,7 +205,7 @@ void main() {
           'name: $name\nversion: $version\n\nenvironment:\n  scribe: "^1.0.0"\n\ndependencies:\n$dependencies',
         );
 
-    test('naming a package pulls in what its manifest depends on', () {
+    test('naming a package without naming what it depends on is refused', () {
       final Directory root = _root();
       _package(root, 'foundation');
       _package(root, 'sessions');
@@ -215,7 +215,33 @@ void main() {
 
       final Packages found = Packages.load(root: root);
 
-      expect(_namesOf(found.transitive(const <String>['auth'])), <String>['foundation', 'auth', 'sessions']);
+      expect(
+        () => found.transitive(const <String>['auth']),
+        throwsA(
+          isA<Exception>().having(
+            (Exception error) => error.toString(),
+            'message',
+            contains('sessions: auth depends on it, and config.yaml does not mount it'),
+          ),
+        ),
+      );
+    });
+
+    test('naming a package alongside what it depends on mounts both, and nothing more', () {
+      final Directory root = _root();
+      _package(root, 'foundation');
+      _package(root, 'sessions');
+      manifest(root, 'sessions');
+      _package(root, 'auth');
+      manifest(root, 'auth', dependencies: '  sessions: ^1.0.0\n');
+
+      final Packages found = Packages.load(root: root);
+
+      expect(_namesOf(found.transitive(const <String>['auth', 'sessions'])), <String>[
+        'foundation',
+        'auth',
+        'sessions',
+      ]);
     });
 
     test('a package with no manifest declares nothing, and is neither refused nor expanded', () {
@@ -228,7 +254,7 @@ void main() {
       expect(_namesOf(found.transitive(const <String>['auth'])), <String>['foundation', 'auth']);
     });
 
-    test('a diamond is walked once, and a cycle terminates', () {
+    test('two packages sharing a dependency are each checked against it, once it is named', () {
       final Directory root = _root();
       _package(root, 'foundation');
       _package(root, 'sessions');
@@ -240,7 +266,7 @@ void main() {
 
       final Packages found = Packages.load(root: root);
 
-      expect(_namesOf(found.transitive(const <String>['realtime'])), <String>[
+      expect(_namesOf(found.transitive(const <String>['realtime', 'sessions', 'auth'])), <String>[
         'foundation',
         'realtime',
         'sessions',
@@ -248,7 +274,45 @@ void main() {
       ]);
     });
 
-    test('a dependency the checkout carries but with no manifest is refused the same way', () {
+    test('two packages that depend on each other do not loop, once both are named', () {
+      final Directory root = _root();
+      _package(root, 'foundation');
+      _package(root, 'auth');
+      manifest(root, 'auth', dependencies: '  realtime: ^1.0.0\n');
+      _package(root, 'realtime');
+      manifest(root, 'realtime', dependencies: '  auth: ^1.0.0\n');
+
+      final Packages found = Packages.load(root: root);
+
+      expect(_namesOf(found.transitive(const <String>['auth', 'realtime'])), <String>[
+        'foundation',
+        'auth',
+        'realtime',
+      ]);
+    });
+
+    test('a mounted dependency with no manifest is refused as unknown, not as unmounted', () {
+      final Directory root = _root();
+      _package(root, 'foundation');
+      _package(root, 'sessions');
+      _package(root, 'auth');
+      manifest(root, 'auth', dependencies: '  sessions: ^1.0.0\n');
+
+      final Packages found = Packages.load(root: root);
+
+      expect(
+        () => found.transitive(const <String>['auth', 'sessions']),
+        throwsA(
+          isA<Exception>().having(
+            (Exception error) => error.toString(),
+            'message',
+            contains('sessions: auth depends on it, and this checkout carries no package of that name'),
+          ),
+        ),
+      );
+    });
+
+    test('an unmounted dependency with no manifest is refused as unknown, not as unmounted', () {
       final Directory root = _root();
       _package(root, 'foundation');
       _package(root, 'sessions');

@@ -319,45 +319,55 @@ class Packages {
     ];
   }
 
-  /// [selected] for [wanted], with what each of them depends on pulled in too.
+  /// [selected] for [wanted], checked against what each of them declares under
+  /// `dependencies:` in its own `package.yaml`.
   ///
-  /// A package mounted by name asks for what its own `package.yaml` declares
-  /// under `dependencies:`, breadth first so a diamond costs one visit and a
-  /// cycle terminates. Unlike resolving one in isolation in
-  /// `package/resolution.dart`, this never fetches anything of its own: a
-  /// project vendors one copy of everything, so a name is checked against what
-  /// the project already mounts, [selected] included, rather than searched for
-  /// a second time. A [SdkSource] entry is also checked against the version
-  /// the project actually mounts, because a package written against a version
-  /// this checkout does not ship would otherwise fail far from the line that
-  /// named it; a [PathSource] or a [GitSource] carries no version to compare,
-  /// so only its presence is asked for.
+  /// This never mounts anything [selected] would not have: a package that
+  /// depends on a neighbour must have that neighbour named in [wanted] too, the
+  /// same way [selected]'s own doc says a package is mounted because a project
+  /// named it and for no other reason. A name missing from [wanted] is refused
+  /// by that fact alone, even when this checkout carries a package of that name
+  /// somewhere else, because silently reaching for it would make `config.yaml`
+  /// stop being the complete list of what a project mounts. A [SdkSource] entry
+  /// is also checked against the version the project actually mounts, because a
+  /// package written against a version this checkout does not ship would
+  /// otherwise fail far from the line that named it; a [PathSource] or a
+  /// [GitSource] carries no version to compare, so only its presence is asked
+  /// for.
   ///
-  /// A package with no `package.yaml` declares nothing: [selected] already
-  /// recognises a directory as a package from artefacts other than the
-  /// manifest, and one that carries none is read as depending on nothing rather
-  /// than refused.
+  /// A package with no `package.yaml`, on either end of the check, declares and
+  /// answers for nothing: [selected] already recognises a directory as a
+  /// package from artefacts other than the manifest, and one that carries none
+  /// is read as depending on nothing rather than refused, the same way it is
+  /// read as satisfying nothing.
   ///
   /// Throws a [ToolExit] naming every dependency that could not be answered,
-  /// together: one this checkout carries nothing called, and one whose mounted
-  /// version does not satisfy what asked for it.
+  /// together: one this project does not mount, one this checkout carries
+  /// nowhere at all, and one whose mounted version does not satisfy what asked
+  /// for it.
   List<Package> transitive(List<String> wanted) {
     final List<Package> direct = selected(wanted);
-    final Map<String, Package> found = <String, Package>{for (final Package package in direct) package.name: package};
-    final List<Package> pending = List<Package>.of(direct);
+    final Map<String, Package> mounted = <String, Package>{for (final Package package in direct) package.name: package};
     final List<String> problems = <String>[];
 
-    while (pending.isNotEmpty) {
-      final Package current = pending.removeAt(0);
+    for (final Package current in mounted.values) {
       final File manifestFile = current.directory.childFile(kManifestFile);
       if (!manifestFile.existsSync()) continue;
 
       final Manifest manifest = Manifest.parse(manifestFile.readAsStringSync(), manifestFile.path);
       manifest.dependencies.forEach((String name, DependencySource source) {
-        final Package? dependency = found[name] ?? byName(name);
+        final Package? dependency = mounted[name];
         final File? dependencyManifestFile = dependency?.directory.childFile(kManifestFile);
         if (dependency == null || dependencyManifestFile == null || !dependencyManifestFile.existsSync()) {
-          problems.add('$name: ${manifest.name} depends on it, and this checkout carries no package of that name.');
+          final Package? elsewhere = byName(name);
+          final File? elsewhereManifestFile = elsewhere?.directory.childFile(kManifestFile);
+          if (elsewhere == null || elsewhereManifestFile == null || !elsewhereManifestFile.existsSync()) {
+            problems.add('$name: ${manifest.name} depends on it, and this checkout carries no package of that name.');
+          } else {
+            problems.add(
+              '$name: ${manifest.name} depends on it, and config.yaml does not mount it. Add it to dependencies: there.',
+            );
+          }
           return;
         }
 
@@ -373,10 +383,6 @@ class Packages {
             );
           }
         }
-
-        if (found.containsKey(name)) return;
-        found[name] = dependency;
-        pending.add(dependency);
       });
     }
 
@@ -387,11 +393,7 @@ class Packages {
       );
     }
 
-    return <Package>[
-      ...direct,
-      for (final Package package in found.values)
-        if (!direct.contains(package)) package,
-    ];
+    return direct;
   }
 
   /// What [mounted] freezes into a project's [kProjectLockFile]: every one of
