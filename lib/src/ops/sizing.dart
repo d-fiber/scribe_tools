@@ -263,15 +263,15 @@ class ComposeRender {
       ),
       'runtime_command_worker': _runtimeCommand(
         maxOldSpaceMb: sizing['worker_max_old_space']!,
-        entryPoint: '/app/scribe/engine/shell/platform/worker/main.ts',
+        entryPoint: '/app/scribe/engine/shell/entrypoints/worker.ts',
       ),
       'runtime_command_init': _runtimeCommand(
         maxOldSpaceMb: sizing['init_max_old_space']!,
-        entryPoint: '/app/scribe/engine/shell/platform/lifecycle/init.ts',
+        entryPoint: '/app/scribe/engine/shell/entrypoints/init.ts',
       ),
       'runtime_command_run': _runtimeCommand(
         maxOldSpaceMb: sizing['run_max_old_space']!,
-        entryPoint: '/app/scribe/engine/shell/platform/lifecycle/run.ts',
+        entryPoint: '/app/scribe/engine/shell/entrypoints/run.ts',
       ),
     };
 
