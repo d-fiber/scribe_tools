@@ -228,11 +228,11 @@ void main() {
     expect(deployProblems(root.path), isEmpty);
   });
 
-  test('a protocol directory with no proto file is reported', () {
+  test('a protocol directory with neither a proto nor a ts file is reported', () {
     scaffoldDeploy();
     Directory(p.join(root.path, 'protocol')).createSync(recursive: true);
 
-    expect(deployProblems(root.path).single, contains('its protocol/ holds no .proto file'));
+    expect(deployProblems(root.path).single, contains('its protocol/ holds no .proto or .ts file'));
   });
 
   test('a protocol directory carrying a proto file is not reported', () {
@@ -240,6 +240,15 @@ void main() {
     File(p.join(root.path, 'protocol', 'queue.proto'))
       ..parent.createSync(recursive: true)
       ..writeAsStringSync('syntax = "proto3";\n');
+
+    expect(deployProblems(root.path), isEmpty);
+  });
+
+  test('a protocol directory carrying only a ts file is not reported', () {
+    scaffoldDeploy();
+    File(p.join(root.path, 'protocol', 'queue.ts'))
+      ..parent.createSync(recursive: true)
+      ..writeAsStringSync('export class QueueProtocol {}\n');
 
     expect(deployProblems(root.path), isEmpty);
   });

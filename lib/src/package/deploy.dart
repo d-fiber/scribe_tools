@@ -141,8 +141,16 @@ const List<String> kDeployEntries = <String>[
   'packages.env',
 ];
 
-/// The suffix of a file the stub generator compiles.
+/// The suffix of a file the stub generator compiles directly.
 const String kProtocolSuffix = '.proto';
+
+/// The suffix of a file the protocol bridge compiles into a `.proto`, `scribe forge` writes under
+/// `$kResolutionDirectory/$kGenDirectory/$kGenProtocolDirectory/`.
+///
+/// A `$kProtocolDirectory/` holding only this kind, no hand-written `.proto` at all, is exactly as
+/// valid as one holding only `.proto` — `_protocolProblems` accepts either, the same way
+/// `$kSchemaDirectory/` has only ever accepted `.ts`.
+const String kProtocolTsSuffix = '.ts';
 
 /// The suffix of a file the schema bridge compiles.
 const String kSchemaSuffix = '.ts';
@@ -301,11 +309,13 @@ List<String> _emptyOptionalDirectory(Directory directory, String label) {
 List<String> _protocolProblems(String directory) {
   final Directory protocol = globals.fs.directory(p.join(directory, kProtocolDirectory));
   if (!protocol.existsSync()) return const <String>[];
-  if (_holdsA(protocol, (String name) => name.endsWith(kProtocolSuffix))) return const <String>[];
+  if (_holdsA(protocol, (String name) => name.endsWith(kProtocolSuffix) || name.endsWith(kProtocolTsSuffix))) {
+    return const <String>[];
+  }
 
   const String problem =
-      'its $kProtocolDirectory/ holds no $kProtocolSuffix file, so the directory says it speaks to a '
-      'worker and nothing does.';
+      'its $kProtocolDirectory/ holds no $kProtocolSuffix or $kProtocolTsSuffix file, so the directory says it '
+      'speaks to a worker and nothing does.';
   return <String>[problem];
 }
 

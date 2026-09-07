@@ -248,7 +248,7 @@ void main() {
       final String at = sound();
       File(p.join(at, 'protocol', 'audiences.proto')).deleteSync();
 
-      expect(reported(at).single, contains('holds no .proto file'));
+      expect(reported(at).single, contains('holds no .proto or .ts file'));
     });
 
     holding('the mandatory deploy tree missing a moment', () {
