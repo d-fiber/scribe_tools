@@ -35,7 +35,7 @@
 // LICENSE file, the LICENSE file governs.
 
 import { declaredNodes, declaredProtocols, protocol } from "@scribe/alchemy";
-import { processArgs } from "@scribe/runtime/scholium/args.ts";
+import { processArgs } from "@scribe/scholium/args.ts";
 
 for (const path of processArgs()) {
   await import(path);

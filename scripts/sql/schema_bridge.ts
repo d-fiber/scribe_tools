@@ -46,7 +46,7 @@ import {
   declaredTables,
   declaredTypes,
 } from "@scribe/alchemy";
-import { processArgs } from "@scribe/runtime/scholium/args.ts";
+import { processArgs } from "@scribe/scholium/args.ts";
 
 for (const path of processArgs()) {
   await import(path);

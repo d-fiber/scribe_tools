@@ -35,7 +35,7 @@
 // LICENSE file, the LICENSE file governs.
 
 import { declaredDeploy } from "@scribe/alchemy";
-import { processArgs } from "@scribe/runtime/scholium/args.ts";
+import { processArgs } from "@scribe/scholium/args.ts";
 
 const [path] = processArgs();
 if (path) await import(path);
