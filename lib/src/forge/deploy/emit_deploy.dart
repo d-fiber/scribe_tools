@@ -54,7 +54,7 @@ class EmittedDeployFile {
 }
 
 /// Every file `deploy/`'s generated half carries, rendered from [deploy], [packageName]'s own
-/// `@Deploy` declaration.
+/// `Deploy` declaration.
 ///
 /// [handWrittenInit] says whether `deploy/db/init/` already carries real SQL nothing here wrote —
 /// a package without a `schema/` still writes that SQL by hand, and `overlay.yaml` has to mount it

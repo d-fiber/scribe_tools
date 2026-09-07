@@ -51,7 +51,7 @@ import 'package:scribe_tools/src/templates.dart';
 /// `kBridgeScriptPathSegments` in `forge/sql/schema_bridge_process.dart` does.
 const List<String> kDeployBridgeScriptPathSegments = <String>['deploy', 'deploy_bridge.ts'];
 
-/// The `@Deploy` declaration read by importing [source] under [runtime], resolved against
+/// The `Deploy` declaration read by importing [source] under [runtime], resolved against
 /// [resolution].
 ///
 /// Throws a [ToolExit] when the bridge leaves with a failure — two `Service` calls naming the same

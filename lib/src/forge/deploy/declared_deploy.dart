@@ -50,9 +50,9 @@ export 'package:scribe_tools/src/forge/sql/declared_sql_schema.dart'
         DeclaredSqlTable,
         SqlColumnType;
 
-/// A package's whole `deploy/`, exactly as its `deploy/deploy.ts` declared it under `@Deploy`.
+/// A package's whole `deploy/`, exactly as its `deploy/deploy.ts` declared it with `Deploy`.
 class DeclaredDeploy {
-  /// Holds what the bridge read off the package's one `@Deploy` declaration.
+  /// Holds what the bridge read off the package's one `Deploy` declaration.
   const DeclaredDeploy({required this.db, required this.services, required this.recipes, required this.configuration});
 
   /// The SQL this package hands the database, by the moment it plays at.
@@ -67,7 +67,7 @@ class DeclaredDeploy {
   /// What a project may tune and must place before this package can run.
   final DeclaredConfiguration configuration;
 
-  /// Reads a whole `@Deploy` declaration from the JSON the bridge prints.
+  /// Reads a whole `Deploy` declaration from the JSON the bridge prints.
   factory DeclaredDeploy.fromJson(Map<String, dynamic> json) {
     final Map<String, dynamic> options = json['options'] as Map<String, dynamic>;
 

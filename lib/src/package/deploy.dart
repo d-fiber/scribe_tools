@@ -114,7 +114,7 @@ const List<String> kMandatoryServiceFragments = <String>['capacity.yaml', 'docke
 const String kRecipeContract = 'contract.yaml';
 
 /// The file a package writes `deploy/deploy.ts` under, the sole source `scribe forge` reads when
-/// it renders the rest of `deploy/` from a package's `@Deploy` declaration.
+/// it renders the rest of `deploy/` from a package's `Deploy` declaration.
 ///
 /// Its presence is what tells [deployProblems] the generated entries of [kDeployEntries] —
 /// `services/`, `recipes/`, `overlay.yaml`, `configuration.yaml`, `packages.env` — are owned by
@@ -128,7 +128,7 @@ const String kDeployDeclarationFile = 'deploy.ts';
 ///
 /// `db` is the only one a package cannot omit. `services/` holds one directory per service,
 /// `recipes/` one per resource type, and the four files are read where they sit: `deploy.ts` is
-/// the source a package's `@Deploy` declares against, `overlay.yaml` mounts `deploy/db/` into a
+/// the source a package's `Deploy` call declares against, `overlay.yaml` mounts `deploy/db/` into a
 /// base service, `configuration.yaml` names what a project tunes and requires, `packages.env` is
 /// the package's own slice of the environment.
 const List<String> kDeployEntries = <String>[

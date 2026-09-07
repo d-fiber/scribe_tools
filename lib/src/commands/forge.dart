@@ -45,6 +45,7 @@ import 'package:scribe_tools/src/forge/di_wiring.dart';
 import 'package:scribe_tools/src/forge/registrations.dart';
 import 'package:scribe_tools/src/forge/scribe_config.dart';
 import 'package:scribe_tools/src/forge/sql/generate_package_sql.dart';
+import 'package:scribe_tools/src/forge/sql/generate_project_contracts.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/ops/configuration.dart';
 import 'package:scribe_tools/src/package/layout.dart';
@@ -156,6 +157,7 @@ class ForgeCommand extends ScribeCommand {
           dryRun: dryRun,
           lockFile: result.lockFile,
           scribeVersion: result.scribeVersion,
+          contracts: result.contracts,
         ),
       );
 
@@ -179,6 +181,18 @@ class ForgeCommand extends ScribeCommand {
       globals.logger.printStatus(
         '${result.lockFile} written, freezing what this project mounts at ${result.scribeVersion}.',
       );
+    }
+
+    if (result.contracts case final GeneratedProjectContractsReport contracts) {
+      for (final String file in contracts.files) {
+        globals.logger.printStatus("$file written, one mounted package's enums, types and tables.");
+      }
+      for (final String skipped in contracts.skipped) {
+        globals.logger.printStatus(
+          '$skipped carries a schema/ but has never been forged itself, so its contracts were not '
+          'written: run scribe forge in it first.',
+        );
+      }
     }
 
     globals.logger.printStatus('');
@@ -273,7 +287,12 @@ class ForgeCommand extends ScribeCommand {
 /// What forging a project produced.
 class ProjectForgeResult {
   /// Records what [ConfigurationAudit] found, and what writing it left behind.
-  const ProjectForgeResult({required this.report, required this.lockFile, required this.scribeVersion});
+  const ProjectForgeResult({
+    required this.report,
+    required this.lockFile,
+    required this.scribeVersion,
+    required this.contracts,
+  });
 
   /// What each file of `configuration/` came out as.
   final AuditReport report;
@@ -283,6 +302,9 @@ class ProjectForgeResult {
 
   /// The framework version the lock freezes against, null when nothing was written.
   final String? scribeVersion;
+
+  /// What generating every mounted package's TypeScript contracts produced, null when nothing was written.
+  final GeneratedProjectContractsReport? contracts;
 }
 
 /// Forges [project]: writes `configuration/`, then, unless [write] is false,
@@ -317,6 +339,7 @@ Future<ProjectForgeResult> forgeProject(Project project, {bool write = true, boo
 
   String? lockPath;
   String? scribeVersion;
+  GeneratedProjectContractsReport? contracts;
 
   if (write) {
     scribeVersion = findSdk(from: project.sdk.path).version;
@@ -329,6 +352,7 @@ Future<ProjectForgeResult> forgeProject(Project project, {bool write = true, boo
       await generateRegistrations(packages: packages);
       await generateDeclarations(packages: packages);
       await generateDiWiring();
+      contracts = await generateProjectContracts(project, mounted);
     }
 
     if (quiet) {
@@ -343,7 +367,7 @@ Future<ProjectForgeResult> forgeProject(Project project, {bool write = true, boo
     }
   }
 
-  return ProjectForgeResult(report: report, lockFile: lockPath, scribeVersion: scribeVersion);
+  return ProjectForgeResult(report: report, lockFile: lockPath, scribeVersion: scribeVersion, contracts: contracts);
 }
 
 /// [report], in the shape `--machine` prints for a project.
@@ -357,6 +381,7 @@ Map<String, Object?> forgeProjectMachineReport(
   required bool dryRun,
   required String? lockFile,
   required String? scribeVersion,
+  required GeneratedProjectContractsReport? contracts,
 }) => <String, Object?>{
   'command': 'forge',
   'kind': 'project',
@@ -369,6 +394,7 @@ Map<String, Object?> forgeProjectMachineReport(
   'notices': report.notices,
   'lockFile': lockFile,
   'scribeVersion': scribeVersion,
+  if (contracts != null) 'contracts': <String, Object?>{'files': contracts.files, 'skipped': contracts.skipped},
 };
 
 /// What [resolution] resolved [sdk] to, in the shape `--machine` prints for a package.

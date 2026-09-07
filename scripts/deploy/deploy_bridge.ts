@@ -42,7 +42,7 @@ if (path) await import(path);
 
 const deploy = declaredDeploy();
 if (!deploy) {
-  throw new Error(`${path} declares no @Deploy. A deploy/deploy.ts that exists must carry exactly one.`);
+  throw new Error(`${path} declares no Deploy. A deploy/deploy.ts that exists must carry exactly one.`);
 }
 
 console.log(JSON.stringify(deploy));

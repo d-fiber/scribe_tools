@@ -205,6 +205,7 @@ class DaemonCommand extends ScribeCommand {
         dryRun: false,
         lockFile: result.lockFile,
         scribeVersion: result.scribeVersion,
+        contracts: result.contracts,
       );
     }
 
