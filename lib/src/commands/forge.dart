@@ -262,7 +262,7 @@ class ForgeCommand extends ScribeCommand {
       globals.logger.printStatus('');
       for (final GeneratedProtoFileReport file in proto.files) {
         globals.logger.printStatus(
-          '${file.file} written from protocol/, "${file.contract}": '
+          '${file.file} written from its "${file.contract}" @Proto(...) class: '
           '${file.messageCount} message(s), ${file.enumCount} enum(s), ${file.serviceCount} service(s).',
         );
       }

@@ -40,7 +40,6 @@ import 'package:scribe_tools/src/forge/protocol/declared_proto_contract.dart';
 import 'package:scribe_tools/src/forge/protocol/emit_proto.dart';
 import 'package:scribe_tools/src/forge/protocol/protocol_bridge_process.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
-import 'package:scribe_tools/src/package/deploy.dart';
 import 'package:scribe_tools/src/package/layout.dart';
 import 'package:scribe_tools/src/package/manifest.dart';
 import 'package:scribe_tools/src/package/resolution.dart';
@@ -73,7 +72,7 @@ class GeneratedProtoFileReport {
   final int serviceCount;
 }
 
-/// What forging a package's `protocol/` into `.proto` produced.
+/// What forging a package's `@Proto(...)` classes into `.proto` produced.
 class GeneratedProtoReport {
   /// Holds one file report per `@Proto(...)` class the bridge found.
   const GeneratedProtoReport({required this.files});
@@ -83,22 +82,22 @@ class GeneratedProtoReport {
 }
 
 /// Rebuilds [directory]'s `$kResolutionDirectory/$kGenDirectory/$kGenProtoDirectory/`, one
-/// `.proto` file per `@Proto(...)` class found under its `$kProtocolDirectory/`, resolved against
-/// [resolution].
+/// `.proto` file per `@Proto(...)` class found anywhere under it, resolved against [resolution].
 ///
-/// Answers null and writes nothing when `$kProtocolDirectory/` carries no `.ts` file at all: a
-/// package whose `protocol/` is hand-written `.proto` only has nothing here to render, the same
-/// way `generatePackageSql` answers null for a package that hand-writes its SQL. A hand-written
+/// The search is not limited to `protocol/`: a `@Proto(...)` class lives wherever its package
+/// keeps its source, `lib/` included, and [protocolSourceFiles] matches the decorator's own name
+/// to find it. Answers null and writes nothing when the package carries none at all: one whose
+/// `protocol/` is hand-written `.proto` only has nothing here to render, the same way
+/// `generatePackageSql` answers null for a package that hand-writes its SQL. A hand-written
 /// `.proto` is left exactly where it is — nothing here copies or touches it.
 ///
 /// The whole output directory is wiped and rewritten on every call, never patched: a `@Proto` class
 /// renamed or removed must not leave a stale `.proto` behind with nothing to say it no longer comes
-/// from `protocol/`, the same reasoning `generatePackageSql`'s own doc gives for
+/// from a `@Proto(...)` class, the same reasoning `generatePackageSql`'s own doc gives for
 /// `$kGeneratedSchemaFile`. Nothing under `deploy/` is read or written here — this is additive,
 /// alongside it, never a replacement for it.
 Future<GeneratedProtoReport?> generatePackageProtocol(String directory, Resolution resolution) async {
-  final Directory protocolDirectory = globals.fs.directory(p.join(directory, kProtocolDirectory));
-  final List<File> sourceFiles = protocolSourceFiles(protocolDirectory);
+  final List<File> sourceFiles = protocolSourceFiles(globals.fs.directory(directory));
   if (sourceFiles.isEmpty) return null;
 
   final File manifestFile = globals.fs.file(p.join(directory, kManifestFile));

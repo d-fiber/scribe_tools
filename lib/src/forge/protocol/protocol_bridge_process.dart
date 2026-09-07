@@ -51,16 +51,42 @@ import 'package:scribe_tools/src/templates.dart';
 /// than inside the checkout it runs against.
 const List<String> kProtocolBridgeScriptPathSegments = <String>['protocol', 'protocol_bridge.ts'];
 
-/// Every `.ts` file under [protocolDirectory], sorted, which is the order the bridge imports them in.
-List<File> protocolSourceFiles(Directory protocolDirectory) {
-  if (!protocolDirectory.existsSync()) return const <File>[];
+/// Directory names a protocol scan never descends into: generated output and package caches,
+/// neither of which can hold a `@Proto(...)` class a package author wrote by hand.
+const Set<String> _kProtocolScanSkips = <String>{'node_modules'};
 
-  final List<File> found = protocolDirectory
-      .listSync(recursive: true, followLinks: false)
-      .whereType<File>()
-      .where((File file) => file.path.endsWith('.ts'))
-      .toList();
+/// Every `.ts` file under [packageDirectory] whose text names the `@Proto` decorator, sorted,
+/// which is the order the bridge imports them in.
+///
+/// A `@Proto(...)` class is found wherever a package keeps its source, not only under a
+/// `protocol/` reserved for it: some packages hand-write their own `.proto` there instead and
+/// never carry a `.ts` to compile, and one that keeps its contracts under `lib/`, the way
+/// `foundation` does, would never be found by a scan limited to `protocol/`. Matching the
+/// decorator's own name in the file's text first, rather than importing every `.ts` file blind,
+/// keeps a file with a genuine side effect at import time from running merely because it happened
+/// to sit in the package. A dotted directory, `.scribe/` included, is skipped the same way
+/// [_kProtocolScanSkips] is: nothing generated or gitignored under one was ever a source.
+List<File> protocolSourceFiles(Directory packageDirectory) {
+  if (!packageDirectory.existsSync()) return const <File>[];
 
+  final List<File> found = <File>[];
+
+  void walk(Directory directory) {
+    for (final FileSystemEntity entity in directory.listSync(followLinks: false)) {
+      final String name = p.basename(entity.path);
+      if (entity is Directory) {
+        if (name.startsWith('.') || _kProtocolScanSkips.contains(name)) continue;
+        walk(entity);
+      } else if (entity is File &&
+          name.endsWith('.ts') &&
+          !name.startsWith('.') &&
+          entity.readAsStringSync().contains('@Proto(')) {
+        found.add(entity);
+      }
+    }
+  }
+
+  walk(packageDirectory);
   return found..sort((File a, File b) => a.path.compareTo(b.path));
 }
 
