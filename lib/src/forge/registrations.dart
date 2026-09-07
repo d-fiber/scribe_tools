@@ -58,8 +58,7 @@ Future<void> generateRegistrations({Packages? packages}) async {
 
   await globals.project.generated.sdk.create();
   await globals.project.generated.sdk.registrations.writeAsString(
-    '// This file is auto-generated do not edit manually.\n'
-    '// Run: $kToolName gen code\n'
+    '${generatedFileHeader('gen code')}'
     '\n'
     '${names.map((String name) => 'import { scribe as _$name } from "@scribe/$name";').join('\n')}'
     '${names.isEmpty ? '' : '\n'}'

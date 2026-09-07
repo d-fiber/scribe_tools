@@ -92,8 +92,7 @@ Future<void> generateDiWiring() async {
 
   await globals.project.generated.sdk.create();
   await globals.project.generated.sdk.di.writeAsString(
-    '// This file is auto-generated do not edit manually.\n'
-    '// Run: $kToolName forge\n'
+    '${generatedFileHeader('forge')}'
     '\n'
     '${files.map((String file) => 'import "${_specifierOf(file)}";').join('\n')}'
     '${files.isEmpty ? '' : '\n'}',

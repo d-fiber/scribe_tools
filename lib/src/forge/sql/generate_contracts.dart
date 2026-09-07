@@ -83,7 +83,9 @@ String? emitContracts(DeclaredSqlSchema schema) {
   ];
   if (enums.isEmpty && compositeTypes.isEmpty && tables.isEmpty) return null;
 
-  final StringBuffer out = StringBuffer();
+  final StringBuffer out = StringBuffer()
+    ..write(generatedFileHeader('forge'))
+    ..writeln();
   for (final DeclaredSqlEnum declaredEnum in enums) {
     out.writeln(_emitEnum(declaredEnum));
   }

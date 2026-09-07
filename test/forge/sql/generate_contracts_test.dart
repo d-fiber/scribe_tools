@@ -87,6 +87,14 @@ void main() {
     expect(contracts, contains('export enum BookingStatus {\n  Pending = "pending",\n  Confirmed = "confirmed",\n}'));
   });
 
+  test('the file opens with a header naming the tool and the command that rewrites it', () {
+    const DeclaredSqlEnum declaredEnum = DeclaredSqlEnum(name: 'booking_status', values: <String>['pending']);
+
+    final String contracts = emitContracts(_initSchemaOf(enums: <DeclaredSqlEnum>[declaredEnum]))!;
+
+    expect(contracts, startsWith('// This file is auto-generated do not edit manually.\n// Run: scribe forge\n\n'));
+  });
+
   test('an enum batched under migrations or provisioning still becomes a contract', () {
     const DeclaredSqlEnum declaredEnum = DeclaredSqlEnum(name: 'legacy_status', values: <String>['open']);
     const DeclaredSqlSchema schema = DeclaredSqlSchema(

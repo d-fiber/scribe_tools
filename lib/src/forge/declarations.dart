@@ -81,9 +81,7 @@ Future<void> generateDeclarations({Packages? packages}) async {
 /// at all. Nothing then asks it for one, since it is a mounted package that makes
 /// the host call for a kind.
 String renderDeclarations(Map<DeclaredKind, List<String>> found) {
-  final StringBuffer buffer = StringBuffer()
-    ..writeln('// This file is auto-generated do not edit manually.')
-    ..writeln('// Run: $kToolName gen code');
+  final StringBuffer buffer = StringBuffer()..write(generatedFileHeader('gen code'));
 
   for (final MapEntry<DeclaredKind, List<String>> entry in found.entries) {
     final String imports = entry.value.map((String file) => 'import("${specifierOf(file)}")').join(', ');

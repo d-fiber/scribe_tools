@@ -60,6 +60,8 @@ class EmittedProtoFile {
 /// encore" leaves open. This emits something `protoc` accepts today, not the final naming.
 EmittedProtoFile emitProtoContract({required String packageName, required DeclaredProtoContract contract}) {
   final StringBuffer buffer = StringBuffer()
+    ..write(generatedFileHeader('forge'))
+    ..writeln()
     ..writeln('syntax = "proto3";')
     ..writeln()
     ..writeln('package $packageName.${contract.module ?? contract.name.toLowerCase()};');

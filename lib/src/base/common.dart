@@ -37,6 +37,19 @@
 /// The name this tool is invoked by, and the name it signs generated files with.
 const String kToolName = 'scribe';
 
+/// The two lines every file this tool generates opens with, naming [command] as the one that
+/// rewrites it — `gen code` for the loaders under `forge/declarations.dart` and
+/// `forge/registrations.dart`, `forge` for `forge/di_wiring.dart` and the two `forge/protocol/` and
+/// `forge/sql/` renderers.
+///
+/// A single shared wording, rather than each generator writing its own two lines, so a reader
+/// who has seen one generated file recognises every other one at a glance, and so a change to the
+/// wording itself never has to find every place that carries a copy of it. Carries no blank line
+/// of its own after the two lines: a caller that always separates what follows adds that blank
+/// line itself, the same way one already did before this existed.
+String generatedFileHeader(String command) =>
+    '// This file is auto-generated do not edit manually.\n// Run: $kToolName $command\n';
+
 /// A failure the user is meant to read, rather than a bug to report.
 ///
 /// The runner catches it, prints [message] and leaves with [exitCode], so no

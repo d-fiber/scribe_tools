@@ -38,6 +38,8 @@ import 'package:scribe_tools/src/forge/protocol/declared_proto_contract.dart';
 import 'package:scribe_tools/src/forge/protocol/emit_proto.dart';
 import 'package:test/test.dart';
 
+const String _header = '// This file is auto-generated do not edit manually.\n// Run: scribe forge\n\n';
+
 const DeclaredProtoContract _empty = DeclaredProtoContract(
   name: 'Empty',
   module: null,
@@ -48,10 +50,16 @@ const DeclaredProtoContract _empty = DeclaredProtoContract(
 );
 
 void main() {
-  test('an empty contract renders the syntax line and a package line, nothing else', () {
+  test('an empty contract renders the header, the syntax line and a package line, nothing else', () {
     final EmittedProtoFile emitted = emitProtoContract(packageName: 'foundation', contract: _empty);
 
-    expect(emitted.text, 'syntax = "proto3";\n\npackage foundation.empty;\n');
+    expect(emitted.text, '${_header}syntax = "proto3";\n\npackage foundation.empty;\n');
+  });
+
+  test('the header names the tool and the command that rewrites the file', () {
+    final EmittedProtoFile emitted = emitProtoContract(packageName: 'foundation', contract: _empty);
+
+    expect(emitted.text, startsWith(_header));
   });
 
   test('the file name is the contract name in snake_case, with a .proto suffix', () {
@@ -98,7 +106,7 @@ void main() {
 
     expect(
       emitted.text,
-      'syntax = "proto3";\n\n'
+      '${_header}syntax = "proto3";\n\n'
       'package foundation.database;\n\n'
       'import "scribe/protocol/common.proto";\n'
       'import "scribe/protocol/invocation.proto";\n',
