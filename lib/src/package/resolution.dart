@@ -56,6 +56,27 @@ const String kLanguage = '@scribe/alchemy';
 /// The directory a package keeps what was resolved for it in.
 const String kResolutionDirectory = '.scribe';
 
+/// The subdirectory of [kResolutionDirectory] holding what `scribe forge` compiles from a
+/// package's `protocol/` and `schema/`, gitignored the same way the rest of [kResolutionDirectory]
+/// is: none of it is a source, all of it is rebuilt whole on the next forge.
+const String kGenDirectory = 'gen';
+
+/// The subdirectory of [kGenDirectory] holding one `.proto` file per `@Proto(...)` class the
+/// bridge found under a package's own `protocol/`.
+///
+/// Separate from `deploy/`: nothing here ships to a running stack, and nothing under `deploy/`
+/// depends on it existing.
+const String kGenProtocolDirectory = 'protocol';
+
+/// The subdirectory of [kGenDirectory] holding a copy of the SQL `generatePackageSql` also writes
+/// under `deploy/$kDatabaseDirectory/`.
+///
+/// `deploy/$kDatabaseDirectory/` stays the file a running stack actually reads and the one that is
+/// committed; this is the same text, gathered in one place regardless of which of the three
+/// moments a file answers for, for a reader or a tool that wants every declared statement without
+/// walking three subdirectories of `deploy/`.
+const String kGenSchemaDirectory = 'schema';
+
 /// The file holding what resolving decided, in our own words.
 ///
 /// It is ours and it is the only thing in [kResolutionDirectory] that is: the

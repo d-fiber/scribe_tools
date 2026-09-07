@@ -42,6 +42,7 @@ import 'package:scribe_tools/src/base/logger.dart';
 import 'package:scribe_tools/src/deploy/configuration_audit.dart';
 import 'package:scribe_tools/src/forge/declarations.dart';
 import 'package:scribe_tools/src/forge/di_wiring.dart';
+import 'package:scribe_tools/src/forge/protocol/generate_package_protocol.dart';
 import 'package:scribe_tools/src/forge/registrations.dart';
 import 'package:scribe_tools/src/forge/scribe_config.dart';
 import 'package:scribe_tools/src/forge/sql/generate_package_sql.dart';
@@ -218,9 +219,10 @@ class ForgeCommand extends ScribeCommand {
     final Sdk sdk = findSdk(from: directory);
     final Resolution resolution = resolve(directory, sdk);
     final GeneratedSqlReport? sql = await generatePackageSql(directory, resolution);
+    final GeneratedProtoReport? proto = await generatePackageProtocol(directory, resolution);
 
     if (boolArg(ScribeCommand.machineOption)) {
-      printMachine(forgePackageMachineReport(sdk, resolution, sql));
+      printMachine(forgePackageMachineReport(sdk, resolution, sql, proto));
 
       return const ScribeCommandResult.success();
     }
@@ -253,6 +255,16 @@ class ForgeCommand extends ScribeCommand {
       }
       if (sql.contractsFile case final String contractsFile) {
         globals.logger.printStatus('$contractsFile written from schema/, the TypeScript side of the same tables.');
+      }
+    }
+
+    if (proto != null) {
+      globals.logger.printStatus('');
+      for (final GeneratedProtoFileReport file in proto.files) {
+        globals.logger.printStatus(
+          '${file.file} written from protocol/, "${file.contract}": '
+          '${file.messageCount} message(s), ${file.enumCount} enum(s), ${file.serviceCount} service(s).',
+        );
       }
     }
 
@@ -399,38 +411,57 @@ Map<String, Object?> forgeProjectMachineReport(
 
 /// What [resolution] resolved [sdk] to, in the shape `--machine` prints for a package.
 ///
-/// [sql] is null for a package that carries no `schema/`, and the report carries no `sql` key at
-/// all then, rather than one holding nulls a reader would have to explain.
-Map<String, Object?> forgePackageMachineReport(Sdk sdk, Resolution resolution, GeneratedSqlReport? sql) =>
-    <String, Object?>{
-      'command': 'forge',
-      'kind': 'package',
-      'ok': true,
-      'sdk': <String, Object?>{'version': sdk.version, 'root': sdk.root},
-      'imports': resolution.imports,
-      'resolutionFile': resolution.file,
-      'lockFile': resolution.lockFile,
-      if (sql != null)
-        'sql': <String, Object?>{
-          'enums': sql.enumCount,
-          'compositeTypes': sql.compositeTypeCount,
-          'moments': sql.moments
-              .map(
-                (GeneratedSqlMomentReport moment) => <String, Object?>{
-                  'moment': moment.moment,
-                  'file': moment.file,
-                  'tables': moment.tableCount,
-                  'sequences': moment.sequenceCount,
-                  'indexes': moment.indexCount,
-                  'policies': moment.policyCount,
-                  'grants': moment.grantCount,
-                  'enums': moment.enumCount,
-                  'compositeTypes': moment.compositeTypeCount,
-                  'extensions': moment.extensionCount,
-                  'drops': moment.dropCount,
-                },
-              )
-              .toList(),
-          'contractsFile': sql.contractsFile,
-        },
-    };
+/// [sql] is null for a package that carries no `schema/`, and [proto] is null for one that carries
+/// no `.ts` under `protocol/` — each carries no key at all then, rather than one holding nulls a
+/// reader would have to explain.
+Map<String, Object?> forgePackageMachineReport(
+  Sdk sdk,
+  Resolution resolution,
+  GeneratedSqlReport? sql,
+  GeneratedProtoReport? proto,
+) => <String, Object?>{
+  'command': 'forge',
+  'kind': 'package',
+  'ok': true,
+  'sdk': <String, Object?>{'version': sdk.version, 'root': sdk.root},
+  'imports': resolution.imports,
+  'resolutionFile': resolution.file,
+  'lockFile': resolution.lockFile,
+  if (sql != null)
+    'sql': <String, Object?>{
+      'enums': sql.enumCount,
+      'compositeTypes': sql.compositeTypeCount,
+      'moments': sql.moments
+          .map(
+            (GeneratedSqlMomentReport moment) => <String, Object?>{
+              'moment': moment.moment,
+              'file': moment.file,
+              'tables': moment.tableCount,
+              'sequences': moment.sequenceCount,
+              'indexes': moment.indexCount,
+              'policies': moment.policyCount,
+              'grants': moment.grantCount,
+              'enums': moment.enumCount,
+              'compositeTypes': moment.compositeTypeCount,
+              'extensions': moment.extensionCount,
+              'drops': moment.dropCount,
+            },
+          )
+          .toList(),
+      'contractsFile': sql.contractsFile,
+    },
+  if (proto != null)
+    'proto': <String, Object?>{
+      'files': proto.files
+          .map(
+            (GeneratedProtoFileReport file) => <String, Object?>{
+              'contract': file.contract,
+              'file': file.file,
+              'messages': file.messageCount,
+              'enums': file.enumCount,
+              'services': file.serviceCount,
+            },
+          )
+          .toList(),
+    },
+};

@@ -44,6 +44,7 @@ import 'package:scribe_tools/src/commands/doctor/report.dart';
 import 'package:scribe_tools/src/commands/editor.dart';
 import 'package:scribe_tools/src/commands/forge.dart';
 import 'package:scribe_tools/src/commands/status.dart';
+import 'package:scribe_tools/src/forge/protocol/generate_package_protocol.dart';
 import 'package:scribe_tools/src/forge/sql/generate_package_sql.dart';
 import 'package:scribe_tools/src/globals.dart' as globals;
 import 'package:scribe_tools/src/ops/configuration.dart';
@@ -213,7 +214,8 @@ class DaemonCommand extends ScribeCommand {
       final Sdk sdk = findSdk(from: here.path);
       final Resolution resolution = resolve(here.path, sdk);
       final GeneratedSqlReport? sql = await generatePackageSql(here.path, resolution);
-      return forgePackageMachineReport(sdk, resolution, sql);
+      final GeneratedProtoReport? proto = await generatePackageProtocol(here.path, resolution);
+      return forgePackageMachineReport(sdk, resolution, sql, proto);
     }
 
     throw const _DaemonError(

@@ -208,6 +208,12 @@ GeneratedSqlMomentReport _writeMoment(String directory, String moment, String sq
   output.parent.createSync(recursive: true);
   output.writeAsStringSync(sql);
 
+  final File gathered = globals.fs.file(
+    p.join(directory, kResolutionDirectory, kGenDirectory, kGenSchemaDirectory, '$moment.sql'),
+  );
+  gathered.parent.createSync(recursive: true);
+  gathered.writeAsStringSync(sql);
+
   return GeneratedSqlMomentReport(
     moment: moment,
     file: p.relative(output.path, from: directory),
