@@ -62,7 +62,7 @@ void main() {
     expect(emitted.text, startsWith(_header));
   });
 
-  test('the file name is the contract name in snake_case, with a .proto suffix', () {
+  test('the file name is the module in snake_case, with a .proto suffix', () {
     const DeclaredProtoContract contract = DeclaredProtoContract(
       name: 'DatabaseProtocol',
       module: 'database',
@@ -74,7 +74,22 @@ void main() {
 
     final EmittedProtoFile emitted = emitProtoContract(packageName: 'foundation', contract: contract);
 
-    expect(emitted.fileName, 'database_protocol.proto');
+    expect(emitted.fileName, 'database.proto');
+  });
+
+  test('the file name falls back to the contract name in snake_case when it carries no module', () {
+    const DeclaredProtoContract contract = DeclaredProtoContract(
+      name: 'SocleProtocol',
+      module: null,
+      imports: <String>[],
+      messages: <DeclaredProtoMessage>[],
+      enums: <DeclaredProtoEnumValue>[],
+      services: <DeclaredProtoService>[],
+    );
+
+    final EmittedProtoFile emitted = emitProtoContract(packageName: 'scribe', contract: contract);
+
+    expect(emitted.fileName, 'socle_protocol.proto');
   });
 
   test('the package line uses the module when one was given', () {

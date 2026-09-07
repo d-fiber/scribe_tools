@@ -66,7 +66,7 @@ const String kGenDirectory = 'gen';
 ///
 /// Separate from `deploy/`: nothing here ships to a running stack, and nothing under `deploy/`
 /// depends on it existing.
-const String kGenProtocolDirectory = 'protocol';
+const String kGenProtoDirectory = 'proto';
 
 /// The subdirectory of [kGenDirectory] holding a copy of the SQL `generatePackageSql` also writes
 /// under `deploy/$kDatabaseDirectory/`.

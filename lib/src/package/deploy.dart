@@ -145,7 +145,7 @@ const List<String> kDeployEntries = <String>[
 const String kProtocolSuffix = '.proto';
 
 /// The suffix of a file the protocol bridge compiles into a `.proto`, `scribe forge` writes under
-/// `$kResolutionDirectory/$kGenDirectory/$kGenProtocolDirectory/`.
+/// `$kResolutionDirectory/$kGenDirectory/$kGenProtoDirectory/`.
 ///
 /// A `$kProtocolDirectory/` holding only this kind, no hand-written `.proto` at all, is exactly as
 /// valid as one holding only `.proto` — `_protocolProblems` accepts either, the same way

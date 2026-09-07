@@ -43,7 +43,8 @@ class EmittedProtoFile {
   /// Holds the file name a contract renders under, and its own text.
   const EmittedProtoFile({required this.fileName, required this.text});
 
-  /// The file this contract renders to, its own class name in snake_case with a `.proto` suffix.
+  /// The file this contract renders to, its own module in snake_case with a `.proto` suffix, the
+  /// class name in snake_case when it carries none.
   final String fileName;
 
   /// The `.proto` text this contract renders to.
@@ -91,7 +92,8 @@ EmittedProtoFile emitProtoContract({required String packageName, required Declar
       ..write(_service(service));
   }
 
-  return EmittedProtoFile(fileName: '${contract.name.toSnakeCase()}.proto', text: buffer.toString());
+  final String stem = contract.module ?? contract.name;
+  return EmittedProtoFile(fileName: '${stem.toSnakeCase()}.proto', text: buffer.toString());
 }
 
 String _message(DeclaredProtoMessage message) {

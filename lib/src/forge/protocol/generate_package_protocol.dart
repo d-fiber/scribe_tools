@@ -82,7 +82,7 @@ class GeneratedProtoReport {
   final List<GeneratedProtoFileReport> files;
 }
 
-/// Rebuilds [directory]'s `$kResolutionDirectory/$kGenDirectory/$kGenProtocolDirectory/`, one
+/// Rebuilds [directory]'s `$kResolutionDirectory/$kGenDirectory/$kGenProtoDirectory/`, one
 /// `.proto` file per `@Proto(...)` class found under its `$kProtocolDirectory/`, resolved against
 /// [resolution].
 ///
@@ -112,7 +112,7 @@ Future<GeneratedProtoReport?> generatePackageProtocol(String directory, Resoluti
   );
 
   final Directory outputDirectory = globals.fs.directory(
-    p.join(directory, kResolutionDirectory, kGenDirectory, kGenProtocolDirectory),
+    p.join(directory, kResolutionDirectory, kGenDirectory, kGenProtoDirectory),
   );
   if (outputDirectory.existsSync()) outputDirectory.deleteSync(recursive: true);
   outputDirectory.createSync(recursive: true);
