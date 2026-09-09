@@ -105,7 +105,14 @@ void main() {
     test('refuses a two gibibyte machine that mounts every package of the framework', () {
       expect(
         () => SizingRules(const Hardware(cores: 1, threads: 2, memoryGb: 2), frameworkCapacity()).resolve(),
-        throwsA(isA<ToolExit>().having((ToolExit exit) => exit.message, 'message', contains('2592'))),
+        throwsA(isA<ToolExit>().having((ToolExit exit) => exit.message, 'message', contains('1466'))),
+      );
+    });
+
+    test('refuses a four gibibyte machine that mounts every package of the framework', () {
+      expect(
+        () => SizingRules(const Hardware(cores: 2, threads: 4, memoryGb: 4), frameworkCapacity()).resolve(),
+        throwsA(isA<ToolExit>().having((ToolExit exit) => exit.message, 'message', contains('83'))),
       );
     });
   });

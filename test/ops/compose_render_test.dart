@@ -479,8 +479,8 @@ void main() {
 
       expect(
         (limits['limits'] as YamlMap)['memory'],
-        '11.44g',
-        reason: 'db weighs 2122 against the 5371 this selection starts, not against the 6032 declared',
+        '11.16g',
+        reason: 'db weighs 2122 against the 5491 this selection starts, not against the 6152 declared',
       );
     });
 
